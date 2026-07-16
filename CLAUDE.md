@@ -69,3 +69,4 @@ AssemblyAI and ECAPA-TDNN run **together**, not as competitors.
 _Append dated entries as decisions are made._
 
 - **2026-07-16** — Phase 0 scaffold created; Next.js frontend and FastAPI backend initialized per PHASE_0_SETUP.md.
+- **2026-07-16** — Observability wired as env-guarded no-ops: Sentry via `instrumentation.ts` / `instrumentation-client.ts` (Next.js 16 conventions) + `sentry_sdk` in FastAPI; PostHog client-side with session recording disabled by default (privacy §6).
