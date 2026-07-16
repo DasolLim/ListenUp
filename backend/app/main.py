@@ -1,7 +1,9 @@
+import logging
 import os
 
 import sentry_sdk
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
 
 # No-op without a DSN: sentry_sdk.init is only called when SENTRY_DSN is set.
 if os.environ.get("SENTRY_DSN"):
@@ -11,9 +13,41 @@ if os.environ.get("SENTRY_DSN"):
         send_default_pii=False,
     )
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s %(message)s",
+)
+logger = logging.getLogger("listenup.ws")
+
 app = FastAPI(title="ListenUp API")
+
+FRONTEND_ORIGIN = os.environ.get("FRONTEND_ORIGIN", "http://localhost:3000")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[FRONTEND_ORIGIN],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.websocket("/ws/echo")
+async def ws_echo(websocket: WebSocket) -> None:
+    await websocket.accept()
+    client = f"{websocket.client.host}:{websocket.client.port}" if websocket.client else "unknown"
+    logger.info("ws_connect client=%s path=/ws/echo", client)
+    messages = 0
+    try:
+        while True:
+            text = await websocket.receive_text()
+            messages += 1
+            logger.info("ws_message client=%s n=%d bytes=%d", client, messages, len(text))
+            await websocket.send_text(text)
+    except WebSocketDisconnect as exc:
+        logger.info("ws_disconnect client=%s code=%s messages=%d", client, exc.code, messages)
