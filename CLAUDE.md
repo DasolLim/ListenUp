@@ -38,6 +38,14 @@ AssemblyAI and ECAPA-TDNN run **together**, not as competitors.
 - **Privacy defaults** — no audio stored by default; transcripts opt-in; encryption at rest; clear retention policy.
 - **Cost awareness** — every external API has a mock/stub path; develop and test without burning credits.
 
+## Design system (DESIGN_SYSTEM.md) — STRICT
+
+- **Every UI change must follow `DESIGN_SYSTEM.md`** — Sense-inspired glassmorphism (peach→lilac gradient, frosted glass cards, coral orb, Poppins display + Inter body). The look is pinned: match it, don't reinvent. Use the `frontend-design` skill (plus UI-UX pro / Impeccable if available) for any significant UI work.
+- Tokens live in `frontend/app/globals.css` (CSS vars + Tailwind v4 `@theme inline`). Primitives in `frontend/components/ui/` (GlassCard, Orb, Pill, Button, IconButton, ImageTile). Never hardcode colors — use tokens (`text-ink`, `text-ink-soft`, `--accent`, speaker tints, `-strong` state colors for text).
+- Coral accent is spent sparingly: orb, primary buttons, active nav icon, play/send. Everything else stays quiet glass.
+- A11y overrides are build-breaking (§7): AA contrast on all text-on-glass (darken the glass, not lighten the text; state text uses `--*-strong`), `[data-contrast="high"]` must be styled for every new surface, captions scale via `--caption-scale` only, visible coral focus rings, `prefers-reduced-motion` respected, speaker tints always paired with name labels.
+- Gotcha: write only the standard `backdrop-filter` — hand-adding `-webkit-backdrop-filter` makes Lightning CSS drop the standard property (see DEBUG_LOG 1.5.2). After moving routes, `rm -rf frontend/.next` before typechecking.
+
 ## Conventions (INTRODUCTION §7)
 
 1. One phase at a time; one step at a time within a phase.
@@ -69,5 +77,6 @@ AssemblyAI and ECAPA-TDNN run **together**, not as competitors.
 _Append dated entries as decisions are made._
 
 - **2026-07-16** — Phase 0 scaffold created; Next.js frontend and FastAPI backend initialized per PHASE_0_SETUP.md.
+- **2026-07-16** — Phase 1.5 complete: Sense-inspired UI implemented per DESIGN_SYSTEM.md. Route groups `(marketing)` (public Navbar) / `(app)` (sidebar+topbar shell); `/dashboard` added + protected; `/design` is the primitive gallery for QA. A11y bar (high-contrast + caption size) global. axe clean (0 violations) on all 13 pages incl. high-contrast.
 - **2026-07-16** — Supabase project "ListenUp" (`lutygmchbabmvomnjusl`, us-east-1, free tier). Auth via `@supabase/ssr` publishable key; Next.js 16 `proxy.ts` (middleware successor) refreshes sessions with `getClaims()` and guards `/voice-to-text/*` + `/translate/*`. Email confirmation is ON — signup shows a "check your email" notice.
 - **2026-07-16** — Observability wired as env-guarded no-ops: Sentry via `instrumentation.ts` / `instrumentation-client.ts` (Next.js 16 conventions) + `sentry_sdk` in FastAPI; PostHog client-side with session recording disabled by default (privacy §6).
