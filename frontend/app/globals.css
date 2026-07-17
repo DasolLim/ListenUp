@@ -169,6 +169,16 @@ h3 {
   backdrop-filter: var(--glass-blur);
 }
 
+.nav-active {
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid var(--glass-border);
+}
+
+[data-contrast="high"] .nav-active {
+  background: #ffffff;
+  border: 2px solid #1a1714;
+}
+
 .pill-active {
   background: rgba(255, 255, 255, 0.92);
   border: 1px solid var(--glass-border);

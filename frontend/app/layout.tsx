@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Inter, Poppins } from "next/font/google";
-import Navbar from "@/components/Navbar";
 import "./globals.css";
 
 const poppins = Poppins({
@@ -37,10 +36,7 @@ export default function RootLayout({
         >
           Skip to main content
         </a>
-        <Navbar />
-        <main id="main" className="mx-auto w-full max-w-5xl flex-1 px-4 py-8">
-          {children}
-        </main>
+        {children}
       </body>
     </html>
   );
