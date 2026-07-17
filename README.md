@@ -9,7 +9,7 @@ A SaaS web app that makes spoken conversation **accessible** (live speaker-named
 | 0 | Repo, CI, CLAUDE.md, observability stubs | ✅ Complete |
 | 1 | Pages, Supabase Auth, WebSocket skeleton | ✅ Complete |
 | 1.5 | Sense-inspired glassmorphic UI (DESIGN_SYSTEM.md) | ✅ Complete |
-| 2 | ★ Live captions + diarization (the wedge) | Next |
+| 2 | ★ Live captions + diarization (the wedge) | ✅ Mock-verified end-to-end; real AssemblyAI one-time check pending `ASSEMBLYAI_API_KEY` |
 | 3 | ★ Saved voice profiles (ECAPA-TDNN + consent) | — |
 | 4 | Translation (Google v3 + OpenRouter + combined live) | — |
 | 5 | GenZ slang translator + launch hardening | — |
