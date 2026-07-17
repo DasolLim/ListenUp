@@ -1,0 +1,7 @@
+[
+  { "speaker": "A", "text": "Are you coming over for dinner on Sunday?", "start": 0.2, "end": 2.1 },
+  { "speaker": "B", "text": "Yes, I'll bring dessert. What time works for everyone?", "start": 2.4, "end": 4.6 },
+  { "speaker": "C", "text": "Six-ish. Your grandmother is joining us too.", "start": 4.9, "end": 6.8 },
+  { "speaker": "A", "text": "Come earlier if you want to help cook.", "start": 7.0, "end": 8.6 },
+  { "speaker": "B", "text": "Deal. I'll be there by five.", "start": 8.9, "end": 10.2 }
+]
