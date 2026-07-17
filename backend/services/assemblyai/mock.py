@@ -37,6 +37,7 @@ def _interims(final: TranscriptSegment) -> list[TranscriptSegment]:
                     start=final.start,
                     end=span,
                     is_final=False,
+                    turn_id=final.turn_id,
                 )
             )
     return drafts
@@ -46,7 +47,9 @@ class MockTranscriptionService(TranscriptionService):
     def __init__(self, fixture: str | None = None) -> None:
         name = fixture or os.environ.get("MOCK_FIXTURE", "family")
         raw = json.loads((FIXTURES_DIR / f"{name}.json").read_text())
-        finals = [TranscriptSegment(**item, is_final=True) for item in raw]
+        finals = [
+            TranscriptSegment(**item, is_final=True, turn_id=i) for i, item in enumerate(raw)
+        ]
         self._timeline: list[TranscriptSegment] = []
         for final in finals:
             self._timeline.extend(_interims(final))

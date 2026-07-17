@@ -39,8 +39,16 @@ def test_mock_roundtrip_ordered_diarized_json() -> None:
     assert messages, "expected segments"
     assert all(m["type"] == "segment" for m in messages)
     assert all(
-        set(m) == {"type", "speaker", "text", "start", "end", "isFinal"} for m in messages
+        set(m) == {"type", "speaker", "text", "start", "end", "isFinal", "turnId"}
+        for m in messages
     )
+    # interim and final versions of one utterance share a stable turn id
+    by_turn: dict[int, list[dict]] = {}
+    for m in messages:
+        by_turn.setdefault(m["turnId"], []).append(m)
+    for turn_messages in by_turn.values():
+        assert turn_messages[-1]["isFinal"], "each turn must end with a final"
+        assert len({m["turnId"] for m in turn_messages}) == 1
     finals = [m for m in messages if m["isFinal"]]
     assert [m["speaker"] for m in finals] == [
         "Speaker 1",

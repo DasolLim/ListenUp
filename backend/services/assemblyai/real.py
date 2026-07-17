@@ -99,6 +99,7 @@ class RealAssemblyAIService(TranscriptionService):
             start=start_ms / 1000,
             end=end_ms / 1000,
             is_final=bool(turn.get("end_of_turn")),
+            turn_id=int(turn.get("turn_order") or 0),
         )
 
     async def send_audio(self, chunk: bytes) -> None:

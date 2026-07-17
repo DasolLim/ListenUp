@@ -26,15 +26,16 @@ function percentile(sorted: number[], p: number): number {
   return sorted[Math.max(0, index)];
 }
 
-/** Merge an incoming segment into the list: interims update in place (matched
- * by speaker+start), finals replace their interim. */
+/** Merge an incoming segment into the list, keyed on the provider's stable
+ * turn id. Interim and final versions of one utterance share the id even when
+ * diarization revises the speaker label or timestamps mid-turn — matching on
+ * anything else (speaker/start) orphans interims as duplicate bubbles. */
 function mergeSegment(list: CaptionSegment[], incoming: CaptionSegment): CaptionSegment[] {
-  const index = list.findIndex(
-    (s) => !s.isFinal && s.speaker === incoming.speaker && s.start === incoming.start
-  );
+  const index = list.findIndex((s) => s.id === incoming.id);
   if (index >= 0) {
     const next = [...list];
-    next[index] = incoming;
+    // Never let a late interim overwrite an already-final turn.
+    next[index] = list[index].isFinal && !incoming.isFinal ? list[index] : incoming;
     return next;
   }
   return [...list, incoming];
@@ -129,7 +130,7 @@ export function useTranscription() {
         setStatus("listening");
       } else if (message.type === "segment") {
         const segment: CaptionSegment = {
-          id: `${message.speaker}-${message.start}-${message.isFinal ? "f" : counterRef.current++}`,
+          id: `turn-${message.turnId ?? counterRef.current++}`,
           speaker: message.speaker,
           text: message.text,
           start: message.start,
@@ -148,6 +149,9 @@ export function useTranscription() {
           });
         }
         setSegments((list) => smooth(mergeSegment(list, segment)));
+      } else if (message.type === "done") {
+        // Session over: anything still marked interim is as final as it gets.
+        setSegments((list) => list.map((s) => (s.isFinal ? s : { ...s, isFinal: true })));
       } else if (message.type === "error") {
         setStatus("error");
         setError(message.message);

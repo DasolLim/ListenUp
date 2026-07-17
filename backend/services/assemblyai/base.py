@@ -30,6 +30,10 @@ class TranscriptSegment:
     start: float  # seconds from session start
     end: float
     is_final: bool
+    # Stable per-turn id (AssemblyAI turn_order). Interim and final versions of
+    # the same utterance share it — the UI keys bubbles on this, because the
+    # speaker label and timestamps can be revised between interim and final.
+    turn_id: int = 0
 
 
 class TranscriptionService(ABC):

@@ -57,6 +57,7 @@ def _segment_payload(segment: TranscriptSegment, label: str) -> str:
             "start": round(segment.start, 3),
             "end": round(segment.end, 3),
             "isFinal": segment.is_final,
+            "turnId": segment.turn_id,
         }
     )
 
