@@ -100,6 +100,8 @@ def test_real_url_requests_diarization_and_format() -> None:
     assert "speaker_labels=true" in url
     assert "max_speakers=5" in url
     assert "encoding=pcm_s16le" in url
+    # English-only model pinned — the multilingual default can drift languages
+    assert "speech_model=universal-streaming-english" in url
 
 
 def test_wav_fixture_is_16k_mono_s16le() -> None:

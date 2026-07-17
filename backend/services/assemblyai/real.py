@@ -25,12 +25,17 @@ logger = logging.getLogger("listenup.stt.real")
 
 STREAMING_URL = "wss://streaming.assemblyai.com/v3/ws"
 MAX_SPEAKERS = 5
+# Pin the English-only model: the default (universal-3-5-pro) code-switches
+# across 18 languages and can drift mid-session on ambiguous audio.
+# Multilingual captions become a deliberate, user-chosen feature in Phase 4.
+SPEECH_MODEL = os.environ.get("ASSEMBLYAI_SPEECH_MODEL", "universal-streaming-english")
 
 
 def build_url(sample_rate: int, max_speakers: int = MAX_SPEAKERS) -> str:
     params = {
         "sample_rate": sample_rate,
         "encoding": "pcm_s16le",
+        "speech_model": SPEECH_MODEL,
         "speaker_labels": "true",
         "max_speakers": max_speakers,
         "format_turns": "true",
