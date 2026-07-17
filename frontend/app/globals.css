@@ -118,7 +118,6 @@ h3 {
 .glass-card {
   background: var(--glass-bg);
   backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-card);
   box-shadow: var(--glass-shadow);
@@ -130,6 +129,111 @@ h3 {
 
 [data-contrast="high"] .glass-card {
   border-width: 2px;
+}
+
+/* ─── The coral orb (brand mark) ─── */
+.orb {
+  background: radial-gradient(circle at 35% 30%, #fbc9a8, #e8804f 55%, #c9522b 100%);
+  border-radius: 50%;
+  box-shadow:
+    0 4px 16px rgba(200, 90, 45, 0.35),
+    inset 0 2px 6px rgba(255, 255, 255, 0.5);
+  animation: orb-shimmer 7s ease-in-out infinite;
+}
+
+@keyframes orb-shimmer {
+  0%,
+  100% {
+    filter: brightness(1);
+  }
+  50% {
+    filter: brightness(1.07);
+  }
+}
+
+[data-contrast="high"] .orb {
+  animation: none;
+  box-shadow: none;
+  border: 2px solid #1a1714;
+}
+
+/* ─── Buttons & pills ─── */
+.btn-primary {
+  background: var(--accent-gradient);
+  box-shadow: 0 4px 14px rgba(216, 100, 55, 0.3);
+}
+
+.btn-ghost {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: var(--glass-blur);
+}
+
+.pill-active {
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid var(--glass-border);
+}
+
+.pill-inactive {
+  background: rgba(255, 255, 255, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+}
+
+[data-contrast="high"] .btn-primary {
+  box-shadow: none;
+}
+
+[data-contrast="high"] .btn-ghost,
+[data-contrast="high"] .pill-active,
+[data-contrast="high"] .pill-inactive {
+  background: #ffffff;
+  border: 2px solid #1a1714;
+}
+
+/* ─── Image-tile gradient washes (abstract, soft, per reference) ─── */
+.tile-wash-peach {
+  background:
+    radial-gradient(120% 90% at 20% 15%, rgba(255, 255, 255, 0.55), transparent 55%),
+    radial-gradient(100% 80% at 85% 80%, rgba(216, 120, 150, 0.45), transparent 70%),
+    linear-gradient(150deg, #f7d7c8 0%, #efb9c4 55%, #cba6d8 100%);
+}
+
+.tile-wash-sage {
+  background:
+    radial-gradient(110% 80% at 75% 20%, rgba(255, 255, 255, 0.5), transparent 60%),
+    radial-gradient(90% 90% at 20% 85%, rgba(110, 165, 125, 0.5), transparent 70%),
+    linear-gradient(160deg, #e9f0e2 0%, #bcd8b9 55%, #93bfa2 100%);
+}
+
+.tile-wash-lilac {
+  background:
+    radial-gradient(120% 90% at 30% 20%, rgba(255, 255, 255, 0.55), transparent 55%),
+    radial-gradient(90% 80% at 80% 85%, rgba(140, 120, 210, 0.45), transparent 70%),
+    linear-gradient(150deg, #ece3f6 0%, #cfc0ec 55%, #a99ad8 100%);
+}
+
+.tile-wash-amber {
+  background:
+    radial-gradient(110% 90% at 25% 20%, rgba(255, 255, 255, 0.55), transparent 55%),
+    radial-gradient(100% 80% at 80% 80%, rgba(226, 150, 70, 0.45), transparent 70%),
+    linear-gradient(155deg, #f9e6cd 0%, #f2c8a0 55%, #dfa26e 100%);
+}
+
+/* Scrim keeps tile labels AA-legible over the washes. */
+.tile-scrim {
+  background: linear-gradient(to top, rgba(255, 255, 255, 0.85) 20%, transparent);
+}
+
+[data-contrast="high"] .tile-wash-peach,
+[data-contrast="high"] .tile-wash-sage,
+[data-contrast="high"] .tile-wash-lilac,
+[data-contrast="high"] .tile-wash-amber {
+  background: #ffffff;
+  border: 2px solid #1a1714 !important;
+}
+
+[data-contrast="high"] .tile-scrim {
+  background: #ffffff;
 }
 
 /* ─── Focus: visible coral ring everywhere, never removed ─── */
