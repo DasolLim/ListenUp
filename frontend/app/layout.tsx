@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter, Poppins } from "next/font/google";
+import A11yBar from "@/components/A11yBar";
 import "./globals.css";
 
 const poppins = Poppins({
@@ -37,6 +38,7 @@ export default function RootLayout({
           Skip to main content
         </a>
         {children}
+        <A11yBar />
       </body>
     </html>
   );
