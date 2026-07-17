@@ -1,26 +1,158 @@
 @import "tailwindcss";
 
+/* ─── ListenUp design tokens (DESIGN_SYSTEM.md — Sense-inspired) ─── */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Background */
+  --bg-gradient: linear-gradient(135deg, #f3e9e2 0%, #f0e6e9 45%, #e9ddf0 75%, #d9c9ec 100%);
+  --bg-base: #f2ece7;
+
+  /* Glass surfaces */
+  --glass-bg: rgba(255, 255, 255, 0.55);
+  --glass-bg-strong: rgba(255, 255, 255, 0.72);
+  --glass-border: rgba(255, 255, 255, 0.6);
+  --glass-shadow: 0 8px 32px rgba(60, 45, 80, 0.1);
+  --glass-blur: blur(24px) saturate(140%);
+
+  /* Accent (coral) */
+  --accent: #e8804f;
+  --accent-strong: #dd6b3a;
+  --accent-soft: #f4a87e;
+  --accent-gradient: linear-gradient(145deg, #f5a97c 0%, #e8804f 55%, #d65e34 100%);
+
+  /* Text */
+  --text-primary: #2b2622;
+  --text-secondary: #6b6259;
+  --text-tertiary: #9a9089;
+  --text-on-accent: #ffffff;
+
+  /* Speaker bubble tints (live captions) */
+  --speaker-1: rgba(232, 128, 79, 0.14);
+  --speaker-2: rgba(120, 170, 130, 0.14);
+  --speaker-3: rgba(150, 140, 220, 0.14);
+  --speaker-4: rgba(230, 180, 90, 0.14);
+  --speaker-other: rgba(140, 140, 150, 0.12);
+
+  /* States */
+  --success: #6fb08a;
+  --warning: #e0a951;
+  --error: #d96c6c;
+
+  /* Radii */
+  --radius-card: 28px;
+  --radius-tile: 22px;
+  --radius-pill: 999px;
+
+  /* Caption scale (S/M/L/XL) — captions only, set by the a11y control bar */
+  --caption-scale: 1;
 }
 
+/* ─── High-contrast mode: opaque surfaces, no blur, max text contrast ─── */
+[data-contrast="high"] {
+  --bg-gradient: none;
+  --bg-base: #ffffff;
+  --glass-bg: #ffffff;
+  --glass-bg-strong: #ffffff;
+  --glass-border: #1a1714;
+  --glass-shadow: none;
+  --glass-blur: none;
+
+  --accent: #b34a1d;
+  --accent-strong: #8f3a16;
+  --accent-soft: #b34a1d;
+  --accent-gradient: linear-gradient(145deg, #b34a1d, #b34a1d);
+
+  --text-primary: #000000;
+  --text-secondary: #1a1714;
+  --text-tertiary: #333333;
+
+  --speaker-1: #ffffff;
+  --speaker-2: #ffffff;
+  --speaker-3: #ffffff;
+  --speaker-4: #ffffff;
+  --speaker-other: #ffffff;
+}
+
+/* ─── Expose tokens to Tailwind (v4 CSS-first theme) ─── */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-soft: var(--accent-soft);
+  --color-ink: var(--text-primary);
+  --color-ink-soft: var(--text-secondary);
+  --color-ink-faint: var(--text-tertiary);
+  --color-on-accent: var(--text-on-accent);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-error: var(--error);
+
+  --font-display: var(--font-poppins), "Inter", system-ui, sans-serif;
+  --font-body: var(--font-inter), system-ui, sans-serif;
+
+  --radius-card: 28px;
+  --radius-tile: 22px;
+
+  --shadow-glass: var(--glass-shadow);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
+/* ─── Base ─── */
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg-gradient), var(--bg-base);
+  background-attachment: fixed;
+  color: var(--text-primary);
+  font-family: var(--font-inter), system-ui, sans-serif;
+  font-size: 15px;
+}
+
+[data-contrast="high"] body,
+body[data-contrast="high"] {
+  background: var(--bg-base);
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-poppins), "Inter", system-ui, sans-serif;
+}
+
+/* ─── Glass primitives (workhorse surfaces) ─── */
+.glass-card {
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--glass-shadow);
+}
+
+.glass-strong {
+  background: var(--glass-bg-strong);
+}
+
+[data-contrast="high"] .glass-card {
+  border-width: 2px;
+}
+
+/* ─── Focus: visible coral ring everywhere, never removed ─── */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ─── Captions scale independently of the UI ─── */
+.caption-text {
+  font-size: calc(15px * var(--caption-scale));
+  line-height: 1.5;
+}
+
+/* ─── Motion: restrained, and off under reduced-motion ─── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
