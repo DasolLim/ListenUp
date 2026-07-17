@@ -1,11 +1,15 @@
 "use client";
 
+import posthog from "posthog-js";
 import { useEffect, useRef, useState } from "react";
 import SpeakerBubble from "@/components/captions/SpeakerBubble";
 import { MicIcon } from "@/components/shell/icons";
 import Button from "@/components/ui/Button";
 import GlassCard from "@/components/ui/GlassCard";
 import { useTranscription } from "@/lib/useTranscription";
+
+const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8000";
+const POSTHOG_ENABLED = Boolean(process.env.NEXT_PUBLIC_POSTHOG_KEY);
 
 const statusCopy = {
   idle: "Ready when you are.",
@@ -19,9 +23,44 @@ const SPEAKER_TINT_ORDER = ["Speaker 1", "Speaker 2", "Speaker 3", "Speaker 4"];
 const AUTOSCROLL_SLACK_PX = 48;
 
 export default function LiveCaptions() {
-  const { status, error, segments, latency, start, stop } = useTranscription();
+  const { status, error, segments, latency, start, stop, sessionId } = useTranscription();
   const logRef = useRef<HTMLDivElement>(null);
   const [pinnedToBottom, setPinnedToBottom] = useState(true);
+  const [feedbackSent, setFeedbackSent] = useState(false);
+
+  const finalsCount = segments.filter((s) => s.isFinal).length;
+
+  function handleStop() {
+    stop();
+    if (POSTHOG_ENABLED) {
+      // End-to-end latency (mic capture → caption rendered), per session.
+      posthog.capture("caption_session_ended", {
+        finals: finalsCount,
+        latency_p50_ms: latency?.p50,
+        latency_p95_ms: latency?.p95,
+      });
+    }
+  }
+
+  async function sendFeedback(rating: "up" | "down") {
+    setFeedbackSent(true);
+    if (POSTHOG_ENABLED) posthog.capture("caption_feedback", { rating });
+    try {
+      await fetch(`${BACKEND}/feedback/captions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          session_id: sessionId.current || "unknown",
+          rating,
+          final_captions: finalsCount,
+          latency_p50_ms: latency?.p50 ?? null,
+          latency_p95_ms: latency?.p95 ?? null,
+        }),
+      });
+    } catch {
+      // Feedback must never break the tool; the PostHog event (if any) still counts.
+    }
+  }
 
   // Autoscroll to newest caption unless the reader scrolled up on purpose.
   useEffect(() => {
@@ -49,7 +88,7 @@ export default function LiveCaptions() {
         </div>
         <div className="flex items-center gap-2">
           {listening ? (
-            <Button variant="ghost" onClick={stop}>
+            <Button variant="ghost" onClick={handleStop}>
               Stop
             </Button>
           ) : (
@@ -107,6 +146,42 @@ export default function LiveCaptions() {
         >
           Jump to latest
         </button>
+      )}
+
+      {status === "stopped" && finalsCount > 0 && (
+        <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/60 bg-white/50 px-4 py-3">
+          {feedbackSent ? (
+            <p role="status" className="text-sm text-ink">
+              Thanks — your feedback helps captions improve.
+            </p>
+          ) : (
+            <>
+              <p className="text-sm text-ink">How were the captions?</p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => sendFeedback("up")}
+                  aria-label="Captions were good"
+                  className="btn-ghost flex h-9 w-9 items-center justify-center rounded-full text-ink"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M7 11v9m0-9 4-7.5a2 2 0 0 1 2 2V9h5.2a2 2 0 0 1 2 2.4l-1.2 6A2 2 0 0 1 17 19H7m0-8H4a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h3" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => sendFeedback("down")}
+                  aria-label="Captions had problems"
+                  className="btn-ghost flex h-9 w-9 items-center justify-center rounded-full text-ink"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M17 13V4m0 9-4 7.5a2 2 0 0 1-2-2V15H5.8a2 2 0 0 1-2-2.4l1.2-6A2 2 0 0 1 7 5h10m0 8h3a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1h-3" />
+                  </svg>
+                </button>
+              </div>
+            </>
+          )}
+        </div>
       )}
 
       {process.env.NODE_ENV === "development" && latency && (

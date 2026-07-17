@@ -68,6 +68,7 @@ export function useTranscription() {
   const captureStartRef = useRef<number>(0);
   const latenciesRef = useRef<number[]>([]);
   const counterRef = useRef(0);
+  const sessionIdRef = useRef<string>("");
 
   const cleanup = useCallback(() => {
     audioRef.current?.stream.getTracks().forEach((track) => track.stop());
@@ -82,6 +83,7 @@ export function useTranscription() {
     setSegments([]);
     latenciesRef.current = [];
     setLatency(null);
+    sessionIdRef.current = crypto.randomUUID();
     setStatus("connecting");
 
     // 1) Mic first — permission is the likeliest failure, surface it clearly.
@@ -178,5 +180,5 @@ export function useTranscription() {
     setStatus("stopped");
   }, [cleanup]);
 
-  return { status, error, segments, latency, start, stop };
+  return { status, error, segments, latency, start, stop, sessionId: sessionIdRef };
 }
