@@ -5,6 +5,8 @@ import sentry_sdk
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.routes.transcribe import router as transcribe_router
+
 # No-op without a DSN: sentry_sdk.init is only called when SENTRY_DSN is set.
 if os.environ.get("SENTRY_DSN"):
     sentry_sdk.init(
@@ -20,6 +22,7 @@ logging.basicConfig(
 logger = logging.getLogger("listenup.ws")
 
 app = FastAPI(title="ListenUp API")
+app.include_router(transcribe_router)
 
 FRONTEND_ORIGIN = os.environ.get("FRONTEND_ORIGIN", "http://localhost:3000")
 
