@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import CaptionPanel from "@/components/captions/CaptionPanel";
 import ImageTile from "@/components/ui/ImageTile";
 
 export const metadata: Metadata = { title: "Dashboard — ListenUp" };
@@ -81,8 +82,9 @@ export default function DashboardPage() {
         </section>
       </div>
 
-      {/* Right rail: caption/assistant panel lands in Step 1.5.5 */}
-      <aside aria-label="Assistant" className="hidden xl:block" />
+      <aside aria-label="Assistant and live captions">
+        <CaptionPanel />
+      </aside>
     </div>
   );
 }
