@@ -30,9 +30,16 @@ export default function SpeakerBubble({ caption }: { caption: Caption }) {
       <p className="text-[12px] font-semibold uppercase tracking-wide text-ink-soft">
         {caption.speaker}
       </p>
-      <p className={`caption-text mt-0.5 ${caption.interim ? "text-ink-soft" : "text-ink"}`}>
+      {/* Interims de-emphasize via italics + ellipsis, never lighter text —
+          lighter grays fall below AA on the tinted glass (DESIGN_SYSTEM §7). */}
+      <p className={`caption-text mt-0.5 text-ink ${caption.interim ? "italic" : ""}`}>
         {caption.text}
-        {caption.interim && <span className="sr-only"> (still transcribing)</span>}
+        {caption.interim && (
+          <>
+            <span aria-hidden="true">…</span>
+            <span className="sr-only"> (still transcribing)</span>
+          </>
+        )}
       </p>
     </div>
   );

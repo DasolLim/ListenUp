@@ -61,6 +61,8 @@ Warm peach/cream → lilac gradient background, with a coral/orange accent.
 
 **Rule:** the coral accent is used *sparingly* — the orb logo, primary buttons, play buttons, active nav pill, send button. Everything else stays quiet glass + warm neutrals. Spend boldness in one place.
 
+> **A11y adjustment (2026-07-17, per §7):** the light coral `#E8804F` fails AA for white button text (2.75:1) and the 3:1 non-text minimum. **Interactive** coral therefore uses the orb's burnt-coral shadow range: `--accent-strong: #B84A22` (5.2:1 with white) and `--accent-gradient: #C4502A → #B84A22 → #A63F19` (≥4.7:1), also used for focus rings and accent icons. **Ambient** coral (orb, speaker tints, washes, `--accent-soft`) keeps the original tones. Never put white text on flat `--accent`.
+
 ---
 
 ## 3. Typography

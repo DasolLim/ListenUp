@@ -76,7 +76,7 @@ export default function LiveCaptions() {
         className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto scroll-pt-2"
       >
         {segments.length === 0 && !error && (
-          <p className="m-auto max-w-sm text-center text-sm text-ink-faint">
+          <p className="m-auto max-w-sm text-center text-sm text-ink-soft">
             Start captions and speak — each person gets their own colored bubble with a label,
             up to 4 speakers plus “Other”.
           </p>
@@ -110,7 +110,7 @@ export default function LiveCaptions() {
       )}
 
       {process.env.NODE_ENV === "development" && latency && (
-        <p data-testid="latency-readout" className="text-[12px] tabular-nums text-ink-faint">
+        <p data-testid="latency-readout" className="text-[12px] tabular-nums text-ink-soft">
           latency p50 {Math.round(latency.p50)} ms · p95 {Math.round(latency.p95)} ms ·{" "}
           {latency.count} finals
         </p>

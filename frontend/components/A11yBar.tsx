@@ -80,7 +80,7 @@ export default function A11yBar() {
             onClick={() => chooseSize(option.key)}
             className={`min-w-8 rounded-full px-2 py-1.5 text-[13px] font-semibold transition-colors ${
               size === option.key
-                ? "bg-(--accent) text-on-accent"
+                ? "bg-accent-strong text-on-accent"
                 : "pill-inactive text-ink-soft hover:text-ink"
             }`}
           >

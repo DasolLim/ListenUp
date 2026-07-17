@@ -51,7 +51,7 @@ export default function CaptionPanel() {
 
       {/* Active-session pill */}
       <div className="glass-strong flex items-center gap-3 self-center rounded-full border border-white/60 py-1.5 pl-2 pr-4 shadow-glass">
-        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-(--accent) text-on-accent">
+        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-accent-strong text-on-accent">
           <PlayIcon />
         </span>
         <span className="text-[13px] font-medium text-ink">Live Captioning</span>

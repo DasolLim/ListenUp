@@ -13,11 +13,13 @@
   --glass-shadow: 0 8px 32px rgba(60, 45, 80, 0.1);
   --glass-blur: blur(24px) saturate(140%);
 
-  /* Accent (coral) */
+  /* Accent (coral). Ambient coral (orb, tints) keeps the light Sense tone;
+     interactive coral (buttons, rings, icons) uses the deeper burnt-coral
+     range so white button text ≥4.5:1 and accent graphics ≥3:1 (§7 AA). */
   --accent: #e8804f;
-  --accent-strong: #dd6b3a;
+  --accent-strong: #b84a22;
   --accent-soft: #f4a87e;
-  --accent-gradient: linear-gradient(145deg, #f5a97c 0%, #e8804f 55%, #d65e34 100%);
+  --accent-gradient: linear-gradient(145deg, #c4502a 0%, #b84a22 55%, #a63f19 100%);
 
   /* Text */
   --text-primary: #2b2622;
@@ -278,7 +280,7 @@ h3 {
 
 /* ─── Focus: visible coral ring everywhere, never removed ─── */
 :focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--accent-strong);
   outline-offset: 2px;
   border-radius: 4px;
 }

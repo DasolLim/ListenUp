@@ -62,7 +62,8 @@ function NavLink({ item, active }: { item: NavItem; active: boolean }) {
           : "text-ink-soft hover:bg-white/40 hover:text-ink"
       }`}
     >
-      <span className={active ? "text-accent" : ""}>{item.icon}</span>
+      {/* accent-strong: the icon must clear the 3:1 non-text minimum on the white pill */}
+      <span className={active ? "text-accent-strong" : ""}>{item.icon}</span>
       <span>{item.label}</span>
     </Link>
   );
