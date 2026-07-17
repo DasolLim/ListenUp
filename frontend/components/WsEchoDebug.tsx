@@ -5,10 +5,10 @@ import { useWebSocket } from "@/lib/useWebSocket";
 
 // Temporary Phase 1 debug widget — replaced by the real caption stream in Phase 2.
 const statusCopy = {
-  connecting: { label: "Connecting…", tone: "text-amber-700 dark:text-amber-400" },
-  open: { label: "Connected", tone: "text-green-700 dark:text-green-400" },
-  closed: { label: "Disconnected — retrying", tone: "text-red-700 dark:text-red-400" },
-  error: { label: "Connection error — retrying", tone: "text-red-700 dark:text-red-400" },
+  connecting: { label: "Connecting…", tone: "text-warning-strong" },
+  open: { label: "Connected", tone: "text-success-strong" },
+  closed: { label: "Disconnected — retrying", tone: "text-error-strong" },
+  error: { label: "Connection error — retrying", tone: "text-error-strong" },
 } as const;
 
 export default function WsEchoDebug() {
@@ -21,9 +21,9 @@ export default function WsEchoDebug() {
   return (
     <section
       aria-labelledby="ws-debug-heading"
-      className="mt-8 rounded-lg border border-zinc-300 p-4 dark:border-zinc-700"
+      className="glass-card mt-6 max-w-2xl p-6"
     >
-      <h2 id="ws-debug-heading" className="font-semibold">
+      <h2 id="ws-debug-heading" className="font-display text-[18px] font-semibold">
         WebSocket debug (temporary)
       </h2>
       <p role="status" className={`mt-1 text-sm ${statusCopy[status].tone}`}>
@@ -44,17 +44,17 @@ export default function WsEchoDebug() {
           id="ws-message"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          className="flex-1 rounded border border-zinc-300 bg-transparent px-3 py-2 focus-visible:outline-2 focus-visible:outline-offset-1 dark:border-zinc-700"
+          className="glass-strong min-w-0 flex-1 rounded-xl border border-white/60 px-3.5 py-2.5 text-ink shadow-glass outline-none placeholder:text-ink-faint"
         />
         <button
           type="submit"
-          className="rounded bg-zinc-900 px-4 py-2 font-medium text-white hover:bg-zinc-700 focus-visible:outline-2 focus-visible:outline-offset-2 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+          className="btn-primary rounded-full px-5 py-2.5 text-sm font-semibold text-on-accent"
         >
           Send
         </button>
       </form>
       {sendFailed && (
-        <p role="alert" className="mt-2 text-sm text-red-700 dark:text-red-400">
+        <p role="alert" className="mt-2 text-sm text-error-strong">
           Not connected — message not sent. It will work again once reconnected.
         </p>
       )}

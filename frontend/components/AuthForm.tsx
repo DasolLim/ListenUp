@@ -36,7 +36,7 @@ export default function AuthForm() {
 
   if (!isSupabaseConfigured()) {
     return (
-      <div role="alert" className="rounded-lg border border-amber-400 bg-amber-50 p-4 text-amber-900 dark:bg-amber-950 dark:text-amber-100">
+      <div role="alert" className="rounded-xl border border-warning bg-white/70 p-4 text-ink">
         <h1 className="font-semibold">Sign-in unavailable</h1>
         <p className="mt-1 text-sm">
           Authentication isn&apos;t configured in this environment. Set{" "}
@@ -85,7 +85,7 @@ export default function AuthForm() {
 
   return (
     <div>
-      <h1 className="text-3xl font-bold">{mode === "login" ? "Log in" : "Create account"}</h1>
+      <h1 className="text-center font-display text-[28px] font-bold">{mode === "login" ? "Log in" : "Create account"}</h1>
 
       <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-4">
         <div className="flex flex-col gap-1">
@@ -99,7 +99,7 @@ export default function AuthForm() {
             autoComplete="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="rounded border border-zinc-300 bg-transparent px-3 py-2 focus-visible:outline-2 focus-visible:outline-offset-1 dark:border-zinc-700"
+            className="glass-strong rounded-xl border border-white/60 px-3.5 py-2.5 text-ink shadow-glass outline-none placeholder:text-ink-faint"
           />
         </div>
         <div className="flex flex-col gap-1">
@@ -114,17 +114,17 @@ export default function AuthForm() {
             autoComplete={mode === "login" ? "current-password" : "new-password"}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="rounded border border-zinc-300 bg-transparent px-3 py-2 focus-visible:outline-2 focus-visible:outline-offset-1 dark:border-zinc-700"
+            className="glass-strong rounded-xl border border-white/60 px-3.5 py-2.5 text-ink shadow-glass outline-none placeholder:text-ink-faint"
           />
         </div>
 
         {error && (
-          <p role="alert" className="rounded border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200">
+          <p role="alert" className="rounded-xl border border-error bg-white/70 px-3.5 py-2.5 text-sm text-error-strong">
             {error}
           </p>
         )}
         {notice && (
-          <p role="status" className="rounded border border-green-300 bg-green-50 px-3 py-2 text-sm text-green-800 dark:border-green-800 dark:bg-green-950 dark:text-green-200">
+          <p role="status" className="rounded-xl border border-success bg-white/70 px-3.5 py-2.5 text-sm text-ink">
             {notice}
           </p>
         )}
@@ -132,13 +132,13 @@ export default function AuthForm() {
         <button
           type="submit"
           disabled={busy}
-          className="rounded bg-zinc-900 px-4 py-2 font-medium text-white hover:bg-zinc-700 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+          className="btn-primary rounded-full px-5 py-2.5 font-semibold text-on-accent transition-transform hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0"
         >
           {busy ? "Working…" : mode === "login" ? "Log in" : "Register"}
         </button>
       </form>
 
-      <p className="mt-4 text-sm text-zinc-600 dark:text-zinc-400">
+      <p className="mt-5 text-sm text-ink-soft">
         {mode === "login" ? (
           <>
             No account?{" "}

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
+import { UserIcon } from "@/components/shell/icons";
 
 // Client-only auth status. Renders the logged-out state until the session is
 // known so the server and first client render always match (no hydration mismatch).
@@ -39,28 +40,29 @@ export default function AuthButton() {
       <Link
         href="/login"
         aria-label="Log in or register"
-        className="flex items-center gap-1.5 rounded-full border border-zinc-300 px-3 py-1.5 hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 dark:border-zinc-700 dark:hover:bg-zinc-900"
+        className="btn-primary flex items-center gap-1.5 rounded-full px-4 py-1.5 text-[15px] font-semibold text-on-accent"
       >
-        <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5Zm0 2c-3.34 0-10 1.67-10 5v3h20v-3c0-3.33-6.66-5-10-5Z" />
-        </svg>
+        <UserIcon />
         <span>Log in</span>
       </Link>
     );
   }
 
   return (
-    <div className="flex items-center gap-3">
-      <span className="max-w-40 truncate text-sm text-zinc-600 dark:text-zinc-400" title={email}>
-        {email}
-      </span>
+    <span className="flex items-center gap-2">
+      <Link
+        href="/dashboard"
+        className="rounded-full px-3 py-1.5 text-[15px] font-medium text-ink-soft transition-colors hover:bg-white/50 hover:text-ink"
+      >
+        Dashboard
+      </Link>
       <button
         type="button"
         onClick={handleLogout}
-        className="rounded-full border border-zinc-300 px-3 py-1.5 hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 dark:border-zinc-700 dark:hover:bg-zinc-900"
+        className="btn-ghost rounded-full px-4 py-1.5 text-[15px] font-medium text-ink"
       >
         Log out
       </button>
-    </div>
+    </span>
   );
 }

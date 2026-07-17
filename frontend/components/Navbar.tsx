@@ -1,5 +1,6 @@
 import Link from "next/link";
 import AuthButton from "@/components/AuthButton";
+import Orb from "@/components/ui/Orb";
 
 const navLinks = [
   { href: "/", label: "Home" },
@@ -9,20 +10,21 @@ const navLinks = [
 
 export default function Navbar() {
   return (
-    <header className="border-b border-zinc-200 dark:border-zinc-800">
+    <header className="sticky top-0 z-30 px-4 pt-4">
       <nav
         aria-label="Main navigation"
-        className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-3"
+        className="glass-card glass-strong mx-auto flex max-w-5xl items-center justify-between gap-4 rounded-full px-5 py-2.5"
       >
-        <Link href="/" className="text-lg font-bold focus-visible:outline-2 focus-visible:outline-offset-2">
+        <Link href="/" className="flex items-center gap-2.5 font-display text-[17px] font-bold">
+          <Orb size="sm" />
           ListenUp
         </Link>
-        <ul className="flex items-center gap-6">
+        <ul className="flex items-center gap-1 sm:gap-2">
           {navLinks.map((link) => (
             <li key={link.href}>
               <Link
                 href={link.href}
-                className="rounded px-1 py-0.5 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2"
+                className="rounded-full px-3 py-1.5 text-[15px] font-medium text-ink-soft transition-colors hover:bg-white/50 hover:text-ink"
               >
                 {link.label}
               </Link>

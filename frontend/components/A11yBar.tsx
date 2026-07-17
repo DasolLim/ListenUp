@@ -29,11 +29,16 @@ export default function A11yBar() {
   const [size, setSize] = useState<SizeKey>("M");
 
   useEffect(() => {
-    const storedContrast = sessionStorage.getItem("a11y-contrast") === "high";
-    const storedSize = (sessionStorage.getItem("a11y-caption-size") as SizeKey) || "M";
-    setContrast(storedContrast);
-    setSize(storedSize);
-    apply(storedContrast, storedSize);
+    // Deferred so hydration completes with the default UI before stored
+    // preferences are applied (and to keep setState out of the sync effect body).
+    const raf = requestAnimationFrame(() => {
+      const storedContrast = sessionStorage.getItem("a11y-contrast") === "high";
+      const storedSize = (sessionStorage.getItem("a11y-caption-size") as SizeKey) || "M";
+      setContrast(storedContrast);
+      setSize(storedSize);
+      apply(storedContrast, storedSize);
+    });
+    return () => cancelAnimationFrame(raf);
   }, []);
 
   function toggleContrast() {

@@ -32,10 +32,14 @@
   --speaker-4: rgba(230, 180, 90, 0.14);
   --speaker-other: rgba(140, 140, 150, 0.12);
 
-  /* States */
+  /* States (soft: borders, fills, badges) */
   --success: #6fb08a;
   --warning: #e0a951;
   --error: #d96c6c;
+  /* States (strong: text on light surfaces — AA-safe) */
+  --success-strong: #2f6d4f;
+  --warning-strong: #8a5a17;
+  --error-strong: #a63434;
 
   /* Radii */
   --radius-card: 28px;
@@ -84,6 +88,9 @@
   --color-success: var(--success);
   --color-warning: var(--warning);
   --color-error: var(--error);
+  --color-success-strong: var(--success-strong);
+  --color-warning-strong: var(--warning-strong);
+  --color-error-strong: var(--error-strong);
 
   --font-display: var(--font-poppins), "Inter", system-ui, sans-serif;
   --font-body: var(--font-inter), system-ui, sans-serif;
