@@ -1,0 +1,6 @@
+[
+  { "speaker": "A", "text": "So the plan for the weekend is hiking up the ridge trail.", "start": 0.2, "end": 2.4 },
+  { "speaker": "B", "text": "yeah", "start": 2.6, "end": 3.1 },
+  { "speaker": "A", "text": "We'll leave early Saturday morning before traffic.", "start": 3.3, "end": 5.4 },
+  { "speaker": "C", "text": "Can I get a ride with someone from downtown?", "start": 5.7, "end": 7.6 }
+]
