@@ -1,3 +1,4 @@
 fastapi>=0.115
 uvicorn[standard]>=0.30
 sentry-sdk[fastapi]>=2.0
+numpy>=1.26

@@ -1,5 +1,6 @@
 import logging
 import os
+from contextlib import asynccontextmanager
 
 import sentry_sdk
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -7,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.routes.feedback import router as feedback_router
 from app.routes.transcribe import router as transcribe_router
+from services.speaker_id import get_speaker_embedder
 
 # No-op without a DSN: sentry_sdk.init is only called when SENTRY_DSN is set.
 if os.environ.get("SENTRY_DSN"):
@@ -22,7 +24,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger("listenup.ws")
 
-app = FastAPI(title="ListenUp API")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Load the speaker-ID model once at startup (never per request).
+    get_speaker_embedder().load()
+    yield
+
+
+app = FastAPI(title="ListenUp API", lifespan=lifespan)
 app.include_router(transcribe_router)
 app.include_router(feedback_router)
 

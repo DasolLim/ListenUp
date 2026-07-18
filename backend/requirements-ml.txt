@@ -1,0 +1,4 @@
+# Heavy ML extras for SPEAKER_ID_SERVICE=real (ECAPA-TDNN). Not installed in CI.
+torch>=2.13
+torchaudio>=2.13
+speechbrain>=1.1
