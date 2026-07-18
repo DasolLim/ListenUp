@@ -11,7 +11,7 @@ A SaaS web app that makes spoken conversation **accessible** (live speaker-named
 | 1.5 | Sense-inspired glassmorphic UI (DESIGN_SYSTEM.md) | ✅ Complete |
 | 2 | ★ Live captions + diarization (the wedge) | ✅ Complete — mock end-to-end + real AssemblyAI path verified once |
 | 3 | ★ Saved voice profiles (ECAPA-TDNN + consent) | ✅ Complete — enrollment w/ consent gate, live name-matching, tap-to-correct |
-| 4 | Translation (Google v3 + OpenRouter + combined live) | — |
+| 4 | Translation (Google v3 + OpenRouter + combined live) | ✅ Complete — incl. ★ speaker-named multilingual live captions |
 | 5 | GenZ slang translator + launch hardening | — |
 
 ## Run it
