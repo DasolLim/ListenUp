@@ -10,6 +10,7 @@ from app.env import load_env
 from app.routes.feedback import router as feedback_router
 from app.routes.profiles import router as profiles_router
 from app.routes.transcribe import router as transcribe_router
+from app.routes.translate import router as translate_router
 from services.speaker_id import get_speaker_embedder
 
 # Root .env first (shell env wins) — services read os.environ lazily.
@@ -40,6 +41,7 @@ app = FastAPI(title="ListenUp API", lifespan=lifespan)
 app.include_router(transcribe_router)
 app.include_router(feedback_router)
 app.include_router(profiles_router)
+app.include_router(translate_router)
 
 FRONTEND_ORIGIN = os.environ.get("FRONTEND_ORIGIN", "http://localhost:3000")
 
