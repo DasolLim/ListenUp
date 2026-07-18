@@ -6,6 +6,7 @@ import logging
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
+from services.openrouter import get_enhanced_translation_service
 from services.translate import TranslationError, get_translation_service
 from services.translate.base import SUPPORTED_LANGUAGES
 from services.translate.cache import get_cache
@@ -45,6 +46,33 @@ async def translate(request: TranslateRequest) -> dict:
         "detectedSourceLang": result.detected_source_lang,
         "cached": result.cached,
         "characters": result.characters,
+    }
+
+
+@router.post("/enhanced")
+async def translate_enhanced(request: TranslateRequest) -> dict:
+    """Cultural layer: register + slang notes. 502 (not a crash) when the LLM
+    can't produce usable JSON — the client keeps the fast translation."""
+    service = get_enhanced_translation_service()
+    try:
+        result = await service.translate(request.text, request.target_lang)
+    except TranslationError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    if result is None:
+        raise HTTPException(
+            502, "Cultural notes are unavailable right now; the fast translation stands."
+        )
+    logger.info(
+        "translate_enhanced model=%s tokens=%d cached=%s notes=%d",
+        result.model, result.tokens, result.cached, len(result.slang_notes),
+    )
+    return {
+        "translation": result.translation,
+        "register": result.register,
+        "slangNotes": [note.__dict__ for note in result.slang_notes],
+        "cached": result.cached,
+        "model": result.model,
+        "tokens": result.tokens,
     }
 
 
