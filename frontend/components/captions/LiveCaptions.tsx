@@ -6,6 +6,7 @@ import SpeakerBubble from "@/components/captions/SpeakerBubble";
 import { MicIcon } from "@/components/shell/icons";
 import Button from "@/components/ui/Button";
 import GlassCard from "@/components/ui/GlassCard";
+import { useLiveTranslation } from "@/lib/useLiveTranslation";
 import { useTranscription } from "@/lib/useTranscription";
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8000";
@@ -33,6 +34,24 @@ export default function LiveCaptions({ enhanced = false }: { enhanced?: boolean 
   const [feedbackSent, setFeedbackSent] = useState(false);
   const [profileOptions, setProfileOptions] = useState<ProfileOption[]>([]);
   const [correcting, setCorrecting] = useState<string | null>(null);
+  const [languages, setLanguages] = useState<Record<string, string>>({});
+  const [targetLang, setTargetLang] = useState("en");
+  const [translateOn, setTranslateOn] = useState(false);
+  const {
+    translations,
+    stats: translationStats,
+    reset: resetTranslations,
+  } = useLiveTranslation(segments, targetLang, enhanced && translateOn);
+
+  useEffect(() => {
+    if (!enhanced) return;
+    const controller = new AbortController();
+    fetch(`${BACKEND}/translate/languages`, { signal: controller.signal })
+      .then((r) => r.json())
+      .then(setLanguages)
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [enhanced]);
 
   async function openCorrection(speakerLabel: string) {
     if (profileOptions.length === 0) {
@@ -112,7 +131,37 @@ export default function LiveCaptions({ enhanced = false }: { enhanced?: boolean 
             {statusCopy[status]}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {enhanced && (
+            <>
+              <label className="flex items-center gap-2 text-sm text-ink">
+                <input
+                  type="checkbox"
+                  checked={translateOn}
+                  onChange={(e) => {
+                    setTranslateOn(e.target.checked);
+                    if (!e.target.checked) resetTranslations();
+                  }}
+                  className="h-4 w-4 accent-accent-strong"
+                />
+                Translate to
+              </label>
+              <select
+                id="live-target"
+                aria-label="Live caption target language"
+                value={targetLang}
+                onChange={(e) => setTargetLang(e.target.value)}
+                disabled={!translateOn}
+                className="glass-strong rounded-xl border border-white/60 px-3 py-2 text-sm text-ink shadow-glass outline-none disabled:opacity-50"
+              >
+                {Object.entries(languages).map(([code, name]) => (
+                  <option key={code} value={code}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </>
+          )}
           {listening ? (
             <Button variant="ghost" onClick={handleStop}>
               Stop
@@ -156,6 +205,7 @@ export default function LiveCaptions({ enhanced = false }: { enhanced?: boolean 
               speakerIndex: SPEAKER_TINT_ORDER.indexOf(segment.speaker),
               text: segment.text,
               interim: !segment.isFinal,
+              translated: translateOn ? (translations[segment.id] ?? null) : null,
             }}
             onCorrectClick={enhanced && status === "listening" ? openCorrection : undefined}
           />
@@ -250,6 +300,8 @@ export default function LiveCaptions({ enhanced = false }: { enhanced?: boolean 
         <p data-testid="latency-readout" className="text-[12px] tabular-nums text-ink-soft">
           latency p50 {Math.round(latency.p50)} ms · p95 {Math.round(latency.p95)} ms ·{" "}
           {latency.count} finals
+          {translationStats &&
+            ` · translate p50 ${Math.round(translationStats.p50)} ms · p95 ${Math.round(translationStats.p95)} ms`}
         </p>
       )}
     </GlassCard>

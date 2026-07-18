@@ -1,0 +1,7 @@
+[
+  { "speaker": "A", "text": "Are you coming to the market with us this morning?", "start": 0.2, "end": 2.4 },
+  { "speaker": "B", "text": "Hola, gracias por invitarme. ¿A qué hora salimos?", "start": 2.7, "end": 5.0 },
+  { "speaker": "C", "text": "안녕하세요, 저녁 준비는 제가 할게요.", "start": 5.3, "end": 7.4 },
+  { "speaker": "A", "text": "That sounds great, no cap. Let's leave at nine.", "start": 7.7, "end": 9.9 },
+  { "speaker": "B", "text": "Perfecto, hasta pronto.", "start": 10.2, "end": 11.4 }
+]
