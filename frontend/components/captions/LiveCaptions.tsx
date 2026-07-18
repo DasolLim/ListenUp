@@ -40,8 +40,14 @@ export default function LiveCaptions({ enhanced = false }: { enhanced?: boolean 
   const {
     translations,
     stats: translationStats,
+    costs,
     reset: resetTranslations,
   } = useLiveTranslation(segments, targetLang, enhanced && translateOn);
+  // STT duration = audio timeline processed (last segment's end timestamp).
+  // Rough per-session cost: AssemblyAI ~$0.15/hr, Google $20/M chars, 4o-mini ~$0.60/M tokens.
+  const sttSeconds = segments.length ? Math.max(...segments.map((s) => s.end)) : 0;
+  const estCostUsd =
+    (sttSeconds / 3600) * 0.15 + (costs.googleChars / 1e6) * 20 + (costs.llmTokens / 1e6) * 0.6;
 
   useEffect(() => {
     if (!enhanced) return;
@@ -83,6 +89,14 @@ export default function LiveCaptions({ enhanced = false }: { enhanced?: boolean 
         finals: finalsCount,
         latency_p50_ms: latency?.p50,
         latency_p95_ms: latency?.p95,
+      });
+      posthog.capture("session_cost", {
+        stt_seconds: Math.round(sttSeconds),
+        google_chars: costs.googleChars,
+        llm_tokens: costs.llmTokens,
+        translate_requests: costs.requests,
+        translate_cache_hits: costs.cacheHits,
+        est_cost_usd: Number(estCostUsd.toFixed(5)),
       });
     }
   }
@@ -302,6 +316,8 @@ export default function LiveCaptions({ enhanced = false }: { enhanced?: boolean 
           {latency.count} finals
           {translationStats &&
             ` · translate p50 ${Math.round(translationStats.p50)} ms · p95 ${Math.round(translationStats.p95)} ms`}
+          {translateOn &&
+            ` · est cost $${estCostUsd.toFixed(4)} (${costs.googleChars} chars · ${costs.llmTokens} tokens · ${costs.cacheHits}/${costs.requests} cached)`}
         </p>
       )}
     </GlassCard>

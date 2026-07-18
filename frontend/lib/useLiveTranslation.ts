@@ -21,6 +21,13 @@ export type LiveTranslation = {
 
 export type TranslationStats = { count: number; p50: number; p95: number } | null;
 
+export type TranslationCosts = {
+  googleChars: number;
+  llmTokens: number;
+  requests: number;
+  cacheHits: number;
+};
+
 function percentile(sorted: number[], p: number): number {
   if (!sorted.length) return 0;
   return sorted[Math.max(0, Math.min(sorted.length - 1, Math.ceil((p / 100) * sorted.length) - 1))];
@@ -35,6 +42,12 @@ export function useLiveTranslation(
 ) {
   const [translations, setTranslations] = useState<Record<string, LiveTranslation>>({});
   const [stats, setStats] = useState<TranslationStats>(null);
+  const [costs, setCosts] = useState<TranslationCosts>({
+    googleChars: 0,
+    llmTokens: 0,
+    requests: 0,
+    cacheHits: 0,
+  });
   const requested = useRef<Set<string>>(new Set());
   const timings = useRef<number[]>([]);
 
@@ -55,6 +68,12 @@ export function useLiveTranslation(
           if (!r.ok) throw new Error();
           const body = await r.json();
           timings.current.push(performance.now() - t0);
+          setCosts((c) => ({
+            ...c,
+            googleChars: c.googleChars + (body.characters ?? 0),
+            requests: c.requests + 1,
+            cacheHits: c.cacheHits + (body.cached ? 1 : 0),
+          }));
           const sorted = [...timings.current].sort((a, b) => a - b);
           setStats({
             count: sorted.length,
@@ -82,6 +101,7 @@ export function useLiveTranslation(
         .then(async (r) => {
           if (!r.ok) return;
           const body = await r.json();
+          setCosts((c) => ({ ...c, llmTokens: c.llmTokens + (body.tokens ?? 0) }));
           if (!body.slangNotes?.length) return;
           setTranslations((map) => {
             const existing = map[segment.id];
@@ -101,7 +121,8 @@ export function useLiveTranslation(
     timings.current = [];
     setTranslations({});
     setStats(null);
+    setCosts({ googleChars: 0, llmTokens: 0, requests: 0, cacheHits: 0 });
   };
 
-  return { translations, stats, reset };
+  return { translations, stats, costs, reset };
 }
