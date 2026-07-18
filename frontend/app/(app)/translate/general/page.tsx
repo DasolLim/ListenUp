@@ -1,14 +1,12 @@
 import type { Metadata } from "next";
-import ToolPagePlaceholder from "@/components/ToolPagePlaceholder";
+import TranslateGeneral from "@/components/translate/TranslateGeneral";
 
 export const metadata: Metadata = { title: "Translate (General) — ListenUp" };
 
 export default function TranslateGeneralPage() {
   return (
-    <ToolPagePlaceholder
-      title="Translate (General)"
-      description="Fast text→text and voice→text translation across a wide range of languages."
-      phase="Phase 4"
-    />
+    <div className="mx-auto flex max-w-3xl flex-col">
+      <TranslateGeneral />
+    </div>
   );
 }
