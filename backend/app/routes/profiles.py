@@ -24,6 +24,8 @@ router = APIRouter(prefix="/profiles")
 
 CONSENT_TEXT_VERSION = "2026-07-18.v1"
 MAX_ENROLL_SECONDS = 35.0
+# INTRODUCTION §5 speaker cap: 4 named lanes in captions → 4 saved profiles.
+MAX_PROFILES = 4
 
 bearer = HTTPBearer(auto_error=False)
 
@@ -75,6 +77,16 @@ async def enroll(
             400,
             "Consent required: the person being enrolled must agree, and their name "
             "must be recorded. Voice profiles are biometric data.",
+        )
+
+    existing = await rest(
+        "GET", "speaker_profiles", token, params={"select": "id"}
+    )
+    if existing.status_code == 200 and len(existing.json()) >= MAX_PROFILES:
+        raise HTTPException(
+            400,
+            f"Profile limit reached ({MAX_PROFILES}). Captions name up to {MAX_PROFILES} "
+            "people for accuracy — delete a profile you no longer need first.",
         )
 
     pcm = await audio.read()
