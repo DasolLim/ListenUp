@@ -22,11 +22,37 @@ const statusCopy = {
 const SPEAKER_TINT_ORDER = ["Speaker 1", "Speaker 2", "Speaker 3", "Speaker 4"];
 const AUTOSCROLL_SLACK_PX = 48;
 
+type ProfileOption = { id: string; display_name: string };
+
 export default function LiveCaptions({ enhanced = false }: { enhanced?: boolean }) {
-  const { status, error, segments, latency, start, stop, sessionId } = useTranscription({ enhanced });
+  const { status, error, segments, latency, start, stop, correct, sessionId } = useTranscription({
+    enhanced,
+  });
   const logRef = useRef<HTMLDivElement>(null);
   const [pinnedToBottom, setPinnedToBottom] = useState(true);
   const [feedbackSent, setFeedbackSent] = useState(false);
+  const [profileOptions, setProfileOptions] = useState<ProfileOption[]>([]);
+  const [correcting, setCorrecting] = useState<string | null>(null);
+
+  async function openCorrection(speakerLabel: string) {
+    if (profileOptions.length === 0) {
+      const { createClient } = await import("@/lib/supabase/client");
+      const { data } = await createClient().auth.getSession();
+      const token = data.session?.access_token;
+      if (token) {
+        const response = await fetch(`${BACKEND}/profiles`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (response.ok) setProfileOptions(await response.json());
+      }
+    }
+    setCorrecting(speakerLabel);
+  }
+
+  function applyCorrection(profileId: string | null) {
+    if (correcting) correct(correcting, profileId);
+    setCorrecting(null);
+  }
 
   const finalsCount = segments.filter((s) => s.isFinal).length;
 
@@ -131,9 +157,44 @@ export default function LiveCaptions({ enhanced = false }: { enhanced?: boolean 
               text: segment.text,
               interim: !segment.isFinal,
             }}
+            onCorrectClick={enhanced && status === "listening" ? openCorrection : undefined}
           />
         ))}
       </div>
+
+      {correcting && (
+        <div
+          role="dialog"
+          aria-label={`Who is ${correcting}?`}
+          className="glass-card glass-strong flex flex-wrap items-center gap-2 rounded-2xl p-4"
+        >
+          <p className="mr-1 text-sm font-medium text-ink">Who is {correcting}?</p>
+          {profileOptions.map((option) => (
+            <button
+              key={option.id}
+              type="button"
+              onClick={() => applyCorrection(option.id)}
+              className="pill-active rounded-full px-4 py-1.5 text-sm font-medium text-ink shadow-glass"
+            >
+              {option.display_name}
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={() => applyCorrection(null)}
+            className="pill-inactive rounded-full px-4 py-1.5 text-sm text-ink-soft hover:text-ink"
+          >
+            Not sure / unknown
+          </button>
+          <button
+            type="button"
+            onClick={() => setCorrecting(null)}
+            className="ml-auto rounded-full px-3 py-1.5 text-sm text-ink-soft hover:text-ink"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
 
       {!pinnedToBottom && (
         <button

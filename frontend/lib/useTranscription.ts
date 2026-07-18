@@ -184,6 +184,13 @@ export function useTranscription(options?: { enhanced?: boolean }) {
     };
   }, [cleanup, enhanced]);
 
+  const correct = useCallback((speakerLabel: string, profileId: string | null) => {
+    const ws = wsRef.current;
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: "correct", speaker: speakerLabel, profileId }));
+    }
+  }, []);
+
   const stop = useCallback(() => {
     const ws = wsRef.current;
     audioRef.current?.stream.getTracks().forEach((track) => track.stop());
@@ -202,5 +209,5 @@ export function useTranscription(options?: { enhanced?: boolean }) {
     setStatus("stopped");
   }, [cleanup]);
 
-  return { status, error, segments, latency, start, stop, sessionId: sessionIdRef };
+  return { status, error, segments, latency, start, stop, correct, sessionId: sessionIdRef };
 }

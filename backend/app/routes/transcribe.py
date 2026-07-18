@@ -50,6 +50,12 @@ class SpeakerMapper:
                 self._order[raw] = "Other"
         return self._order[raw]
 
+    def raw_for(self, label: str) -> str | None:
+        for raw, mapped in self._order.items():
+            if mapped == label:
+                return raw
+        return None
+
 
 def _segment_payload(
     segment: TranscriptSegment, label: str, speaker_name: str | None = None
@@ -89,6 +95,68 @@ async def _queue_put_with_backpressure(
                 pass
 
 
+async def _apply_correction(
+    parsed: dict,
+    namer: SessionNamer,
+    mapper: "SpeakerMapper",
+    send_queue: asyncio.Queue[str | None],
+    user_token: str | None,
+) -> None:
+    """Tap-to-correct: remap the session label now, and append this speaker's
+    buffered audio as a correction embedding so the profile improves."""
+    from app.supa import rest
+    from services.speaker_id import get_speaker_embedder
+    from services.speaker_id.matcher import Match
+
+    label = str(parsed.get("speaker", ""))
+    raw = mapper.raw_for(label)
+    if raw is None:
+        return
+    profile_id = parsed.get("profileId")
+
+    if profile_id is None:
+        namer.set_name(raw, None)
+        await send_queue.put(
+            json.dumps({"type": "speakerUpdate", "speaker": label, "speakerName": None})
+        )
+        logger.info("correction_applied label=%s -> unknown", label)
+        return
+
+    profile = next((p for p in namer.matcher.profiles if p.profile_id == profile_id), None)
+    if profile is None:
+        return
+    namer.set_name(raw, Match(profile.profile_id, profile.display_name, 1.0))
+    await send_queue.put(
+        json.dumps(
+            {"type": "speakerUpdate", "speaker": label, "speakerName": profile.display_name}
+        )
+    )
+
+    pcm = namer.speaker_audio(raw)
+    if user_token and len(pcm) >= 16000:  # ≥0.5 s of audio to learn from
+        try:
+            embedding = await asyncio.to_thread(get_speaker_embedder().embed, pcm, 16000)
+            response = await rest(
+                "POST",
+                "speaker_embeddings",
+                user_token,
+                json={
+                    "profile_id": profile.profile_id,
+                    "embedding": str(embedding),
+                    "source": "correction",
+                },
+            )
+            if response.status_code == 201:
+                profile.embeddings.append(embedding)  # better matching immediately
+                logger.info(
+                    "correction_applied label=%s -> %s embedding_appended=1",
+                    label, profile.display_name,
+                )
+        except ValueError:
+            logger.info("correction_applied label=%s -> %s (audio too short to learn)",
+                        label, profile.display_name)
+
+
 @router.websocket("/ws/transcribe")
 async def ws_transcribe(websocket: WebSocket) -> None:
     await websocket.accept()
@@ -109,10 +177,12 @@ async def ws_transcribe(websocket: WebSocket) -> None:
     # user's saved voice profiles. Failure to authenticate degrades to generic
     # labels — captions must never break because naming can't run.
     namer: SessionNamer | None = None
+    user_token: str | None = None
     if config.get("enhanced") and config.get("token"):
         try:
             await verify_user(str(config["token"]))
-            profiles = await load_profiles(str(config["token"]))
+            user_token = str(config["token"])
+            profiles = await load_profiles(user_token)
             namer = SessionNamer(SpeakerMatcher(profiles))
             logger.info("transcribe_enhanced client=%s profiles=%d", client, len(profiles))
         except Exception:
@@ -177,10 +247,13 @@ async def ws_transcribe(websocket: WebSocket) -> None:
                     namer.add_audio(data)
                 await service.send_audio(data)
             elif (text := message.get("text")) is not None:
-                if json.loads(text).get("type") == "stop":
+                parsed = json.loads(text)
+                if parsed.get("type") == "stop":
                     await service.stop()
                     await asyncio.wait_for(send_task, timeout=10)
                     break
+                if parsed.get("type") == "correct" and namer is not None:
+                    await _apply_correction(parsed, namer, mapper, send_queue, user_token)
     except WebSocketDisconnect as exc:
         logger.info("transcribe_disconnect client=%s code=%s chunks=%d", client, exc.code, chunks)
     except TimeoutError:
