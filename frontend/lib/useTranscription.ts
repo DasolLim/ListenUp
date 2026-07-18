@@ -1,10 +1,12 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
+import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
 
 export type CaptionSegment = {
   id: string;
   speaker: string;
+  speakerName: string | null;
   text: string;
   start: number;
   end: number;
@@ -58,7 +60,8 @@ function smooth(list: CaptionSegment[]): CaptionSegment[] {
   return list;
 }
 
-export function useTranscription() {
+export function useTranscription(options?: { enhanced?: boolean }) {
+  const enhanced = options?.enhanced ?? false;
   const [status, setStatus] = useState<TranscriptionStatus>("idle");
   const [error, setError] = useState<string | null>(null);
   const [segments, setSegments] = useState<CaptionSegment[]>([]);
@@ -116,8 +119,15 @@ export function useTranscription() {
     const ws = new WebSocket(backend.replace(/^http/, "ws") + "/ws/transcribe");
     wsRef.current = ws;
 
-    ws.onopen = () => {
-      ws.send(JSON.stringify({ sampleRate: SAMPLE_RATE, encoding: "pcm_s16le" }));
+    ws.onopen = async () => {
+      let token: string | undefined;
+      if (enhanced && isSupabaseConfigured()) {
+        const { data } = await createClient().auth.getSession();
+        token = data.session?.access_token;
+      }
+      ws.send(
+        JSON.stringify({ sampleRate: SAMPLE_RATE, encoding: "pcm_s16le", enhanced, token })
+      );
     };
 
     ws.onmessage = (event) => {
@@ -132,6 +142,7 @@ export function useTranscription() {
         const segment: CaptionSegment = {
           id: `turn-${message.turnId ?? counterRef.current++}`,
           speaker: message.speaker,
+          speakerName: message.speakerName ?? null,
           text: message.text,
           start: message.start,
           end: message.end,
@@ -149,6 +160,13 @@ export function useTranscription() {
           });
         }
         setSegments((list) => smooth(mergeSegment(list, segment)));
+      } else if (message.type === "speakerUpdate") {
+        // A speaker was identified (or corrected) — relabel their past bubbles.
+        setSegments((list) =>
+          list.map((s) =>
+            s.speaker === message.speaker ? { ...s, speakerName: message.speakerName } : s
+          )
+        );
       } else if (message.type === "done") {
         // Session over: anything still marked interim is as final as it gets.
         setSegments((list) => list.map((s) => (s.isFinal ? s : { ...s, isFinal: true })));
@@ -164,7 +182,7 @@ export function useTranscription() {
       setError((current) => current ?? "Lost the connection to the caption service.");
       cleanup();
     };
-  }, [cleanup]);
+  }, [cleanup, enhanced]);
 
   const stop = useCallback(() => {
     const ws = wsRef.current;

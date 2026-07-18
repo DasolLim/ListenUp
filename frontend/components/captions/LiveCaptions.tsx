@@ -22,8 +22,8 @@ const statusCopy = {
 const SPEAKER_TINT_ORDER = ["Speaker 1", "Speaker 2", "Speaker 3", "Speaker 4"];
 const AUTOSCROLL_SLACK_PX = 48;
 
-export default function LiveCaptions() {
-  const { status, error, segments, latency, start, stop, sessionId } = useTranscription();
+export default function LiveCaptions({ enhanced = false }: { enhanced?: boolean }) {
+  const { status, error, segments, latency, start, stop, sessionId } = useTranscription({ enhanced });
   const logRef = useRef<HTMLDivElement>(null);
   const [pinnedToBottom, setPinnedToBottom] = useState(true);
   const [feedbackSent, setFeedbackSent] = useState(false);
@@ -126,6 +126,7 @@ export default function LiveCaptions() {
             caption={{
               id: segment.id,
               speaker: segment.speaker,
+              speakerName: segment.speakerName,
               speakerIndex: SPEAKER_TINT_ORDER.indexOf(segment.speaker),
               text: segment.text,
               interim: !segment.isFinal,

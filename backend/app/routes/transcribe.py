@@ -20,8 +20,11 @@ import os
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
+from app.naming import SessionNamer, load_profiles
+from app.supa import verify_user
 from services.assemblyai import AudioFormatError, TranscriptSegment
 from services.assemblyai.factory import get_transcription_service
+from services.speaker_id.matcher import SpeakerMatcher
 
 logger = logging.getLogger("listenup.ws.transcribe")
 
@@ -48,11 +51,14 @@ class SpeakerMapper:
         return self._order[raw]
 
 
-def _segment_payload(segment: TranscriptSegment, label: str) -> str:
+def _segment_payload(
+    segment: TranscriptSegment, label: str, speaker_name: str | None = None
+) -> str:
     return json.dumps(
         {
             "type": "segment",
             "speaker": label,
+            "speakerName": speaker_name,
             "text": segment.text,
             "start": round(segment.start, 3),
             "end": round(segment.end, 3),
@@ -99,6 +105,19 @@ async def ws_transcribe(websocket: WebSocket) -> None:
         os.environ["MOCK_FIXTURE"] = str(fixture)
     service = get_transcription_service()
 
+    # Enhanced mode: authenticated sessions match diarized speakers to the
+    # user's saved voice profiles. Failure to authenticate degrades to generic
+    # labels — captions must never break because naming can't run.
+    namer: SessionNamer | None = None
+    if config.get("enhanced") and config.get("token"):
+        try:
+            await verify_user(str(config["token"]))
+            profiles = await load_profiles(str(config["token"]))
+            namer = SessionNamer(SpeakerMatcher(profiles))
+            logger.info("transcribe_enhanced client=%s profiles=%d", client, len(profiles))
+        except Exception:
+            logger.warning("transcribe_enhanced_auth_failed client=%s", client)
+
     try:
         await service.start(
             sample_rate=int(config.get("sampleRate", 0)),
@@ -116,10 +135,23 @@ async def ws_transcribe(websocket: WebSocket) -> None:
     send_queue: asyncio.Queue[str | None] = asyncio.Queue(maxsize=SEND_QUEUE_LIMIT)
     mapper = SpeakerMapper()
 
+    announced: dict[str, str] = {}
+
     async def pump_segments() -> None:
         async for segment in service.segments():
-            payload = _segment_payload(segment, mapper.label(segment.speaker))
+            name = None
+            if namer is not None:
+                match = await namer.observe(segment)
+                name = match.display_name if match else None
+            label = mapper.label(segment.speaker)
+            payload = _segment_payload(segment, label, name)
             await _queue_put_with_backpressure(send_queue, payload, segment.is_final)
+            # Name resolved (or corrected): relabel this speaker's PAST bubbles too.
+            if name is not None and announced.get(label) != name:
+                announced[label] = name
+                await send_queue.put(
+                    json.dumps({"type": "speakerUpdate", "speaker": label, "speakerName": name})
+                )
         await send_queue.put(None)
 
     async def send_loop() -> None:
@@ -141,6 +173,8 @@ async def ws_transcribe(websocket: WebSocket) -> None:
                 raise WebSocketDisconnect(int(message.get("code") or 1005))
             if (data := message.get("bytes")) is not None:
                 chunks += 1
+                if namer is not None:
+                    namer.add_audio(data)
                 await service.send_audio(data)
             elif (text := message.get("text")) is not None:
                 if json.loads(text).get("type") == "stop":

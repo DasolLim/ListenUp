@@ -39,9 +39,10 @@ def test_mock_roundtrip_ordered_diarized_json() -> None:
     assert messages, "expected segments"
     assert all(m["type"] == "segment" for m in messages)
     assert all(
-        set(m) == {"type", "speaker", "text", "start", "end", "isFinal", "turnId"}
+        set(m) == {"type", "speaker", "speakerName", "text", "start", "end", "isFinal", "turnId"}
         for m in messages
     )
+    assert all(m["speakerName"] is None for m in messages), "no names outside enhanced mode"
     # interim and final versions of one utterance share a stable turn id
     by_turn: dict[int, list[dict]] = {}
     for m in messages:

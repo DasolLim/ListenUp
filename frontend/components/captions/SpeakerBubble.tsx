@@ -8,6 +8,8 @@ const tints = [
 export type Caption = {
   id: string;
   speaker: string;
+  /** Real person's name when voice-matched (enhanced mode). */
+  speakerName?: string | null;
   /** Stable per-speaker index 0–3; anything beyond the cap uses the neutral tint. */
   speakerIndex: number;
   text: string;
@@ -28,7 +30,7 @@ export default function SpeakerBubble({ caption }: { caption: Caption }) {
       style={{ backgroundColor: tint }}
     >
       <p className="text-[12px] font-semibold uppercase tracking-wide text-ink-soft">
-        {caption.speaker}
+        {caption.speakerName ?? caption.speaker}
       </p>
       {/* Interims de-emphasize via italics + ellipsis, never lighter text —
           lighter grays fall below AA on the tinted glass (DESIGN_SYSTEM §7). */}

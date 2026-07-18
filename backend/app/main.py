@@ -6,10 +6,14 @@ import sentry_sdk
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.env import load_env
 from app.routes.feedback import router as feedback_router
 from app.routes.profiles import router as profiles_router
 from app.routes.transcribe import router as transcribe_router
 from services.speaker_id import get_speaker_embedder
+
+# Root .env first (shell env wins) — services read os.environ lazily.
+load_env()
 
 # No-op without a DSN: sentry_sdk.init is only called when SENTRY_DSN is set.
 if os.environ.get("SENTRY_DSN"):
