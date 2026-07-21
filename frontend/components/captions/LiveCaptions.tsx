@@ -20,7 +20,6 @@ const statusCopy = {
   error: "",
 } as const;
 
-const SPEAKER_TINT_ORDER = ["Speaker 1", "Speaker 2", "Speaker 3", "Speaker 4"];
 const AUTOSCROLL_SLACK_PX = 48;
 
 type ProfileOption = { id: string; display_name: string };
@@ -136,6 +135,20 @@ export default function LiveCaptions({ enhanced = false }: { enhanced?: boolean 
 
   const listening = status === "listening" || status === "connecting";
 
+  // Stable color per identity: assign the 4 speaker tints in first-appearance
+  // order, keyed on the name when known. One person keeps one color even if the
+  // diarization label churns; a bubble recolors if it later gains a name.
+  const identityIndexMap = new Map<string, number>();
+  let nextColor = 0;
+  for (const s of segments) {
+    const key = s.speakerName ?? s.speaker;
+    if (!identityIndexMap.has(key)) {
+      identityIndexMap.set(key, nextColor % 4);
+      nextColor += 1;
+    }
+  }
+  const identityColor = (key: string) => identityIndexMap.get(key) ?? 0;
+
   return (
     <GlassCard strong className="flex h-full min-h-120 flex-col gap-4 p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -216,7 +229,9 @@ export default function LiveCaptions({ enhanced = false }: { enhanced?: boolean 
               id: segment.id,
               speaker: segment.speaker,
               speakerName: segment.speakerName,
-              speakerIndex: SPEAKER_TINT_ORDER.indexOf(segment.speaker),
+              // Color by identity (name when known), so one person keeps one
+              // color even when diarization churns the underlying speaker label.
+              speakerIndex: identityColor(segment.speakerName ?? segment.speaker),
               text: segment.text,
               interim: !segment.isFinal,
               translated: translateOn ? (translations[segment.id] ?? null) : null,

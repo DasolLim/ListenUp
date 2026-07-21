@@ -14,16 +14,21 @@ from services.speaker_id.matcher import Match, Profile, SpeakerMatcher
 
 logger = logging.getLogger("listenup.naming")
 
-# ECAPA is more reliable with 3–4s than with 2s (see diagnostics: 2s→0.81 vs
-# ~4s→0.89 same-voice), so gather more before the first attempt. Keep retrying
-# as the person keeps talking — a near-miss on noisy early audio often clears
-# once cleaner audio accumulates — but only re-embed when meaningfully more
-# audio is available, to bound CPU. All tunable via env.
-MIN_MATCH_AUDIO_S = float(os.environ.get("SPEAKER_MIN_MATCH_S", "3.0"))
+# Identify from a short window first (session adaptation makes 2s reliable),
+# then keep retrying with more audio as the person talks. Only re-embed when
+# meaningfully more audio is available, to bound CPU. All tunable via env.
+MIN_MATCH_AUDIO_S = float(os.environ.get("SPEAKER_MIN_MATCH_S", "2.0"))
 MAX_MATCH_AUDIO_S = float(os.environ.get("SPEAKER_MAX_MATCH_S", "8.0"))
-RETRY_GROWTH_S = float(os.environ.get("SPEAKER_RETRY_GROWTH_S", "1.5"))
+RETRY_GROWTH_S = float(os.environ.get("SPEAKER_RETRY_GROWTH_S", "1.2"))
 MAX_ATTEMPTS_PER_SPEAKER = int(os.environ.get("SPEAKER_MAX_ATTEMPTS", "8"))
 BUFFER_CAP_S = 180.0
+
+# Session adaptation (online enrollment): once a voice is confidently matched,
+# remember how it sounds THIS session (same mic/room) so later turns — even
+# short ones under a churning diarization label — re-match fast. Only adapt on
+# confident matches, and cap the per-profile gallery to bound cost and drift.
+SESSION_ADAPT_MARGIN = float(os.environ.get("SPEAKER_ADAPT_MARGIN", "0.08"))
+SESSION_GALLERY_CAP = int(os.environ.get("SPEAKER_GALLERY_CAP", "6"))
 
 
 async def load_profiles(token: str) -> list[Profile]:
@@ -65,7 +70,22 @@ class SessionNamer:
         self._audio = bytearray()
         self._dropped_s = 0.0  # seconds trimmed off the buffer's front
         self._speakers: dict[str, _SpeakerState] = {}
+        # How many embeddings each profile was enrolled with, so session-adapted
+        # runtime embeddings can be capped without discarding enrolled ones.
+        self._enrolled_count = {p.profile_id: len(p.embeddings) for p in matcher.profiles}
         self.embeds_computed = 0
+
+    def _adapt(self, profile_id: str, embedding: list[float]) -> None:
+        """Add a confidently-matched runtime embedding to the profile's gallery
+        (in memory only), capped, so future turns match this session's audio."""
+        for profile in self.matcher.profiles:
+            if profile.profile_id != profile_id:
+                continue
+            profile.embeddings.append(embedding)
+            enrolled = self._enrolled_count.get(profile_id, 0)
+            if len(profile.embeddings) > enrolled + SESSION_GALLERY_CAP:
+                del profile.embeddings[enrolled]  # drop oldest session embedding
+            return
 
     def add_audio(self, chunk: bytes) -> None:
         self._audio.extend(chunk)
@@ -140,6 +160,10 @@ class SessionNamer:
         if match is not None:
             state.resolved = match
             state.done = True
+            # Session adaptation: remember confident matches so this person's
+            # later turns (even under new diarization labels) re-match fast.
+            if match.similarity >= self.matcher.threshold + SESSION_ADAPT_MARGIN:
+                self._adapt(match.profile_id, embedding)
             logger.info(
                 "speaker_named raw=%s name=%s similarity=%.3f attempts=%d",
                 segment.speaker, match.display_name, match.similarity, state.attempts,
