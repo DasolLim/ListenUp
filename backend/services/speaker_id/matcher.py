@@ -13,7 +13,10 @@ from services.speaker_id.base import cosine_similarity
 
 logger = logging.getLogger("listenup.speaker_id.match")
 
-DEFAULT_THRESHOLD = 0.6
+# Real ECAPA gives same-voice cosine ~0.8+ and different-voice ~0.05, so 0.55
+# keeps a wide safety margin while tolerating real-mic enroll-vs-runtime drift
+# (noise, gain, echo cancellation). Tune per deployment via SPEAKER_MATCH_THRESHOLD.
+DEFAULT_THRESHOLD = 0.55
 DEFAULT_MARGIN = 0.05
 
 
@@ -64,16 +67,21 @@ class SpeakerMatcher:
             reverse=True,
         )
         best_score, best = scored[0]
-        runner_up = scored[1][0] if len(scored) > 1 else None
+
+        # The ambiguity margin guards against confusing two DIFFERENT people.
+        # Compare against the best profile with a different NAME, not just the
+        # runner-up row — otherwise a duplicate/second enrollment of the same
+        # person (same name, near-identical score) wrongly reads as ambiguous.
+        rival = next((s for s, p in scored[1:] if p.display_name != best.display_name), None)
         logger.info(
-            "speaker_match best=%s score=%.3f runner_up=%s threshold=%.2f",
+            "speaker_match best=%s score=%.3f next_other=%s threshold=%.2f",
             best.display_name, best_score,
-            f"{runner_up:.3f}" if runner_up is not None else "-",
+            f"{rival:.3f}" if rival is not None else "-",
             self.threshold,
         )
         if best_score < self.threshold:
             return None
-        if runner_up is not None and best_score - runner_up < self.margin:
-            # Two enrolled people too close to call (overlap, similar voices).
+        if rival is not None and best_score - rival < self.margin:
+            # Two different enrolled people too close to call (overlap, similar voices).
             return None
         return Match(best.profile_id, best.display_name, best_score)

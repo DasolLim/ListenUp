@@ -4,6 +4,7 @@ speaker, not per segment)."""
 
 import asyncio
 import logging
+import os
 from dataclasses import dataclass, field
 
 from app.supa import rest
@@ -13,9 +14,15 @@ from services.speaker_id.matcher import Match, Profile, SpeakerMatcher
 
 logger = logging.getLogger("listenup.naming")
 
-MIN_MATCH_AUDIO_S = 2.0
-MAX_MATCH_AUDIO_S = 6.0
-MAX_ATTEMPTS_PER_SPEAKER = 3
+# ECAPA is more reliable with 3–4s than with 2s (see diagnostics: 2s→0.81 vs
+# ~4s→0.89 same-voice), so gather more before the first attempt. Keep retrying
+# as the person keeps talking — a near-miss on noisy early audio often clears
+# once cleaner audio accumulates — but only re-embed when meaningfully more
+# audio is available, to bound CPU. All tunable via env.
+MIN_MATCH_AUDIO_S = float(os.environ.get("SPEAKER_MIN_MATCH_S", "3.0"))
+MAX_MATCH_AUDIO_S = float(os.environ.get("SPEAKER_MAX_MATCH_S", "8.0"))
+RETRY_GROWTH_S = float(os.environ.get("SPEAKER_RETRY_GROWTH_S", "1.5"))
+MAX_ATTEMPTS_PER_SPEAKER = int(os.environ.get("SPEAKER_MAX_ATTEMPTS", "8"))
 BUFFER_CAP_S = 180.0
 
 
@@ -45,6 +52,7 @@ async def load_profiles(token: str) -> list[Profile]:
 class _SpeakerState:
     windows: list[tuple[float, float]] = field(default_factory=list)
     attempts: int = 0
+    last_attempt_audio_s: float = 0.0  # so we only re-embed on meaningful growth
     resolved: Match | None = None
     done: bool = False  # stop trying after success or attempt cap
 
@@ -110,17 +118,25 @@ class SessionNamer:
             return state.resolved
 
         pcm = self.speaker_audio(segment.speaker)
-        if len(pcm) / BYTES_PER_SECOND < MIN_MATCH_AUDIO_S:
+        audio_s = len(pcm) / BYTES_PER_SECOND
+        if audio_s < MIN_MATCH_AUDIO_S:
             return state.resolved  # not enough voice yet — wait for more turns
+        # Skip re-embedding until meaningfully more audio has accumulated.
+        if state.attempts > 0 and audio_s - state.last_attempt_audio_s < RETRY_GROWTH_S:
+            return state.resolved
 
         state.attempts += 1
+        state.last_attempt_audio_s = audio_s
         self.embeds_computed += 1
         embedder = get_speaker_embedder()
         try:
             embedding = await asyncio.to_thread(embedder.embed, pcm, 16000)
         except ValueError:
             return state.resolved
-        match = self.matcher.match(embedding)
+        logger.info(
+            "naming_attempt raw=%s audio=%.1fs attempt=%d", segment.speaker, audio_s, state.attempts
+        )
+        match = self.matcher.match(embedding)  # matcher logs best/runner-up/score
         if match is not None:
             state.resolved = match
             state.done = True

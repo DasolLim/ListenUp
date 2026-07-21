@@ -64,5 +64,20 @@ def test_multi_embedding_profile_uses_best_sample() -> None:
     assert result is not None and result.display_name == "Mom"
 
 
+def test_duplicate_profiles_same_person_still_match() -> None:
+    # Two enrollments of the SAME person (same name) that both score high must
+    # NOT read as ambiguous — the margin guards different people, not duplicates.
+    matcher = SpeakerMatcher(
+        [
+            Profile("p1", "Mom", [MOM]),
+            Profile("p2", "Mom", [unit([0.99, 0.11, 0.0, 0.0])]),  # 2nd enrollment
+        ],
+        threshold=0.6,
+        margin=0.05,
+    )
+    result = matcher.match(unit([0.97, 0.12, 0.0, 0.0]))
+    assert result is not None and result.display_name == "Mom"
+
+
 def test_no_profiles_returns_none() -> None:
     assert SpeakerMatcher([], threshold=0.6, margin=0.05).match(MOM) is None
