@@ -9,8 +9,18 @@ import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
 
 const links = [
   { href: "/", label: "Home" },
-  { href: "/product", label: "Product" },
   { href: "/about", label: "About" },
+  { href: "/product", label: "Product" },
+  { href: "/dashboard", label: "Dashboard" },
+];
+
+// Shown inside the mobile drawer once signed in, so a phone navigates like an app.
+const tools = [
+  { href: "/voice-to-text/general", label: "Live captions" },
+  { href: "/voice-to-text/enhanced", label: "Voice profiles" },
+  { href: "/translate/general", label: "Translate" },
+  { href: "/translate/enhanced", label: "Cultural translation" },
+  { href: "/translate/genz", label: "GenZ slang" },
 ];
 
 export default function Navbar() {
@@ -43,19 +53,20 @@ export default function Navbar() {
 
   const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
 
-  const cta = signedIn ? (
-    <Link
-      href="/dashboard"
-      className="btn-primary rounded-full px-5 py-2 text-[15px] font-semibold text-on-accent transition-transform hover:-translate-y-0.5"
+  const authButton = signedIn ? (
+    <button
+      type="button"
+      onClick={logOut}
+      className="btn-ghost rounded-full px-5 py-2 text-[15px] font-medium text-ink transition-transform hover:-translate-y-0.5"
     >
-      Open app
-    </Link>
+      Log out
+    </button>
   ) : (
     <Link
       href="/login"
       className="btn-primary rounded-full px-5 py-2 text-[15px] font-semibold text-on-accent transition-transform hover:-translate-y-0.5"
     >
-      Get started
+      Log in
     </Link>
   );
 
@@ -73,7 +84,7 @@ export default function Navbar() {
           ListenUp
         </Link>
 
-        {/* Desktop / tablet: inline links + auth + CTA */}
+        {/* Desktop / tablet: inline links + auth end-cap */}
         <div className="hidden items-center gap-1 md:flex">
           <ul className="flex items-center gap-1">
             {links.map((link) => (
@@ -93,23 +104,7 @@ export default function Navbar() {
             ))}
           </ul>
           <span className="mx-1 h-5 w-px bg-white/60" aria-hidden="true" />
-          {signedIn ? (
-            <button
-              type="button"
-              onClick={logOut}
-              className="rounded-full px-3.5 py-1.5 text-[15px] font-medium text-ink-soft transition-colors hover:bg-white/50 hover:text-ink"
-            >
-              Log out
-            </button>
-          ) : (
-            <Link
-              href="/login"
-              className="rounded-full px-3.5 py-1.5 text-[15px] font-medium text-ink-soft transition-colors hover:bg-white/50 hover:text-ink"
-            >
-              Log in
-            </Link>
-          )}
-          {cta}
+          {authButton}
         </div>
 
         {/* Mobile: hamburger */}
@@ -124,7 +119,7 @@ export default function Navbar() {
         </button>
       </nav>
 
-      {/* Mobile drawer */}
+      {/* Mobile drawer: the whole product in one panel (app-style navigation) */}
       {open && (
         <div className="fixed inset-0 z-50 md:hidden">
           <div
@@ -132,7 +127,7 @@ export default function Navbar() {
             onClick={() => setOpen(false)}
             className="absolute inset-0 bg-black/25"
           />
-          <div className="glass-card glass-strong absolute inset-x-4 top-4 flex flex-col gap-2 p-5">
+          <div className="glass-card glass-strong absolute inset-x-4 top-4 flex max-h-[calc(100vh-2rem)] flex-col gap-2 overflow-y-auto p-5">
             <div className="flex items-center justify-between">
               <span className="flex items-center gap-2.5 font-display text-[17px] font-bold">
                 <Orb size="sm" />
@@ -147,6 +142,7 @@ export default function Navbar() {
                 <CloseIcon />
               </button>
             </div>
+
             <ul className="mt-2 flex flex-col gap-1">
               {links.map((link) => (
                 <li key={link.href}>
@@ -162,20 +158,45 @@ export default function Navbar() {
                 </li>
               ))}
             </ul>
-            <div className="mt-2 flex flex-col gap-2">
-              {cta}
+
+            {signedIn && (
+              <div className="mt-2 border-t border-white/50 pt-3">
+                <p className="px-4 pb-1 text-[12px] font-semibold uppercase tracking-[0.14em] text-ink-faint">
+                  Tools
+                </p>
+                <ul className="flex flex-col gap-0.5">
+                  {tools.map((tool) => (
+                    <li key={tool.href}>
+                      <Link
+                        href={tool.href}
+                        aria-current={pathname === tool.href ? "page" : undefined}
+                        className={`block rounded-2xl px-4 py-2.5 text-[15px] transition-colors ${
+                          pathname === tool.href
+                            ? "nav-active text-ink"
+                            : "text-ink-soft hover:bg-white/50 hover:text-ink"
+                        }`}
+                      >
+                        {tool.label}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <div className="mt-3">
               {signedIn ? (
                 <button
                   type="button"
                   onClick={logOut}
-                  className="btn-ghost rounded-full px-5 py-2.5 text-[15px] font-medium text-ink"
+                  className="btn-ghost w-full rounded-full px-5 py-3 text-[16px] font-medium text-ink"
                 >
                   Log out
                 </button>
               ) : (
                 <Link
                   href="/login"
-                  className="btn-ghost rounded-full px-5 py-2.5 text-center text-[15px] font-medium text-ink"
+                  className="btn-primary block w-full rounded-full px-5 py-3 text-center text-[16px] font-semibold text-on-accent"
                 >
                   Log in
                 </Link>

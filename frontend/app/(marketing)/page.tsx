@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Reveal from "@/components/Reveal";
 import HeroDemo from "@/components/marketing/HeroDemo";
 import { Eyebrow, Section, SectionHeading } from "@/components/marketing/Section";
 import Orb from "@/components/ui/Orb";
@@ -174,17 +175,21 @@ export default function Home() {
         </div>
       </Section>
 
-      {/* The moat: alternating walkthrough rows (avoids identical cards) */}
-      <Section labelledBy="why-heading">
-        <SectionHeading
-          id="why-heading"
-          eyebrow="Why ListenUp"
-          title="Built around who is speaking"
-          intro="Three things that only work when captions understand people, not just audio."
-        />
+      {/* The moat: alternating walkthrough rows (avoids identical cards).
+          Each row reveals on its own as you scroll, so the section animates
+          progressively rather than all at once. */}
+      <Section labelledBy="why-heading" reveal={false}>
+        <Reveal>
+          <SectionHeading
+            id="why-heading"
+            eyebrow="Why ListenUp"
+            title="Built around who is speaking"
+            intro="Three things that only work when captions understand people, not just audio."
+          />
+        </Reveal>
         <div className="mt-12 flex flex-col gap-14 lg:gap-20">
           {pillars.map((pillar, i) => (
-            <div
+            <Reveal
               key={pillar.title}
               className="grid items-center gap-6 lg:grid-cols-2 lg:gap-12"
             >
@@ -205,7 +210,7 @@ export default function Home() {
                 </Link>
               </div>
               <div className={i % 2 === 1 ? "lg:order-1" : ""}>{pillar.visual}</div>
-            </div>
+            </Reveal>
           ))}
         </div>
       </Section>

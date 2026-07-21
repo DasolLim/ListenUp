@@ -1,22 +1,27 @@
 import { type ReactNode } from "react";
+import Reveal from "@/components/Reveal";
 
 /**
  * Marketing section wrapper: one consistent max width (1120px) and vertical
  * rhythm across the whole website, so every page reads as one system.
  * `tone="tint"` drops a soft glass band behind a section for contrast between
- * otherwise-open sections on the gradient.
+ * otherwise-open sections on the gradient. Content fades up on scroll unless
+ * `reveal={false}` (used when a tall section reveals its own rows).
  */
 export function Section({
   children,
   className = "",
   labelledBy,
   tone = "plain",
+  reveal = true,
 }: {
   children: ReactNode;
   className?: string;
   labelledBy?: string;
   tone?: "plain" | "tint";
+  reveal?: boolean;
 }) {
+  const container = `mx-auto w-full max-w-6xl px-5 sm:px-8 ${className}`;
   return (
     <section
       aria-labelledby={labelledBy}
@@ -26,7 +31,11 @@ export function Section({
           : "py-16 sm:py-20 lg:py-24"
       }
     >
-      <div className={`mx-auto w-full max-w-6xl px-5 sm:px-8 ${className}`}>{children}</div>
+      {reveal ? (
+        <Reveal className={container}>{children}</Reveal>
+      ) : (
+        <div className={container}>{children}</div>
+      )}
     </section>
   );
 }

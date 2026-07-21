@@ -291,6 +291,34 @@ h3 {
   line-height: 1.5;
 }
 
+/* ─── Scroll reveal: content fades + rises as it enters the viewport ───
+   Progressive enhancement: `.reveal` is fully visible by default (no-JS and
+   reduced-motion users see everything). The Reveal component only adds
+   `.reveal-armed` on the client when motion is allowed, then `.is-visible`
+   when the element scrolls into view. */
+.reveal-armed {
+  opacity: 0;
+  transform: translateY(16px);
+  transition:
+    opacity 0.6s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+  transition-delay: var(--reveal-delay, 0ms);
+  will-change: opacity, transform;
+}
+
+.reveal-armed.is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal-armed {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}
+
 /* ─── Motion: restrained, and off under reduced-motion ─── */
 @media (prefers-reduced-motion: reduce) {
   *,

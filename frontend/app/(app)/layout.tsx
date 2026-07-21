@@ -1,16 +1,15 @@
-import Sidebar from "@/components/shell/Sidebar";
-import Topbar from "@/components/shell/Topbar";
+import Navbar from "@/components/Navbar";
 
+// The app uses the same top navbar as the website: one responsive product,
+// not a separate "app". On desktop it reads as a web nav; on mobile the nav
+// collapses to the drawer (with Tools) for app-style navigation.
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="mx-auto flex w-full max-w-350 flex-1 gap-6 p-4 pb-20 sm:p-6 sm:pb-20">
-      <Sidebar />
-      <div className="flex min-w-0 flex-1 flex-col gap-6">
-        <Topbar />
-        <main id="main" className="flex-1">
-          {children}
-        </main>
-      </div>
-    </div>
+    <>
+      <Navbar />
+      <main id="main" className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 pb-24 sm:px-6">
+        {children}
+      </main>
+    </>
   );
 }
