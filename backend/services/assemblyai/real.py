@@ -30,6 +30,20 @@ MAX_SPEAKERS = 5
 # Multilingual captions become a deliberate, user-chosen feature in Phase 4.
 SPEECH_MODEL = os.environ.get("ASSEMBLYAI_SPEECH_MODEL", "universal-streaming-english")
 
+# Bias recognition toward slang the STT otherwise mangles (e.g. "bussin" → the
+# city "Busan", "rizz" → "risk"). A wrong transcript here poisons the downstream
+# cultural translation, so this directly protects voice-detection accuracy.
+# AssemblyAI keyterms_prompt: max 100 terms, JSON-array query param.
+SLANG_KEYTERMS = [
+    "bussin", "rizz", "no cap", "cap", "capping", "slay", "slaps", "mid", "ghosted",
+    "ghosting", "lowkey", "highkey", "delulu", "sus", "vibe", "vibes", "drip", "flex",
+    "stan", "simp", "glow up", "main character", "touch grass", "spill the tea",
+    "the tea", "shook", "salty", "snatched", "periodt", "bet", "fire", "lit", "goated",
+    "GOAT", "based", "cringe", "yeet", "bougie", "gyat", "aura", "mogging", "rizzler",
+    "ate", "ate that up", "understood the assignment", "living rent free", "boss babe",
+    "rent free", "it's giving", "npc", "ick", "gaslight", "gatekeep", "girlboss",
+]
+
 
 def build_url(sample_rate: int, max_speakers: int = MAX_SPEAKERS) -> str:
     params = {
@@ -39,6 +53,7 @@ def build_url(sample_rate: int, max_speakers: int = MAX_SPEAKERS) -> str:
         "speaker_labels": "true",
         "max_speakers": max_speakers,
         "format_turns": "true",
+        "keyterms_prompt": json.dumps(SLANG_KEYTERMS[:100], ensure_ascii=False),
     }
     return f"{STREAMING_URL}?{urlencode(params)}"
 
