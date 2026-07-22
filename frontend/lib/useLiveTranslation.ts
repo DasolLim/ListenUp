@@ -102,13 +102,20 @@ export function useLiveTranslation(
           if (!r.ok) return;
           const body = await r.json();
           setCosts((c) => ({ ...c, llmTokens: c.llmTokens + (body.tokens ?? 0) }));
-          if (!body.slangNotes?.length) return;
+          if (!body.translation && !body.slangNotes?.length) return;
           setTranslations((map) => {
             const existing = map[segment.id];
             if (!existing) return map;
             return {
               ...map,
-              [segment.id]: { ...existing, notes: body.slangNotes, register: body.register },
+              [segment.id]: {
+                ...existing,
+                // Upgrade the fast Google line to the LLM's culturally-adapted
+                // translation once it arrives (progressive enhancement).
+                text: body.translation ?? existing.text,
+                notes: body.slangNotes ?? existing.notes,
+                register: body.register ?? existing.register,
+              },
             };
           });
         })

@@ -19,18 +19,54 @@ from services.translate.cache import cache_key, get_cache
 logger = logging.getLogger("listenup.openrouter")
 
 API_URL = "https://openrouter.ai/api/v1/chat/completions"
-DEFAULT_MODEL = "openai/gpt-4o-mini"
+# gpt-4o over 4o-mini: markedly better on nuanced/newer slang (e.g. "lowkey",
+# ironic "coping"). Cultural accuracy is the product's core value; Redis caching
+# bounds cost (repeats are free). Override with OPENROUTER_MODEL for cheaper runs.
+DEFAULT_MODEL = "openai/gpt-4o"
+# Bump when the prompt changes so improvements invalidate cached translations
+# instead of serving stale output for up to the cache TTL.
+PROMPT_VERSION = "2026-07-21.v2"
 
-SYSTEM_PROMPT = """You are a cultural translation engine for an accessibility app.
-Translate the user's text to {target_name} and explain slang/idioms.
-Respond with ONLY a JSON object, no prose, no code fences:
-{{"translation": "<text translated to {target_name}>",
- "register": "<one of: formal | neutral | casual | slang-heavy>",
- "slang_notes": [{{"phrase": "<original phrase>", "meaning": "<plain meaning>",
-   "cultural_context": "<who says this, when>",
-   "equivalent": "<closest {target_name} equivalent>"}}]}}
-Include a slang_notes entry ONLY for genuine slang, idioms, or cultural references.
-Empty list if none."""
+# The translation itself must be culturally adapted (slang → equivalent target
+# slang), not literal-with-notes. Few-shot examples anchor slang-for-slang
+# rendering and accurate meanings (e.g. "the tea" = gossip, "갓생" = disciplined
+# productive life), which the base instruction alone tends to miss.
+SYSTEM_PROMPT = """You are a cultural translation engine for {target_name}.
+Translate the user's message the way a fluent NATIVE {target_name} speaker would \
+actually say or text it in the same situation: same tone, same energy, same register.
+
+Core rule: NEVER translate slang, idioms, or memes literally. Render them with the \
+closest natural {target_name} slang or idiom a native really uses. If no true \
+equivalent exists, paraphrase so it still feels natural and carries the same feeling. \
+The "translation" field must be this natural, adapted version, not a stiff literal one.
+
+For each real slang term, idiom, or cultural reference in the SOURCE, add a note with \
+its ACCURATE plain meaning and the {target_name} expression you actually used.
+
+Return ONLY this JSON (no prose, no code fences):
+{{"translation":"<natural, culturally-adapted {target_name}>",
+"register":"<formal | neutral | casual | slang-heavy>",
+"slang_notes":[{{"phrase":"<source phrase>","meaning":"<accurate plain meaning>",\
+"cultural_context":"<who says it, when>","equivalent":"<the {target_name} expression you used>"}}]}}
+Use slang_notes only for genuine slang/idioms/references; [] if there are none.
+
+Examples:
+English to Korean:
+"That's straight fire, no cap." -> {{"translation":"이거 완전 대박이야, ㄹㅇ.",\
+"register":"slang-heavy","slang_notes":[{{"phrase":"straight fire","meaning":"extremely good",\
+"cultural_context":"Gen Z praise","equivalent":"대박"}},{{"phrase":"no cap","meaning":"no lie, for real",\
+"cultural_context":"Gen Z, from hip-hop","equivalent":"ㄹㅇ (리얼)"}}]}}
+"Stop capping, we all know the tea." -> {{"translation":"뻥치지 마, 우리 다 그 썰 알거든.",\
+"register":"slang-heavy","slang_notes":[{{"phrase":"capping","meaning":"lying","cultural_context":"Gen Z",\
+"equivalent":"뻥치다"}},{{"phrase":"the tea","meaning":"the gossip","cultural_context":"from drag/Black culture",\
+"equivalent":"썰"}}]}}
+Korean to English:
+"그 사람 완전 인싸야." -> {{"translation":"That guy's a total social butterfly.","register":"casual",\
+"slang_notes":[{{"phrase":"인싸","meaning":"a popular, socially active person",\
+"cultural_context":"Korean net slang from 'insider'","equivalent":"social butterfly"}}]}}
+"오늘 갓생 살았다." -> {{"translation":"I absolutely crushed my day, living that disciplined best life.",\
+"register":"casual","slang_notes":[{{"phrase":"갓생","meaning":"a disciplined, productive, admirable life",\
+"cultural_context":"Korean net slang, 'god' + 'life'","equivalent":"best life / grind life"}}]}}"""
 
 
 class OpenRouterTranslationService(EnhancedTranslationService):
@@ -60,7 +96,7 @@ class OpenRouterTranslationService(EnhancedTranslationService):
                         {"role": "user", "content": text},
                     ],
                     "response_format": {"type": "json_object"},
-                    "temperature": 0.2,
+                    "temperature": 0.3,
                 },
             )
         response.raise_for_status()
@@ -72,7 +108,7 @@ class OpenRouterTranslationService(EnhancedTranslationService):
     async def translate(self, text: str, target_lang: str) -> EnhancedTranslation | None:
         assert_supported(target_lang)
         cache = get_cache()
-        key = cache_key("llm", text, target_lang, self.model)
+        key = cache_key("llm", text, target_lang, f"{self.model}:{PROMPT_VERSION}")
         if (hit := await cache.get(key)) is not None:
             return EnhancedTranslation(
                 translation=hit["translation"],
