@@ -58,7 +58,7 @@ const families: {
         href: "/translate/general",
         name: "Translate",
         tier: "General",
-        blurb: "Fast text and voice translation across a wide range of languages.",
+        blurb: "Translate between English and Korean, by text or voice.",
         wash: "tile-wash-sage",
       },
       {

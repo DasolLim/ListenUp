@@ -44,13 +44,13 @@ function NamedVisual() {
 function TranslatedVisual() {
   return (
     <div className="glass-card glass-strong flex w-full flex-col gap-2.5 p-5">
-      <Bubble name="Léa" tag="(FR)" tint="var(--speaker-3)">
-        C&apos;est pas ouf, franchement.
+      <Bubble name="Min-jun" tag="(KO)" tint="var(--speaker-3)">
+        대박, 완전 인정이지.
       </Bubble>
       <p className="px-1 text-[13px] text-ink-soft">
-        <span className="font-medium text-ink">Honestly, it&apos;s nothing special.</span>{" "}
+        <span className="font-medium text-ink">That&apos;s awesome, totally agree.</span>{" "}
         <span className="rounded-full bg-white/60 px-2 py-0.5 text-[12px] text-ink-soft">
-          slang: “ouf” = amazing (verlan)
+          slang: “대박” = amazing / no way
         </span>
       </p>
     </div>

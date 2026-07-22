@@ -4,32 +4,12 @@ OpenRouter handles the cultural layer separately)."""
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
-# Curated launch languages (Google supports 100+; UI offers these).
+# Launch scope: English and Korean only. We would rather do two languages
+# excellently (register, slang, cultural nuance) than many shallowly. Google v3
+# and OpenRouter both support far more, so widening later is only this list.
 SUPPORTED_LANGUAGES: dict[str, str] = {
     "en": "English",
-    "es": "Spanish",
-    "fr": "French",
-    "de": "German",
-    "it": "Italian",
-    "pt": "Portuguese",
-    "nl": "Dutch",
-    "sv": "Swedish",
-    "no": "Norwegian",
-    "da": "Danish",
-    "fi": "Finnish",
-    "pl": "Polish",
-    "tr": "Turkish",
-    "ru": "Russian",
-    "uk": "Ukrainian",
-    "ar": "Arabic",
-    "he": "Hebrew",
-    "hi": "Hindi",
-    "vi": "Vietnamese",
-    "th": "Thai",
-    "id": "Indonesian",
-    "ja": "Japanese",
     "ko": "Korean",
-    "zh": "Chinese",
 }
 
 

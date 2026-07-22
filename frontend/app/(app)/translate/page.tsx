@@ -17,7 +17,7 @@ export default function TranslatePage() {
             href="/translate/general"
             className="text-ink underline underline-offset-4 hover:text-accent-strong"
           >
-            General — fast translation, wide language coverage
+            General — fast English ↔ Korean translation
           </Link>
         </li>
         <li>

@@ -59,7 +59,7 @@ export default function DesignPage() {
 
       <section aria-label="Image tiles" className="grid max-w-3xl grid-cols-2 gap-5">
         <ImageTile href="/voice-to-text/general" label="Voice-to-Text" sublabel="Live captions" wash="peach" className="h-56" />
-        <ImageTile href="/translate/general" label="Translate" sublabel="90+ languages" wash="sage" className="h-56" />
+        <ImageTile href="/translate/general" label="Translate" sublabel="English ↔ Korean" wash="sage" className="h-56" />
         <ImageTile href="/translate/genz" label="GenZ" sublabel="Slang, decoded" wash="lilac" className="h-56" />
         <ImageTile href="/voice-to-text/enhanced" label="My Sessions" sublabel="Saved transcripts" wash="amber" className="h-56" />
       </section>

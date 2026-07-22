@@ -34,7 +34,7 @@ export default function LiveCaptions({ enhanced = false }: { enhanced?: boolean 
   const [profileOptions, setProfileOptions] = useState<ProfileOption[]>([]);
   const [correcting, setCorrecting] = useState<string | null>(null);
   const [languages, setLanguages] = useState<Record<string, string>>({});
-  const [targetLang, setTargetLang] = useState("en");
+  const [targetLang, setTargetLang] = useState("ko");
   const [translateOn, setTranslateOn] = useState(false);
   const {
     translations,

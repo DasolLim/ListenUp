@@ -47,11 +47,11 @@ def test_unsupported_language_clear_error() -> None:
 
 def test_source_language_detection_hints() -> None:
     response = client.post(
-        "/translate", json={"text": "Hola, gracias por venir.", "target_lang": "en"}
+        "/translate", json={"text": "안녕하세요, 감사합니다.", "target_lang": "en"}
     )
-    assert response.json()["detectedSourceLang"] == "es"
+    assert response.json()["detectedSourceLang"] == "ko"
 
 
-def test_languages_endpoint_lists_supported() -> None:
+def test_languages_endpoint_is_english_and_korean_only() -> None:
     body = client.get("/translate/languages").json()
-    assert body["ko"] == "Korean" and len(body) >= 20
+    assert body == {"en": "English", "ko": "Korean"}

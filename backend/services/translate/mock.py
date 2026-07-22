@@ -1,7 +1,7 @@
 """Mock translation: deterministic, zero-cost, cache-identical behavior.
 
-Marks output visibly (`[ko]` prefix) and "detects" a handful of languages by
-common words so the mixed-language live gate can run without API spend.
+Marks output visibly (`[ko]` prefix) and detects Korean vs English by script,
+so the live translation flow can run without API spend. Launch scope is en/ko.
 """
 
 from services.translate.base import (
@@ -11,21 +11,10 @@ from services.translate.base import (
 )
 from services.translate.cache import cache_key, get_cache
 
-_DETECT_HINTS: list[tuple[str, str]] = [
-    ("es", "hola|gracias|buenos|cómo|qué"),
-    ("fr", "bonjour|merci|comment|c'est"),
-    ("ko", "안녕|감사|저녁|우리"),
-    ("ja", "こんにちは|ありがとう"),
-    ("de", "hallo|danke|wie geht"),
-]
-
 
 def _detect(text: str) -> str:
-    lowered = text.lower()
-    for lang, hints in _DETECT_HINTS:
-        if any(hint in lowered for hint in hints.split("|")):
-            return lang
-    return "en"
+    # Any Hangul → Korean, otherwise English (the only two supported languages).
+    return "ko" if any("가" <= ch <= "힣" for ch in text) else "en"
 
 
 class MockTranslationService(TranslationService):

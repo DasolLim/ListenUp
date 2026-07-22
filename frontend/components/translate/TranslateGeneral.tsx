@@ -25,7 +25,7 @@ async function requestTranslation(text: string, targetLang: string) {
 export default function TranslateGeneral() {
   const [mode, setMode] = useState<Mode>("text");
   const [languages, setLanguages] = useState<Record<string, string>>({});
-  const [target, setTarget] = useState("es");
+  const [target, setTarget] = useState("ko");
   const [input, setInput] = useState("");
   const [output, setOutput] = useState<{ text: string; source: string | null } | null>(null);
   const [error, setError] = useState<string | null>(null);

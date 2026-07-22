@@ -33,7 +33,7 @@ const EMPTY: EnhancedState = {
 
 export default function TranslateEnhanced() {
   const [languages, setLanguages] = useState<Record<string, string>>({});
-  const [target, setTarget] = useState("es");
+  const [target, setTarget] = useState("ko");
   const [input, setInput] = useState("");
   const [state, setState] = useState<EnhancedState>(EMPTY);
   const [error, setError] = useState<string | null>(null);

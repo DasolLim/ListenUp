@@ -72,18 +72,18 @@ def test_coerce_drops_malformed_notes_keeps_good() -> None:
 def test_enhanced_endpoint_returns_notes_for_slang() -> None:
     response = client.post(
         "/translate/enhanced",
-        json={"text": "That movie was the GOAT, no cap.", "target_lang": "es"},
+        json={"text": "That movie was the GOAT, no cap.", "target_lang": "ko"},
     )
     assert response.status_code == 200
     body = response.json()
-    assert body["translation"].startswith("[es+]")
+    assert body["translation"].startswith("[ko+]")
     assert body["register"] == "slang-heavy"
     phrases = {n["phrase"] for n in body["slangNotes"]}
     assert {"no cap", "GOAT"} <= phrases
 
 
 def test_enhanced_endpoint_cache_hit_on_repeat() -> None:
-    payload = {"text": "That movie was the GOAT, no cap.", "target_lang": "es"}
+    payload = {"text": "That movie was the GOAT, no cap.", "target_lang": "ko"}
     first = client.post("/translate/enhanced", json=payload).json()
     second = client.post("/translate/enhanced", json=payload).json()
     assert first["cached"] is False and second["cached"] is True

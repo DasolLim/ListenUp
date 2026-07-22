@@ -41,7 +41,7 @@ const families: { key: string; heading: string; intro: string; features: Feature
       {
         href: "/translate/general",
         name: "General",
-        blurb: "Fast text and voice translation with wide language coverage, cached for speed.",
+        blurb: "Fast English ↔ Korean translation, text or voice, cached for speed.",
         wash: "tile-wash-sage",
       },
       {
