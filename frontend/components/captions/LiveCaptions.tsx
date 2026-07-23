@@ -3,6 +3,7 @@
 import posthog from "posthog-js";
 import { useEffect, useRef, useState } from "react";
 import SpeakerBubble from "@/components/captions/SpeakerBubble";
+import SpokenLanguagePicker from "@/components/SpokenLanguagePicker";
 import { MicIcon } from "@/components/shell/icons";
 import Button from "@/components/ui/Button";
 import GlassCard from "@/components/ui/GlassCard";
@@ -25,8 +26,10 @@ const AUTOSCROLL_SLACK_PX = 48;
 type ProfileOption = { id: string; display_name: string };
 
 export default function LiveCaptions({ enhanced = false }: { enhanced?: boolean }) {
+  const [spoken, setSpoken] = useState("en");
   const { status, error, segments, latency, start, stop, correct, sessionId } = useTranscription({
     enhanced,
+    language: spoken,
   });
   const logRef = useRef<HTMLDivElement>(null);
   const [pinnedToBottom, setPinnedToBottom] = useState(true);
@@ -159,6 +162,12 @@ export default function LiveCaptions({ enhanced = false }: { enhanced?: boolean 
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <SpokenLanguagePicker
+            id="live-spoken"
+            value={spoken}
+            onChange={setSpoken}
+            disabled={listening}
+          />
           {enhanced && (
             <>
               <label className="flex items-center gap-2 text-sm text-ink">

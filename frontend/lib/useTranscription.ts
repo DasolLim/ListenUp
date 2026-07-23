@@ -60,12 +60,16 @@ function smooth(list: CaptionSegment[]): CaptionSegment[] {
   return list;
 }
 
-export function useTranscription(options?: { enhanced?: boolean }) {
+export function useTranscription(options?: { enhanced?: boolean; language?: string }) {
   const enhanced = options?.enhanced ?? false;
+  const language = options?.language ?? "en";
   const [status, setStatus] = useState<TranscriptionStatus>("idle");
   const [error, setError] = useState<string | null>(null);
   const [segments, setSegments] = useState<CaptionSegment[]>([]);
   const [latency, setLatency] = useState<LatencyStats>(null);
+  // "batch" languages (no streaming model exists) lag a few seconds — the UI
+  // says so instead of looking broken.
+  const [mode, setMode] = useState<"streaming" | "batch">("streaming");
 
   const wsRef = useRef<WebSocket | null>(null);
   const audioRef = useRef<{ context: AudioContext; stream: MediaStream } | null>(null);
@@ -126,13 +130,20 @@ export function useTranscription(options?: { enhanced?: boolean }) {
         token = data.session?.access_token;
       }
       ws.send(
-        JSON.stringify({ sampleRate: SAMPLE_RATE, encoding: "pcm_s16le", enhanced, token })
+        JSON.stringify({
+          sampleRate: SAMPLE_RATE,
+          encoding: "pcm_s16le",
+          enhanced,
+          token,
+          language,
+        })
       );
     };
 
     ws.onmessage = (event) => {
       const message = JSON.parse(event.data as string);
       if (message.type === "ready") {
+        if (message.mode === "batch" || message.mode === "streaming") setMode(message.mode);
         captureStartRef.current = performance.now();
         chunker.port.onmessage = (audioEvent) => {
           if (ws.readyState === WebSocket.OPEN) ws.send(audioEvent.data as ArrayBuffer);
@@ -182,7 +193,7 @@ export function useTranscription(options?: { enhanced?: boolean }) {
       setError((current) => current ?? "Lost the connection to the caption service.");
       cleanup();
     };
-  }, [cleanup, enhanced]);
+  }, [cleanup, enhanced, language]);
 
   const correct = useCallback((speakerLabel: string, profileId: string | null) => {
     const ws = wsRef.current;
@@ -209,5 +220,15 @@ export function useTranscription(options?: { enhanced?: boolean }) {
     setStatus("stopped");
   }, [cleanup]);
 
-  return { status, error, segments, latency, start, stop, correct, sessionId: sessionIdRef };
+  return {
+    status,
+    error,
+    segments,
+    latency,
+    mode,
+    start,
+    stop,
+    correct,
+    sessionId: sessionIdRef,
+  };
 }

@@ -5,6 +5,7 @@ import { MicIcon } from "@/components/shell/icons";
 import Button from "@/components/ui/Button";
 import GlassCard from "@/components/ui/GlassCard";
 import Pill from "@/components/ui/Pill";
+import SpokenLanguagePicker from "@/components/SpokenLanguagePicker";
 import { useTranscription } from "@/lib/useTranscription";
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8000";
@@ -145,7 +146,10 @@ export default function TranslateEnhanced() {
   const seqRef = useRef(0);
 
   // voice mode: one cultural result per finalized caption
-  const { status, error: micError, segments, start, stop } = useTranscription();
+  const [spoken, setSpoken] = useState("en");
+  const { status, error: micError, segments, start, stop } = useTranscription({
+    language: spoken,
+  });
   const [voiceResults, setVoiceResults] = useState<Record<string, Enhanced>>({});
   const requested = useRef<Set<string>>(new Set());
 
@@ -288,6 +292,7 @@ export default function TranslateEnhanced() {
         </>
       ) : (
         <div className="flex flex-col gap-4">
+          <SpokenLanguagePicker value={spoken} onChange={setSpoken} disabled={listening} />
           <div className="flex items-center gap-3">
             {listening ? (
               <Button variant="ghost" onClick={stop}>

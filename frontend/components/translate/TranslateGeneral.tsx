@@ -5,6 +5,7 @@ import { MicIcon } from "@/components/shell/icons";
 import Button from "@/components/ui/Button";
 import GlassCard from "@/components/ui/GlassCard";
 import Pill from "@/components/ui/Pill";
+import SpokenLanguagePicker from "@/components/SpokenLanguagePicker";
 import { useTranscription } from "@/lib/useTranscription";
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8000";
@@ -32,7 +33,10 @@ export default function TranslateGeneral() {
   const [busy, setBusy] = useState(false);
 
   // voice mode
-  const { status, error: micError, segments, start, stop } = useTranscription();
+  const [spoken, setSpoken] = useState("en");
+  const { status, error: micError, segments, start, stop } = useTranscription({
+    language: spoken,
+  });
   const [voiceTranslations, setVoiceTranslations] = useState<Record<string, string>>({});
   const requested = useRef<Set<string>>(new Set());
 
@@ -150,6 +154,7 @@ export default function TranslateGeneral() {
         </form>
       ) : (
         <div className="flex flex-col gap-4">
+          <SpokenLanguagePicker value={spoken} onChange={setSpoken} disabled={listening} />
           <div className="flex items-center gap-3">
             {listening ? (
               <Button variant="ghost" onClick={stop}>

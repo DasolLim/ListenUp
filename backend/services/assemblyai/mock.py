@@ -17,6 +17,7 @@ from services.assemblyai.base import (
     TranscriptionService,
     TranscriptSegment,
     assert_audio_format,
+    assert_spoken_language,
 )
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
@@ -60,8 +61,12 @@ class MockTranscriptionService(TranscriptionService):
         self._emitted = 0
         self._started = False
 
-    async def start(self, sample_rate: int, encoding: str = "pcm_s16le") -> None:
+    async def start(
+        self, sample_rate: int, encoding: str = "pcm_s16le", language: str = "en"
+    ) -> None:
         assert_audio_format(sample_rate, encoding)
+        assert_spoken_language(language)
+        self._language = language
         self._started = True
 
     async def send_audio(self, chunk: bytes) -> None:

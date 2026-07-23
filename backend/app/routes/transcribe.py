@@ -23,6 +23,12 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from app.naming import SessionNamer, load_profiles
 from app.supa import verify_user
 from services.assemblyai import AudioFormatError, TranscriptSegment
+from services.assemblyai.base import (
+    BATCH_LANGUAGES,
+    SPOKEN_LANGUAGES,
+    UnsupportedLanguageError,
+    assert_spoken_language,
+)
 from services.assemblyai.factory import get_transcription_service
 from services.speaker_id.matcher import SpeakerMatcher
 
@@ -30,10 +36,24 @@ logger = logging.getLogger("listenup.ws.transcribe")
 
 router = APIRouter()
 
+
 # INTRODUCTION §5: cap at 4–5 speakers. Four named lanes (matching the four
 # speaker tints in the UI) + everyone past the cap collapses into "Other".
 NAMED_SPEAKER_CAP = 4
 SEND_QUEUE_LIMIT = 64
+
+
+@router.get("/transcribe/languages")
+def spoken_languages() -> dict:
+    """Languages the mic can be captioned in, and how each is transcribed.
+    'batch' languages lag a few seconds (no streaming model exists for them)."""
+    return {
+        "languages": SPOKEN_LANGUAGES,
+        "modes": {
+            code: ("batch" if code in BATCH_LANGUAGES else "streaming")
+            for code in SPOKEN_LANGUAGES
+        },
+    }
 
 
 class SpeakerMapper:
@@ -171,7 +191,15 @@ async def ws_transcribe(websocket: WebSocket) -> None:
     fixture = config.get("fixture")
     if fixture and os.environ.get("TRANSCRIPTION_SERVICE", "mock").lower() == "mock":
         os.environ["MOCK_FIXTURE"] = str(fixture)
-    service = get_transcription_service()
+
+    language = str(config.get("language") or "en").lower()
+    try:
+        assert_spoken_language(language)
+    except UnsupportedLanguageError as exc:
+        await websocket.send_text(json.dumps({"type": "error", "message": str(exc)}))
+        await websocket.close(code=1003)
+        return
+    service = get_transcription_service(language)
 
     # Enhanced mode: authenticated sessions match diarized speakers to the
     # user's saved voice profiles. Failure to authenticate degrades to generic
@@ -192,6 +220,7 @@ async def ws_transcribe(websocket: WebSocket) -> None:
         await service.start(
             sample_rate=int(config.get("sampleRate", 0)),
             encoding=str(config.get("encoding", "")),
+            language=language,
         )
     except AudioFormatError as exc:
         logger.warning("transcribe_bad_format client=%s error=%s", client, exc)
@@ -199,8 +228,14 @@ async def ws_transcribe(websocket: WebSocket) -> None:
         await websocket.close(code=1003)
         return
 
-    logger.info("transcribe_start client=%s service=%s", client, type(service).__name__)
-    await websocket.send_text(json.dumps({"type": "ready"}))
+    # Korean has no streaming model, so it runs in buffered (batch) mode — the UI
+    # tells the user captions arrive a few seconds behind instead of instantly.
+    mode = "batch" if language in BATCH_LANGUAGES else "streaming"
+    logger.info(
+        "transcribe_start client=%s service=%s language=%s mode=%s",
+        client, type(service).__name__, language, mode,
+    )
+    await websocket.send_text(json.dumps({"type": "ready", "language": language, "mode": mode}))
 
     send_queue: asyncio.Queue[str | None] = asyncio.Queue(maxsize=SEND_QUEUE_LIMIT)
     mapper = SpeakerMapper()

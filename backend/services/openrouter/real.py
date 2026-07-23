@@ -25,12 +25,18 @@ API_URL = "https://openrouter.ai/api/v1/chat/completions"
 DEFAULT_MODEL = "openai/gpt-4o"
 # Bump when the prompt changes so improvements invalidate cached translations
 # instead of serving stale output for up to the cache TTL.
-PROMPT_VERSION = "2026-07-21.v2"
+PROMPT_VERSION = "2026-07-23.v3"
 
 # The translation itself must be culturally adapted (slang → equivalent target
 # slang), not literal-with-notes. Few-shot examples anchor slang-for-slang
 # rendering and accurate meanings (e.g. "the tea" = gossip, "갓생" = disciplined
 # productive life), which the base instruction alone tends to miss.
+#
+# LANGUAGE RULE (2026-07-23): the reader only speaks {target_name}, so EVERY
+# human-readable field — meaning, cultural_context, register — is written in
+# {target_name}, not just the translation. The few-shot examples below teach this
+# explicitly; an earlier version showed English notes for en→ko and the model
+# copied that, leaving Korean users with half-English explanations.
 SYSTEM_PROMPT = """You are a cultural translation engine for {target_name}.
 Translate the user's message the way a fluent NATIVE {target_name} speaker would \
 actually say or text it in the same situation: same tone, same energy, same register.
@@ -40,33 +46,41 @@ closest natural {target_name} slang or idiom a native really uses. If no true \
 equivalent exists, paraphrase so it still feels natural and carries the same feeling. \
 The "translation" field must be this natural, adapted version, not a stiff literal one.
 
-For each real slang term, idiom, or cultural reference in the SOURCE, add a note with \
-its ACCURATE plain meaning and the {target_name} expression you actually used.
+LANGUAGE RULE (critical): your reader reads ONLY {target_name}. Write EVERY \
+human-readable field in {target_name} — "translation", "register", and for every note \
+both "meaning" and "cultural_context". Do NOT write explanations in the source language. \
+The only field that stays in the source language is "phrase" (it quotes the original \
+slang verbatim so the reader can spot it); "equivalent" is the {target_name} expression.
+
+For each real slang term, idiom, or cultural reference in the SOURCE, add a note whose \
+"meaning" explains it accurately IN {target_name}.
 
 Return ONLY this JSON (no prose, no code fences):
 {{"translation":"<natural, culturally-adapted {target_name}>",
-"register":"<formal | neutral | casual | slang-heavy>",
-"slang_notes":[{{"phrase":"<source phrase>","meaning":"<accurate plain meaning>",\
-"cultural_context":"<who says it, when>","equivalent":"<the {target_name} expression you used>"}}]}}
+"register":"<the register, written in {target_name}>",
+"slang_notes":[{{"phrase":"<source phrase, verbatim>","meaning":"<accurate plain meaning, in {target_name}>",\
+"cultural_context":"<who says it and when, in {target_name}>","equivalent":"<the {target_name} expression you used>"}}]}}
 Use slang_notes only for genuine slang/idioms/references; [] if there are none.
 
 Examples:
-English to Korean:
+English to Korean (note: every explanation is in Korean):
 "That's straight fire, no cap." -> {{"translation":"이거 완전 대박이야, ㄹㅇ.",\
-"register":"slang-heavy","slang_notes":[{{"phrase":"straight fire","meaning":"extremely good",\
-"cultural_context":"Gen Z praise","equivalent":"대박"}},{{"phrase":"no cap","meaning":"no lie, for real",\
-"cultural_context":"Gen Z, from hip-hop","equivalent":"ㄹㅇ (리얼)"}}]}}
+"register":"슬랭 많음","slang_notes":[{{"phrase":"straight fire","meaning":"엄청나게 좋다는 뜻",\
+"cultural_context":"Z세대가 감탄할 때 쓰는 표현","equivalent":"대박"}},{{"phrase":"no cap",\
+"meaning":"거짓말 아니고 진짜라는 뜻","cultural_context":"힙합에서 온 Z세대 표현",\
+"equivalent":"ㄹㅇ (리얼)"}}]}}
 "Stop capping, we all know the tea." -> {{"translation":"뻥치지 마, 우리 다 그 썰 알거든.",\
-"register":"slang-heavy","slang_notes":[{{"phrase":"capping","meaning":"lying","cultural_context":"Gen Z",\
-"equivalent":"뻥치다"}},{{"phrase":"the tea","meaning":"the gossip","cultural_context":"from drag/Black culture",\
+"register":"슬랭 많음","slang_notes":[{{"phrase":"capping","meaning":"거짓말하는 것",\
+"cultural_context":"Z세대가 쓰는 인터넷 슬랭","equivalent":"뻥치다"}},{{"phrase":"the tea",\
+"meaning":"남의 사생활에 대한 소문이나 뒷이야기","cultural_context":"드랙·흑인 문화에서 유래한 표현",\
 "equivalent":"썰"}}]}}
-Korean to English:
+Korean to English (note: every explanation is in English):
 "그 사람 완전 인싸야." -> {{"translation":"That guy's a total social butterfly.","register":"casual",\
-"slang_notes":[{{"phrase":"인싸","meaning":"a popular, socially active person",\
-"cultural_context":"Korean net slang from 'insider'","equivalent":"social butterfly"}}]}}
+"slang_notes":[{{"phrase":"인싸","meaning":"a popular, socially active person who fits in everywhere",\
+"cultural_context":"Korean net slang from the English word 'insider'","equivalent":"social butterfly"}}]}}
 "오늘 갓생 살았다." -> {{"translation":"I absolutely crushed my day, living that disciplined best life.",\
 "register":"casual","slang_notes":[{{"phrase":"갓생","meaning":"a disciplined, productive, admirable life",\
-"cultural_context":"Korean net slang, 'god' + 'life'","equivalent":"best life / grind life"}}]}}"""
+"cultural_context":"Korean net slang combining 'god' and 'life'","equivalent":"best life / grind life"}}]}}"""
 
 
 class OpenRouterTranslationService(EnhancedTranslationService):

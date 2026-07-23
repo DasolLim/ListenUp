@@ -16,8 +16,10 @@ from urllib.parse import urlencode
 import websockets
 
 from services.assemblyai.base import (
+    STREAMING_LANGUAGES,
     TranscriptionService,
     TranscriptSegment,
+    UnsupportedLanguageError,
     assert_audio_format,
 )
 
@@ -45,7 +47,9 @@ SLANG_KEYTERMS = [
 ]
 
 
-def build_url(sample_rate: int, max_speakers: int = MAX_SPEAKERS) -> str:
+def build_url(
+    sample_rate: int, max_speakers: int = MAX_SPEAKERS, language: str = "en"
+) -> str:
     params = {
         "sample_rate": sample_rate,
         "encoding": "pcm_s16le",
@@ -53,8 +57,11 @@ def build_url(sample_rate: int, max_speakers: int = MAX_SPEAKERS) -> str:
         "speaker_labels": "true",
         "max_speakers": max_speakers,
         "format_turns": "true",
-        "keyterms_prompt": json.dumps(SLANG_KEYTERMS[:100], ensure_ascii=False),
     }
+    # The slang keyterms are English phrases and the pinned model is the English
+    # one — only send them when we're actually transcribing English.
+    if language == "en":
+        params["keyterms_prompt"] = json.dumps(SLANG_KEYTERMS[:100], ensure_ascii=False)
     return f"{STREAMING_URL}?{urlencode(params)}"
 
 
@@ -69,10 +76,17 @@ class RealAssemblyAIService(TranscriptionService):
         self._queue: asyncio.Queue[TranscriptSegment | None] = asyncio.Queue()
         self._reader: asyncio.Task[None] | None = None
 
-    async def start(self, sample_rate: int, encoding: str = "pcm_s16le") -> None:
+    async def start(
+        self, sample_rate: int, encoding: str = "pcm_s16le", language: str = "en"
+    ) -> None:
         assert_audio_format(sample_rate, encoding)
+        if language not in STREAMING_LANGUAGES:
+            raise UnsupportedLanguageError(
+                f"AssemblyAI streaming has no model for '{language}'. "
+                "Use the batch transcription path for this language."
+            )
         self._ws = await websockets.connect(
-            build_url(sample_rate),
+            build_url(sample_rate, language=language),
             additional_headers={"Authorization": self._api_key},
         )
         self._reader = asyncio.create_task(self._read_loop())

@@ -10,8 +10,30 @@ REQUIRED_ENCODING = "pcm_s16le"
 BYTES_PER_SECOND = REQUIRED_SAMPLE_RATE * 2  # mono s16le
 
 
+# Spoken languages the product can caption. AssemblyAI's *streaming* API has no
+# Korean model (english / 6-language multilingual / universal-3-5-pro's 18
+# languages all exclude it), but its *async* Universal-2 model supports Korean.
+# So Korean captions run through the batch path: same provider, same interface,
+# higher latency (INTRODUCTION §5's <1s budget is a streaming-only guarantee).
+STREAMING_LANGUAGES = {"en"}
+BATCH_LANGUAGES = {"ko"}
+SPOKEN_LANGUAGES = {"en": "English", "ko": "Korean"}
+
+
 class AudioFormatError(ValueError):
     """Raised when the client audio format is not 16 kHz mono s16le PCM."""
+
+
+class UnsupportedLanguageError(ValueError):
+    """Raised when the requested spoken language has no transcription path."""
+
+
+def assert_spoken_language(language: str) -> None:
+    if language not in SPOKEN_LANGUAGES:
+        supported = ", ".join(f"{code} ({name})" for code, name in SPOKEN_LANGUAGES.items())
+        raise UnsupportedLanguageError(
+            f"Unsupported spoken language '{language}'. Supported: {supported}."
+        )
 
 
 def assert_audio_format(sample_rate: int, encoding: str) -> None:
@@ -40,7 +62,9 @@ class TranscriptionService(ABC):
     """Start once, feed PCM chunks, consume diarized segments, stop."""
 
     @abstractmethod
-    async def start(self, sample_rate: int, encoding: str = REQUIRED_ENCODING) -> None: ...
+    async def start(
+        self, sample_rate: int, encoding: str = REQUIRED_ENCODING, language: str = "en"
+    ) -> None: ...
 
     @abstractmethod
     async def send_audio(self, chunk: bytes) -> None: ...
