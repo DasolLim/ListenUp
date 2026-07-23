@@ -40,14 +40,15 @@ def test_kb_unknown_returns_no_match() -> None:
 
 def test_ingest_makes_term_retrievable(tmp_path: Path) -> None:
     kb = LocalSlangKB(data_dir=tmp_path)
+    # A term guaranteed not to exist in the curated seed.
     added = kb.add_term(
-        SlangTerm(term="skibidi", meaning="absurdist meme nonsense", first_seen="2023")
+        SlangTerm(term="florbglax", meaning="absurdist meme nonsense", first_seen="2099")
     )
     assert added is True
-    hits = kb.search("what does skibidi mean", k=1)
-    assert hits and hits[0].term.term == "skibidi"
+    hits = kb.search("what does florbglax mean", k=1)
+    assert hits and hits[0].term.term == "florbglax"
     # A reload picks up the persisted row too.
-    assert any(t.term == "skibidi" for t in LocalSlangKB(data_dir=tmp_path).all_terms())
+    assert any(t.term == "florbglax" for t in LocalSlangKB(data_dir=tmp_path).all_terms())
 
 
 def test_gap_log_records_missing_terms(tmp_path: Path) -> None:

@@ -32,18 +32,19 @@ def test_ingest_requires_auth(kb: LocalSlangKB) -> None:
 
 def test_add_new_term_is_immediately_retrievable(kb: LocalSlangKB) -> None:
     _auth()
+    # A term guaranteed not to exist in the curated seed.
     resp = client.post(
         "/genz/terms",
-        json={"term": "skibidi", "meaning": "absurdist meme nonsense", "first_seen": "2023"},
+        json={"term": "florbglax", "meaning": "absurdist meme nonsense", "first_seen": "2099"},
     )
     assert resp.status_code == 201
     assert resp.json()["created"] is True
     # Retrievable via the API immediately…
     terms = client.get("/genz/terms").json()
-    assert any(t["term"] == "skibidi" for t in terms)
+    assert any(t["term"] == "florbglax" for t in terms)
     # …and via vector search on the same KB.
-    hits = kb.search("what does skibidi mean")
-    assert hits and hits[0].term.term == "skibidi"
+    hits = kb.search("what does florbglax mean")
+    assert hits and hits[0].term.term == "florbglax"
 
 
 def test_update_existing_term(kb: LocalSlangKB) -> None:
