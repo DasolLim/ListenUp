@@ -11,6 +11,11 @@ line-length = 100
 [tool.ruff.lint]
 select = ["E", "F", "I", "W", "UP", "B"]
 
+[tool.ruff.lint.per-file-ignores]
+# Few-shot LLM prompts are long, line-continued string literals tuned for the
+# model — reflowing them would change the prompt text sent to the API.
+"services/openrouter/real.py" = ["E501"]
+
 [tool.mypy]
 python_version = "3.12"
 strict = false
