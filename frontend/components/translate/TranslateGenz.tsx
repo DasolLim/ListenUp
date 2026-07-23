@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import Button from "@/components/ui/Button";
 import GlassCard from "@/components/ui/GlassCard";
+import ShareCard from "@/components/translate/ShareCard";
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8000";
 
@@ -31,6 +32,7 @@ function Meta({ label, value }: { label: string; value: string }) {
 
 function ExplanationCard({ data }: { data: Explanation }) {
   const low = data.confidence === "low";
+  const [sharing, setSharing] = useState(false);
   return (
     <article className="rounded-2xl border border-white/60 bg-white/60 p-5">
       {low && (
@@ -78,6 +80,16 @@ function ExplanationCard({ data }: { data: Explanation }) {
           <p className="mt-0.5 text-ink-soft">{data.adult_friendly_explanation}</p>
         </div>
       )}
+
+      <div className="mt-5 border-t border-white/50 pt-4">
+        {sharing ? (
+          <ShareCard data={data} />
+        ) : (
+          <Button type="button" variant="ghost" onClick={() => setSharing(true)}>
+            Create share card
+          </Button>
+        )}
+      </div>
     </article>
   );
 }
