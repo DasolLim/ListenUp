@@ -54,8 +54,9 @@ class LocalSlangKB:
         self._load()
 
     def _load(self) -> None:
-        self._terms = []
-        self._vectors = []
+        # Seed first, then admin-added rows; later rows override by term name so
+        # an ingested update (appended) wins over the seeded original.
+        merged: dict[str, SlangTerm] = {}
         for path in (self._seed_path, self._added_path):
             if not path.exists():
                 continue
@@ -63,14 +64,11 @@ class LocalSlangKB:
                 for row in csv.DictReader(fh):
                     if not (row.get("term") or "").strip():
                         continue
-                    self._add_in_memory(
-                        SlangTerm(**{k: (row.get(k) or "") for k in SlangTerm.__annotations__})
-                    )
+                    term = SlangTerm(**{k: (row.get(k) or "") for k in SlangTerm.__annotations__})
+                    merged[_norm(term.term)] = term
+        self._terms = list(merged.values())
+        self._vectors = [self._embedder.embed(t.context_text()) for t in self._terms]
         logger.info("genz_kb_loaded terms=%d dim=%d", len(self._terms), EMBED_DIM)
-
-    def _add_in_memory(self, term: SlangTerm) -> None:
-        self._terms.append(term)
-        self._vectors.append(self._embedder.embed(term.context_text()))
 
     def all_terms(self) -> list[SlangTerm]:
         return list(self._terms)
@@ -93,10 +91,11 @@ class LocalSlangKB:
         return scored[:k]
 
     def add_term(self, term: SlangTerm) -> bool:
-        """Persist a new/updated term; immediately retrievable. False if a term
-        with the same name already exists (caller may treat as update elsewhere)."""
+        """Add or update a term; immediately retrievable. Returns True if it was
+        newly created, False if it updated an existing term."""
         with self._lock:
-            exists = any(_norm(t.term) == _norm(term.term) for t in self._terms)
+            key = _norm(term.term)
+            vec = self._embedder.embed(term.context_text())
             self._data_dir.mkdir(parents=True, exist_ok=True)
             new_file = not self._added_path.exists()
             with self._added_path.open("a", newline="", encoding="utf-8") as fh:
@@ -104,9 +103,18 @@ class LocalSlangKB:
                 if new_file:
                     writer.writeheader()
                 writer.writerow(term.to_dict())
-            self._add_in_memory(term)
-            logger.info("genz_kb_ingest term=%r existed=%s", term.term, exists)
-            return not exists
+            # Update in place if present (last-write-wins), else append.
+            idx = next((i for i, t in enumerate(self._terms) if _norm(t.term) == key), None)
+            if idx is None:
+                self._terms.append(term)
+                self._vectors.append(vec)
+                created = True
+            else:
+                self._terms[idx] = term
+                self._vectors[idx] = vec
+                created = False
+            logger.info("genz_kb_ingest term=%r created=%s", term.term, created)
+            return created
 
     def log_gap(self, query: str) -> None:
         """Record a searched term that had no confident KB match (curation signal)."""
