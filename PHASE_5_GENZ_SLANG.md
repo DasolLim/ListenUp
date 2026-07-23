@@ -68,12 +68,14 @@
 ---
 
 ## Phase 5 Exit Criteria
-- [ ] Slang KB schema + seed pipeline + vector retrieval.
-- [ ] RAG + LLM explanation with graceful unknown-term fallback.
-- [ ] GenZ UI accessible + handles low-confidence.
-- [ ] Shareable cards generate + download.
-- [ ] KB maintenance + gap logging.
-- [ ] Static checks green; defensive JSON parsing; caching verified.
+- [x] Slang KB schema + seed pipeline + vector retrieval. _(migration 0002 pgvector applied live + RPC verified; 32-term seed; hashing embedder; local KB retrieval)_
+- [x] RAG + LLM explanation with graceful unknown-term fallback. _(known → grounded high; unknown → LLM-only low + gap-logged; KB fallback when LLM down)_
+- [x] GenZ UI accessible + handles low-confidence. _(axe clean incl. high-contrast; verified/unverified states)_
+- [x] Shareable cards generate + download. _(canvas → PNG, copy/download, long-term wrap verified)_
+- [x] KB maintenance + gap logging. _(/genz/terms add/update auth API; /genz/gaps backlog)_
+- [x] Static checks green; defensive JSON parsing; caching verified. _(ruff+mypy+eslint+tsc clean; 61 backend tests; cache hit test)_
+
+**Status: COMPLETE (2026-07-22).** Demo: `explain("rizz")` → grounded high w/ KB origin/first-seen; `explain("menty b")` → low-confidence LLM answer, logged to the gap list for curation.
 
 **Report:** demo — explain a current slang term end-to-end and produce a shareable card. Note the gap-list as the seed for ongoing curation.
 
