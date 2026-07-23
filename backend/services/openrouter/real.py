@@ -25,7 +25,7 @@ API_URL = "https://openrouter.ai/api/v1/chat/completions"
 DEFAULT_MODEL = "openai/gpt-4o"
 # Bump when the prompt changes so improvements invalidate cached translations
 # instead of serving stale output for up to the cache TTL.
-PROMPT_VERSION = "2026-07-23.v3"
+PROMPT_VERSION = "2026-07-23.v4"
 
 # The translation itself must be culturally adapted (slang → equivalent target
 # slang), not literal-with-notes. Few-shot examples anchor slang-for-slang
@@ -51,6 +51,10 @@ human-readable field in {target_name} — "translation", "register", and for eve
 both "meaning" and "cultural_context". Do NOT write explanations in the source language. \
 The only field that stays in the source language is "phrase" (it quotes the original \
 slang verbatim so the reader can spot it); "equivalent" is the {target_name} expression.
+When you explain a word's etymology, describe the roots IN {target_name} rather than \
+quoting the source-language words — e.g. for a Korean term derived from 존나 + 잼, write \
+"from a vulgar intensifier plus the word for 'fun'", NOT "from '존나' (very)". Never leave \
+source-language characters inside "meaning" or "cultural_context".
 
 For each real slang term, idiom, or cultural reference in the SOURCE, add a note whose \
 "meaning" explains it accurately IN {target_name}.

@@ -31,7 +31,10 @@ from services.assemblyai.base import (
 logger = logging.getLogger("listenup.stt.batch")
 
 API_BASE = "https://api.assemblyai.com/v2"
-SPEECH_MODEL = os.environ.get("ASSEMBLYAI_BATCH_MODEL", "universal")
+# NOTE: the singular `speech_model` field is deprecated and now 400s — the async
+# API requires `speech_models` as a LIST. universal-2 is the 99-language model
+# that covers Korean.
+SPEECH_MODELS = [os.environ.get("ASSEMBLYAI_BATCH_MODEL", "universal-2")]
 MAX_SPEAKERS = 5
 
 # Window cutting: prefer a natural pause, but never lag more than MAX_WINDOW_S.
@@ -92,7 +95,7 @@ class BatchAssemblyAIService(TranscriptionService):
         assert_spoken_language(language)
         self._sample_rate = sample_rate
         self._language = language
-        logger.info("batch_session_begin language=%s model=%s", language, SPEECH_MODEL)
+        logger.info("batch_session_begin language=%s models=%s", language, SPEECH_MODELS)
 
     @property
     def _buffered_seconds(self) -> float:
@@ -147,7 +150,7 @@ class BatchAssemblyAIService(TranscriptionService):
             payload: dict = {
                 "audio_url": audio_url,
                 "language_code": self._language,
-                "speech_model": SPEECH_MODEL,
+                "speech_models": SPEECH_MODELS,
                 "speaker_labels": True,
                 "speakers_expected": MAX_SPEAKERS,
             }
