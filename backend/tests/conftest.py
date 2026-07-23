@@ -7,4 +7,6 @@ os.environ["TRANSCRIPTION_SERVICE"] = "mock"
 os.environ["SPEAKER_ID_SERVICE"] = "mock"
 os.environ["TRANSLATION_SERVICE"] = "mock"
 os.environ["ENHANCED_TRANSLATION_SERVICE"] = "mock"
+os.environ["GENZ_EXPLAINER_SERVICE"] = "mock"
+os.environ["TEXT_EMBEDDER"] = "hashing"
 os.environ.pop("MOCK_FIXTURE", None)
