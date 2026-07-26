@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import Button from "@/components/ui/Button";
+import { networkError } from "@/lib/networkError";
 import GlassCard from "@/components/ui/GlassCard";
 import ShareCard from "@/components/translate/ShareCard";
 
@@ -107,6 +108,10 @@ export default function TranslateGenz() {
     const seq = ++seqRef.current;
     setBusy(true);
     setError(null);
+    // Drop the previous explanation up front. Otherwise a failed lookup leaves
+    // the last term's card on screen next to the error, so the UI appears to
+    // have "not updated" — the symptom that reads as a caching bug.
+    setResult(null);
     try {
       const response = await fetch(`${BACKEND}/genz/explain`, {
         method: "POST",
@@ -118,7 +123,7 @@ export default function TranslateGenz() {
       if (seqRef.current === seq) setResult(body as Explanation);
     } catch (err) {
       if (seqRef.current === seq) {
-        setError(err instanceof Error ? err.message : "Couldn’t explain that right now.");
+        setError(networkError(err, "Couldn’t explain that right now."));
       }
     } finally {
       if (seqRef.current === seq) setBusy(false);

@@ -40,8 +40,23 @@ MAX_SPEAKERS = 5
 # Window cutting: prefer a natural pause, but never lag more than MAX_WINDOW_S.
 MIN_WINDOW_S = 2.0
 MAX_WINDOW_S = 8.0
-SILENCE_RMS = 320.0  # int16 RMS below this counts as silence
 SILENCE_HOLD_S = 0.45  # trailing quiet needed to cut on a pause
+
+# Silence detection is RELATIVE to the session's own noise floor, not a fixed
+# int16 RMS. A fixed threshold (previously 320.0) is gain-dependent: measured
+# against synthetic tones, quiet-but-real speech at RMS ~282 was classed as
+# silence (cutting windows mid-sentence) and a low-gain mic at RMS ~106 had its
+# window discarded entirely and never transcribed. That is the main cause of
+# Korean captions being inconsistent, since Korean is the only language on this
+# batch transport — the streaming path does its own VAD.
+#
+# The floor tracks the quietest audio seen this session and speech must exceed
+# it by SPEECH_FACTOR, so the same code works for a whisper and a shout.
+NOISE_FLOOR_START = 120.0  # assumed floor before we have measured anything
+NOISE_FLOOR_MIN = 15.0     # never adapt below this (digital near-silence)
+NOISE_FLOOR_DECAY = 0.92   # how fast the floor follows a quieter room
+SPEECH_FACTOR = 2.2        # RMS above floor*this counts as speech
+DROP_FACTOR = 1.3          # below floor*this the window is pure silence
 
 # Bias recognition toward Korean net-slang the general model tends to mangle
 # (mirrors the English keyterms on the streaming path).
@@ -87,6 +102,7 @@ class BatchAssemblyAIService(TranscriptionService):
         self._elapsed = 0.0  # seconds of audio already flushed (segment offsets)
         self._turn = 0
         self._closed = False
+        self._noise_floor = NOISE_FLOOR_START
 
     async def start(
         self, sample_rate: int, encoding: str = "pcm_s16le", language: str = "ko"
@@ -101,6 +117,16 @@ class BatchAssemblyAIService(TranscriptionService):
     def _buffered_seconds(self) -> float:
         return len(self._buffer) / BYTES_PER_SECOND
 
+    def _track_noise_floor(self, rms: float) -> None:
+        """Follow the quietest recent audio, so the speech threshold adapts to
+        this microphone and room instead of assuming a fixed input level."""
+        if rms < self._noise_floor:
+            self._noise_floor = max(NOISE_FLOOR_MIN, rms)
+        else:
+            # Drift up slowly so one quiet moment doesn't pin the floor forever.
+            drifted = self._noise_floor * NOISE_FLOOR_DECAY + rms * (1 - NOISE_FLOOR_DECAY)
+            self._noise_floor = max(NOISE_FLOOR_MIN, drifted)
+
     def _should_flush(self) -> bool:
         seconds = self._buffered_seconds
         if seconds >= MAX_WINDOW_S:
@@ -108,7 +134,10 @@ class BatchAssemblyAIService(TranscriptionService):
         if seconds < MIN_WINDOW_S:
             return False
         tail = bytes(self._buffer[-int(SILENCE_HOLD_S * BYTES_PER_SECOND) :])
-        return _rms(tail) < SILENCE_RMS
+        tail_rms = _rms(tail)
+        self._track_noise_floor(tail_rms)
+        # Cut on a pause: the tail is quiet relative to this session's floor.
+        return tail_rms < self._noise_floor * SPEECH_FACTOR
 
     async def send_audio(self, chunk: bytes) -> None:
         if self._closed:
@@ -124,8 +153,13 @@ class BatchAssemblyAIService(TranscriptionService):
         self._buffer.clear()
         offset = self._elapsed
         self._elapsed += len(window) / BYTES_PER_SECOND
-        # Skip windows that are pure silence — no point paying to transcribe them.
-        if _rms(window) < SILENCE_RMS / 2:
+        # Skip windows that are pure silence — no point paying to transcribe
+        # them. Relative to the measured floor, so quiet speech is still sent.
+        window_rms = _rms(window)
+        if window_rms < self._noise_floor * DROP_FACTOR:
+            logger.debug(
+                "batch_window_dropped rms=%.1f floor=%.1f", window_rms, self._noise_floor
+            )
             return
         self._jobs.append(asyncio.create_task(self._transcribe(window, offset)))
 
