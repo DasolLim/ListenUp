@@ -9,6 +9,7 @@ import Button from "@/components/ui/Button";
 import GlassCard from "@/components/ui/GlassCard";
 import VoicePicker from "@/components/speech/VoicePicker";
 import { useSpeech } from "@/lib/useSpeech";
+import { useStickyLanguage } from "@/lib/useStickyLanguage";
 import { useLiveTranslation } from "@/lib/useLiveTranslation";
 import { useTranscription } from "@/lib/useTranscription";
 
@@ -28,7 +29,7 @@ const AUTOSCROLL_SLACK_PX = 48;
 type ProfileOption = { id: string; display_name: string };
 
 export default function LiveCaptions({ enhanced = false }: { enhanced?: boolean }) {
-  const [spoken, setSpoken] = useState("en");
+  const [spoken, setSpoken] = useStickyLanguage("listenup-spoken-captions");
   const { status, error, segments, latency, start, stop, correct, sessionId } = useTranscription({
     enhanced,
     language: spoken,
@@ -39,7 +40,7 @@ export default function LiveCaptions({ enhanced = false }: { enhanced?: boolean 
   const [profileOptions, setProfileOptions] = useState<ProfileOption[]>([]);
   const [correcting, setCorrecting] = useState<string | null>(null);
   const [languages, setLanguages] = useState<Record<string, string>>({});
-  const [targetLang, setTargetLang] = useState("en");
+  const [targetLang, setTargetLang] = useStickyLanguage("listenup-target-captions");
   const [translateOn, setTranslateOn] = useState(false);
   const {
     translations,

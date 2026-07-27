@@ -6,6 +6,7 @@ import Button from "@/components/ui/Button";
 import SpeakButton from "@/components/speech/SpeakButton";
 import VoicePicker from "@/components/speech/VoicePicker";
 import { useSpeech } from "@/lib/useSpeech";
+import { useStickyLanguage } from "@/lib/useStickyLanguage";
 import GlassCard from "@/components/ui/GlassCard";
 import Pill from "@/components/ui/Pill";
 import SpokenLanguagePicker from "@/components/SpokenLanguagePicker";
@@ -29,7 +30,7 @@ async function requestTranslation(text: string, targetLang: string) {
 export default function TranslateGeneral() {
   const [mode, setMode] = useState<Mode>("text");
   const [languages, setLanguages] = useState<Record<string, string>>({});
-  const [target, setTarget] = useState("en");
+  const [target, setTarget] = useStickyLanguage("listenup-target-general");
   const speech = useSpeech(target);
   const [input, setInput] = useState("");
   const [output, setOutput] = useState<{ text: string; source: string | null } | null>(null);
@@ -37,7 +38,7 @@ export default function TranslateGeneral() {
   const [busy, setBusy] = useState(false);
 
   // voice mode
-  const [spoken, setSpoken] = useState("en");
+  const [spoken, setSpoken] = useStickyLanguage("listenup-spoken-general");
   const { status, error: micError, segments, start, stop } = useTranscription({
     language: spoken,
   });

@@ -10,7 +10,7 @@ a machine with the good Apple/Google voices uses them and anything else falls
 back to the platform default for that language.
 """
 
-from services.tts.base import Speech, TtsService, Voice, assert_speakable
+from services.tts.base import Speech, TtsError, TtsService, Voice, assert_speakable
 
 # Curated per language: at least one female and one male, plus a neutral
 # fallback. Labels are what the user actually sees, so they name the voice's
@@ -77,6 +77,13 @@ class BrowserTtsService(TtsService):
         return list(BROWSER_VOICES)
 
     async def speak(self, text: str, voice_id: str) -> Speech:
+        # Reject ids we don't publish. Silently falling back to a default voice
+        # is worse than an error: a stale or deleted custom-voice id would speak
+        # in a stranger's voice with nothing to tell the user why.
+        if not any(v.id == voice_id for v in BROWSER_VOICES):
+            raise TtsError(
+                f"Unknown voice '{voice_id}'. It may have been removed — pick another voice."
+            )
         # No server-side audio: the client speaks this itself. Returning
         # `speak_locally` keeps the API shape identical to the cloud path so the
         # frontend has one code path for both tiers.

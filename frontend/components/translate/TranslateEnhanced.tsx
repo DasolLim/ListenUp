@@ -6,6 +6,7 @@ import Button from "@/components/ui/Button";
 import SpeakButton from "@/components/speech/SpeakButton";
 import VoicePicker from "@/components/speech/VoicePicker";
 import { useSpeech } from "@/lib/useSpeech";
+import { useStickyLanguage } from "@/lib/useStickyLanguage";
 import GlassCard from "@/components/ui/GlassCard";
 import Pill from "@/components/ui/Pill";
 import SpokenLanguagePicker from "@/components/SpokenLanguagePicker";
@@ -148,7 +149,7 @@ function ResultCard({
 export default function TranslateEnhanced() {
   const [mode, setMode] = useState<Mode>("text");
   const [languages, setLanguages] = useState<Record<string, string>>({});
-  const [target, setTarget] = useState("en");
+  const [target, setTarget] = useStickyLanguage("listenup-target-enhanced");
   const speech = useSpeech(target);
 
   // text mode

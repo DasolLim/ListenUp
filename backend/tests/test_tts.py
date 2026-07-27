@@ -87,6 +87,17 @@ def test_speak_rejects_empty_text():
     assert response.status_code == 422
 
 
+def test_unknown_voice_id_is_rejected_not_silently_substituted():
+    """Regression: an unknown id used to return 200 and speak in a default
+    voice. A stale or deleted custom voice would then speak as a stranger with
+    nothing to explain why."""
+    response = client.post(
+        "/tts/speak", json={"text": "hello", "voice_id": "deleted-custom-voice"}
+    )
+    assert response.status_code == 503
+    assert "unknown voice" in response.json()["detail"].lower()
+
+
 def test_browser_service_never_returns_audio():
     service = BrowserTtsService()
     result = asyncio.run(service.speak("hello", "browser-en-female"))
