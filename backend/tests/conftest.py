@@ -9,4 +9,5 @@ os.environ["TRANSLATION_SERVICE"] = "mock"
 os.environ["ENHANCED_TRANSLATION_SERVICE"] = "mock"
 os.environ["GENZ_EXPLAINER_SERVICE"] = "mock"
 os.environ["TEXT_EMBEDDER"] = "hashing"
+os.environ["TTS_SERVICE"] = "browser"  # free tier; never call a paid voice API in tests
 os.environ.pop("MOCK_FIXTURE", None)

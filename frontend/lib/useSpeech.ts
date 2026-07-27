@@ -1,0 +1,170 @@
+"use client";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+
+const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8000";
+
+export type Voice = {
+  id: string;
+  label: string;
+  language: string;
+  gender: "female" | "male" | "neutral";
+  provider: "browser" | "cloud" | "custom";
+  browser_hint: string;
+  owner_name: string;
+};
+
+const VOICE_PREF_KEY = "listenup-voice";
+const AUTOSPEAK_KEY = "listenup-autospeak";
+
+/**
+ * Picks the OS voice that best matches a curated entry.
+ *
+ * `browser_hint` is a `|`-separated preference list, most specific first, so a
+ * Mac with Samantha uses Samantha while Windows falls through to Aria. If none
+ * match we return any voice for the right language rather than nothing —
+ * speaking in a slightly different voice beats silence.
+ */
+function pickBrowserVoice(voice: Voice, available: SpeechSynthesisVoice[]) {
+  const forLanguage = available.filter((v) => v.lang.toLowerCase().startsWith(voice.language));
+  for (const hint of voice.browser_hint.split("|").filter(Boolean)) {
+    const match = forLanguage.find((v) => v.name.toLowerCase().includes(hint.toLowerCase()));
+    if (match) return match;
+  }
+  return forLanguage[0];
+}
+
+/**
+ * Speaking translated text aloud, so the other person hears their own language
+ * instead of the user reading it out.
+ *
+ * Two tiers behind one call: browser voices render locally via
+ * `speechSynthesis` (free, offline, instant), cloud voices come back as audio
+ * from the backend. `speak()` hides the difference.
+ */
+export function useSpeech(language: string) {
+  const [voices, setVoices] = useState<Voice[]>([]);
+  const [voiceId, setVoiceId] = useState<string>("");
+  const [autoSpeak, setAutoSpeak] = useState(false);
+  const [speaking, setSpeaking] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const osVoices = useRef<SpeechSynthesisVoice[]>([]);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // The OS voice list is populated asynchronously in most browsers.
+  useEffect(() => {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+    const load = () => {
+      osVoices.current = window.speechSynthesis.getVoices();
+    };
+    load();
+    window.speechSynthesis.addEventListener("voiceschanged", load);
+    return () => window.speechSynthesis.removeEventListener("voiceschanged", load);
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch(`${BACKEND}/tts/voices?language=${encodeURIComponent(language)}`, {
+      signal: controller.signal,
+    })
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("voices"))))
+      .then((body: { voices: Voice[] }) => {
+        setVoices(body.voices);
+        const stored = localStorage.getItem(`${VOICE_PREF_KEY}-${language}`);
+        const valid = stored && body.voices.some((v) => v.id === stored);
+        setVoiceId(valid ? stored! : (body.voices[0]?.id ?? ""));
+      })
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [language]);
+
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => {
+      setAutoSpeak(localStorage.getItem(AUTOSPEAK_KEY) === "on");
+    });
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  const chooseVoice = useCallback(
+    (id: string) => {
+      setVoiceId(id);
+      localStorage.setItem(`${VOICE_PREF_KEY}-${language}`, id);
+    },
+    [language],
+  );
+
+  const toggleAutoSpeak = useCallback(() => {
+    setAutoSpeak((prev) => {
+      const next = !prev;
+      localStorage.setItem(AUTOSPEAK_KEY, next ? "on" : "off");
+      return next;
+    });
+  }, []);
+
+  const stop = useCallback(() => {
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
+    audioRef.current?.pause();
+    audioRef.current = null;
+    setSpeaking(false);
+  }, []);
+
+  const speak = useCallback(
+    async (text: string, overrideVoiceId?: string) => {
+      const trimmed = text.trim();
+      const id = overrideVoiceId ?? voiceId;
+      if (!trimmed || !id) return;
+
+      stop(); // never let two lines talk over each other
+      setError(null);
+      const voice = voices.find((v) => v.id === id);
+
+      // Browser tier: no network call at all.
+      if (!voice || voice.provider === "browser") {
+        if (typeof window === "undefined" || !("speechSynthesis" in window)) {
+          setError("This browser can't speak text aloud.");
+          return;
+        }
+        const utterance = new SpeechSynthesisUtterance(trimmed);
+        utterance.lang = language === "ko" ? "ko-KR" : "en-US";
+        if (voice) {
+          const os = pickBrowserVoice(voice, osVoices.current);
+          if (os) utterance.voice = os;
+        }
+        utterance.onend = () => setSpeaking(false);
+        utterance.onerror = () => setSpeaking(false);
+        setSpeaking(true);
+        window.speechSynthesis.speak(utterance);
+        return;
+      }
+
+      // Cloud / custom tier: fetch audio and play it.
+      setSpeaking(true);
+      try {
+        const response = await fetch(`${BACKEND}/tts/speak`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: trimmed, voice_id: id }),
+        });
+        const body = await response.json();
+        if (!response.ok) throw new Error(body.detail ?? "Couldn't speak that.");
+        if (body.speak_locally || !body.audio_base64) {
+          setSpeaking(false);
+          return;
+        }
+        const audio = new Audio(`data:${body.mime_type};base64,${body.audio_base64}`);
+        audioRef.current = audio;
+        audio.onended = () => setSpeaking(false);
+        audio.onerror = () => setSpeaking(false);
+        await audio.play();
+      } catch (err) {
+        setSpeaking(false);
+        setError(err instanceof Error ? err.message : "Couldn't speak that.");
+      }
+    },
+    [language, stop, voiceId, voices],
+  );
+
+  return { voices, voiceId, chooseVoice, speak, stop, speaking, autoSpeak, toggleAutoSpeak, error };
+}

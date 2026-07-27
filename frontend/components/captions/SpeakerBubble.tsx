@@ -1,3 +1,5 @@
+import SpeakButton from "@/components/speech/SpeakButton";
+
 const tints = [
   "var(--speaker-1)",
   "var(--speaker-2)",
@@ -33,9 +35,16 @@ export type Caption = {
 export default function SpeakerBubble({
   caption,
   onCorrectClick,
+  onSpeak,
+  onStopSpeaking,
+  speaking = false,
 }: {
   caption: Caption;
   onCorrectClick?: (speakerLabel: string) => void;
+  /** Present only when this line has a translation worth reading aloud. */
+  onSpeak?: () => void;
+  onStopSpeaking?: () => void;
+  speaking?: boolean;
 }) {
   const tint = tints[caption.speakerIndex] ?? "var(--speaker-other)";
   const baseLabel = caption.speakerName ?? caption.speaker;
@@ -48,6 +57,8 @@ export default function SpeakerBubble({
       data-interim={caption.interim || undefined}
       style={{ backgroundColor: tint }}
     >
+      <div className="flex items-start justify-between gap-2">
+      <div className="min-w-0 flex-1">
       {onCorrectClick ? (
         <button
           type="button"
@@ -63,6 +74,16 @@ export default function SpeakerBubble({
           {labelText}
         </p>
       )}
+      </div>
+      {onSpeak && (
+        <SpeakButton
+          onSpeak={onSpeak}
+          onStop={onStopSpeaking ?? (() => undefined)}
+          speaking={speaking}
+          label={`the translation of ${caption.speakerName ?? caption.speaker}'s line`}
+        />
+      )}
+      </div>
       {/* Interims de-emphasize via italics + ellipsis, never lighter text —
           lighter grays fall below AA on the tinted glass (DESIGN_SYSTEM §7). */}
       <p className={`caption-text mt-0.5 text-ink ${caption.interim ? "italic" : ""}`}>

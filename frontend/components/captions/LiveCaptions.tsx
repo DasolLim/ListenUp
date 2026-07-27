@@ -7,6 +7,8 @@ import SpokenLanguagePicker from "@/components/SpokenLanguagePicker";
 import { MicIcon } from "@/components/shell/icons";
 import Button from "@/components/ui/Button";
 import GlassCard from "@/components/ui/GlassCard";
+import VoicePicker from "@/components/speech/VoicePicker";
+import { useSpeech } from "@/lib/useSpeech";
 import { useLiveTranslation } from "@/lib/useLiveTranslation";
 import { useTranscription } from "@/lib/useTranscription";
 
@@ -45,6 +47,20 @@ export default function LiveCaptions({ enhanced = false }: { enhanced?: boolean 
     costs,
     reset: resetTranslations,
   } = useLiveTranslation(segments, targetLang, enhanced && translateOn);
+  const speech = useSpeech(targetLang);
+  const spokenIds = useRef<Set<string>>(new Set());
+
+  // Auto-speak: read each newly translated FINAL line aloud once, so the other
+  // person hears their own language without anyone reading it out. Interims are
+  // skipped (they change mid-sentence) and each id speaks at most once.
+  useEffect(() => {
+    if (!translateOn || !speech.autoSpeak) return;
+    const latest = [...segments].reverse().find((s) => s.isFinal && translations[s.id]);
+    if (!latest || spokenIds.current.has(latest.id)) return;
+    spokenIds.current.add(latest.id);
+    void speech.speak(translations[latest.id].text);
+  }, [segments, translations, translateOn, speech]);
+
   // STT duration = audio timeline processed (last segment's end timestamp).
   // Rough per-session cost: AssemblyAI ~$0.15/hr, Google $20/M chars, 4o-mini ~$0.60/M tokens.
   const sttSeconds = segments.length ? Math.max(...segments.map((s) => s.end)) : 0;
@@ -211,6 +227,23 @@ export default function LiveCaptions({ enhanced = false }: { enhanced?: boolean 
         </div>
       </div>
 
+      {enhanced && translateOn && (
+        <div className="flex flex-wrap items-center gap-3 border-t border-white/40 pt-3">
+          <VoicePicker
+            id="live-voice"
+            voices={speech.voices}
+            voiceId={speech.voiceId}
+            onChoose={speech.chooseVoice}
+            onPreview={(text, id) => speech.speak(text, id)}
+            onStop={speech.stop}
+            speaking={speech.speaking}
+            autoSpeak={speech.autoSpeak}
+            onToggleAutoSpeak={speech.toggleAutoSpeak}
+            language={targetLang}
+          />
+        </div>
+      )}
+
       {error && (
         <p role="alert" className="rounded-xl border border-error bg-white/70 px-4 py-3 text-sm text-error-strong">
           {error}
@@ -246,6 +279,13 @@ export default function LiveCaptions({ enhanced = false }: { enhanced?: boolean 
               translated: translateOn ? (translations[segment.id] ?? null) : null,
             }}
             onCorrectClick={enhanced && status === "listening" ? openCorrection : undefined}
+            onSpeak={
+              translateOn && translations[segment.id]
+                ? () => speech.speak(translations[segment.id].text)
+                : undefined
+            }
+            onStopSpeaking={speech.stop}
+            speaking={speech.speaking}
           />
         ))}
       </div>

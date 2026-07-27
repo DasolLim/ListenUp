@@ -3,6 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import { MicIcon } from "@/components/shell/icons";
 import Button from "@/components/ui/Button";
+import SpeakButton from "@/components/speech/SpeakButton";
+import VoicePicker from "@/components/speech/VoicePicker";
+import { useSpeech } from "@/lib/useSpeech";
 import GlassCard from "@/components/ui/GlassCard";
 import Pill from "@/components/ui/Pill";
 import SpokenLanguagePicker from "@/components/SpokenLanguagePicker";
@@ -27,6 +30,7 @@ export default function TranslateGeneral() {
   const [mode, setMode] = useState<Mode>("text");
   const [languages, setLanguages] = useState<Record<string, string>>({});
   const [target, setTarget] = useState("en");
+  const speech = useSpeech(target);
   const [input, setInput] = useState("");
   const [output, setOutput] = useState<{ text: string; source: string | null } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -108,6 +112,24 @@ export default function TranslateGeneral() {
         </div>
       </div>
 
+      {/* Voice selection lives with the translation controls: the whole point
+          is that the other person hears their own language, so choosing who
+          reads it out belongs next to choosing the language. */}
+      <div className="flex flex-wrap items-center gap-3 border-t border-white/40 pt-3">
+        <VoicePicker
+          id="general-voice"
+          voices={speech.voices}
+          voiceId={speech.voiceId}
+          onChoose={speech.chooseVoice}
+          onPreview={(text, id) => speech.speak(text, id)}
+          onStop={speech.stop}
+          speaking={speech.speaking}
+          autoSpeak={speech.autoSpeak}
+          onToggleAutoSpeak={speech.toggleAutoSpeak}
+          language={target}
+        />
+      </div>
+
       {mode === "text" ? (
         <form
           className="flex flex-col gap-4"
@@ -147,7 +169,15 @@ export default function TranslateGeneral() {
                   {languages[target] ?? target}
                   {output.source ? ` · from ${languages[output.source] ?? output.source}` : ""}
                 </p>
-                <p className="caption-text mt-1 text-ink">{output.text}</p>
+                <div className="mt-1 flex items-start justify-between gap-2">
+                  <p className="caption-text min-w-0 flex-1 text-ink">{output.text}</p>
+                  <SpeakButton
+                    onSpeak={() => speech.speak(output.text)}
+                    onStop={speech.stop}
+                    speaking={speech.speaking}
+                    label="the translation"
+                  />
+                </div>
               </div>
             )}
           </div>
@@ -187,7 +217,17 @@ export default function TranslateGeneral() {
                   {segment.text}
                 </p>
                 {voiceTranslations[segment.id] && (
-                  <p className="caption-text mt-1 text-ink">{voiceTranslations[segment.id]}</p>
+                  <div className="mt-1 flex items-start justify-between gap-2">
+                    <p className="caption-text min-w-0 flex-1 text-ink">
+                      {voiceTranslations[segment.id]}
+                    </p>
+                    <SpeakButton
+                      onSpeak={() => speech.speak(voiceTranslations[segment.id])}
+                      onStop={speech.stop}
+                      speaking={speech.speaking}
+                      label="the translation"
+                    />
+                  </div>
                 )}
               </div>
             ))}

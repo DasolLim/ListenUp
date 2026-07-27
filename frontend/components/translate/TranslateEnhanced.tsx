@@ -3,6 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import { MicIcon } from "@/components/shell/icons";
 import Button from "@/components/ui/Button";
+import SpeakButton from "@/components/speech/SpeakButton";
+import VoicePicker from "@/components/speech/VoicePicker";
+import { useSpeech } from "@/lib/useSpeech";
 import GlassCard from "@/components/ui/GlassCard";
 import Pill from "@/components/ui/Pill";
 import SpokenLanguagePicker from "@/components/SpokenLanguagePicker";
@@ -86,6 +89,7 @@ function ResultCard({
   target: string;
   languages: Record<string, string>;
 }) {
+  const speech = useSpeech(target);
   const shown = result.upgraded ?? result.fast;
   if (!shown) return null;
   return (
@@ -106,7 +110,15 @@ function ResultCard({
           </span>
         )}
       </div>
-      <p className="caption-text mt-1.5 text-ink">{shown}</p>
+      <div className="mt-1.5 flex items-start justify-between gap-2">
+        <p className="caption-text min-w-0 flex-1 text-ink">{shown}</p>
+        <SpeakButton
+          onSpeak={() => speech.speak(shown)}
+          onStop={speech.stop}
+          speaking={speech.speaking}
+          label="the translation"
+        />
+      </div>
       {result.notes.length > 0 && (
         <div className="mt-2 flex flex-col gap-2">
           {result.notes.map((note) => (
@@ -137,6 +149,7 @@ export default function TranslateEnhanced() {
   const [mode, setMode] = useState<Mode>("text");
   const [languages, setLanguages] = useState<Record<string, string>>({});
   const [target, setTarget] = useState("en");
+  const speech = useSpeech(target);
 
   // text mode
   const [input, setInput] = useState("");
@@ -249,6 +262,23 @@ export default function TranslateEnhanced() {
             ))}
           </select>
         </div>
+      </div>
+
+      {/* Voice selection sits with the language controls — choosing who reads
+          the translation out is part of choosing the translation. */}
+      <div className="flex flex-wrap items-center gap-3 border-t border-white/40 pt-3">
+        <VoicePicker
+          id="enhanced-voice"
+          voices={speech.voices}
+          voiceId={speech.voiceId}
+          onChoose={speech.chooseVoice}
+          onPreview={(text, id) => speech.speak(text, id)}
+          onStop={speech.stop}
+          speaking={speech.speaking}
+          autoSpeak={speech.autoSpeak}
+          onToggleAutoSpeak={speech.toggleAutoSpeak}
+          language={target}
+        />
       </div>
 
       {mode === "text" ? (

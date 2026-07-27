@@ -12,6 +12,7 @@ from app.routes.genz import router as genz_router
 from app.routes.profiles import router as profiles_router
 from app.routes.transcribe import router as transcribe_router
 from app.routes.translate import router as translate_router
+from app.routes.tts import router as tts_router
 from services.speaker_id import get_speaker_embedder
 
 # Root .env first (shell env wins) — services read os.environ lazily.
@@ -44,6 +45,7 @@ app.include_router(feedback_router)
 app.include_router(profiles_router)
 app.include_router(translate_router)
 app.include_router(genz_router)
+app.include_router(tts_router)
 
 FRONTEND_ORIGIN = os.environ.get("FRONTEND_ORIGIN", "http://localhost:3000")
 
