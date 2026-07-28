@@ -4,10 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import { MicIcon } from "@/components/shell/icons";
 import Button from "@/components/ui/Button";
 import SpeakButton from "@/components/speech/SpeakButton";
-import VoicePicker from "@/components/speech/VoicePicker";
+import ReadAloudBar from "@/components/speech/ReadAloudBar";
+import TranslateShell from "@/components/translate/TranslateShell";
 import { useSpeech } from "@/lib/useSpeech";
 import { useStickyLanguage } from "@/lib/useStickyLanguage";
-import GlassCard from "@/components/ui/GlassCard";
 import Pill from "@/components/ui/Pill";
 import SpokenLanguagePicker from "@/components/SpokenLanguagePicker";
 import { useTranscription } from "@/lib/useTranscription";
@@ -30,10 +30,22 @@ async function requestTranslation(text: string, targetLang: string) {
 export default function TranslateGeneral() {
   const [mode, setMode] = useState<Mode>("text");
   const [languages, setLanguages] = useState<Record<string, string>>({});
-  const [target, setTarget] = useStickyLanguage("listenup-target-general");
+  const [target, setTarget] = useStickyLanguage("listenup-target-general", "ko");
   const speech = useSpeech(target);
+  const autoSpokenRef = useRef<string>("");
+
   const [input, setInput] = useState("");
   const [output, setOutput] = useState<{ text: string; source: string | null } | null>(null);
+
+  // Auto-speak a new translation once. Keyed on the text so re-renders don't
+  // repeat it and a repeat translation of the same phrase stays quiet.
+  useEffect(() => {
+    if (!speech.autoSpeak || !output?.text) return;
+    if (autoSpokenRef.current === output.text) return;
+    autoSpokenRef.current = output.text;
+    void speech.speak(output.text);
+  }, [output, speech]);
+
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -84,8 +96,11 @@ export default function TranslateGeneral() {
   const listening = status === "listening" || status === "connecting";
 
   return (
-    <GlassCard strong className="flex flex-col gap-5 p-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <TranslateShell
+      title="Translate"
+      tier="General"
+      tagline="Fast, literal translation between English and Korean. Type it or speak it."
+      modes={
         <div className="flex gap-2" role="group" aria-label="Input mode">
           <Pill active={mode === "text"} onClick={() => setMode("text")}>
             Text
@@ -94,6 +109,8 @@ export default function TranslateGeneral() {
             Voice
           </Pill>
         </div>
+      }
+      languageRow={
         <div className="flex items-center gap-2">
           <label htmlFor="target-lang" className="text-sm font-medium text-ink">
             Translate to
@@ -102,7 +119,7 @@ export default function TranslateGeneral() {
             id="target-lang"
             value={target}
             onChange={(e) => setTarget(e.target.value)}
-            className="glass-strong rounded-xl border border-white/60 px-3 py-2 text-sm text-ink shadow-glass outline-none"
+            className="glass-strong min-h-11 rounded-xl border border-white/60 px-3 text-sm text-ink shadow-glass outline-none"
           >
             {Object.entries(languages).map(([code, name]) => (
               <option key={code} value={code}>
@@ -111,25 +128,9 @@ export default function TranslateGeneral() {
             ))}
           </select>
         </div>
-      </div>
+      }
+    >
 
-      {/* Voice selection lives with the translation controls: the whole point
-          is that the other person hears their own language, so choosing who
-          reads it out belongs next to choosing the language. */}
-      <div className="flex flex-wrap items-center gap-3 border-t border-white/40 pt-3">
-        <VoicePicker
-          id="general-voice"
-          voices={speech.voices}
-          voiceId={speech.voiceId}
-          onChoose={speech.chooseVoice}
-          onPreview={(text, id) => speech.speak(text, id)}
-          onStop={speech.stop}
-          speaking={speech.speaking}
-          autoSpeak={speech.autoSpeak}
-          onToggleAutoSpeak={speech.toggleAutoSpeak}
-          language={target}
-        />
-      </div>
 
       {mode === "text" ? (
         <form
@@ -170,15 +171,16 @@ export default function TranslateGeneral() {
                   {languages[target] ?? target}
                   {output.source ? ` · from ${languages[output.source] ?? output.source}` : ""}
                 </p>
-                <div className="mt-1 flex items-start justify-between gap-2">
-                  <p className="caption-text min-w-0 flex-1 text-ink">{output.text}</p>
-                  <SpeakButton
-                    onSpeak={() => speech.speak(output.text)}
-                    onStop={speech.stop}
-                    speaking={speech.speaking}
-                    label="the translation"
-                  />
-                </div>
+                <p className="caption-text mt-1 text-ink">{output.text}</p>
+                <ReadAloudBar
+                  text={output.text}
+                  voice={speech.voices.find((v) => v.id === speech.voiceId)}
+                  onSpeak={() => speech.speak(output.text)}
+                  onStop={speech.stop}
+                  speaking={speech.speaking}
+                  autoSpeak={speech.autoSpeak}
+                  onToggleAutoSpeak={speech.toggleAutoSpeak}
+                />
               </div>
             )}
           </div>
@@ -235,6 +237,6 @@ export default function TranslateGeneral() {
           </div>
         </div>
       )}
-    </GlassCard>
+    </TranslateShell>
   );
 }

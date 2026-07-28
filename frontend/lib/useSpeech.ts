@@ -16,6 +16,24 @@ export type Voice = {
 
 const VOICE_PREF_KEY = "listenup-voice";
 const AUTOSPEAK_KEY = "listenup-autospeak";
+const SHAPE_KEY = "listenup-voice-shape";
+
+/**
+ * How a voice sounds, on top of which voice it is.
+ *
+ * Browser TTS exposes pitch and rate, and nothing else — there is no real
+ * male↔female morph available from any provider. Pitch is the honest dial:
+ * lower reads more masculine, higher more feminine, so one preset voice covers
+ * a range. Rate is an accessibility control in its own right, since slower
+ * speech is easier to follow.
+ */
+export type VoiceShape = { pitch: number; rate: number };
+
+export const DEFAULT_SHAPE: VoiceShape = { pitch: 1, rate: 1 };
+// Web Speech allows pitch 0–2 and rate 0.1–10, but the extremes are unusable
+// (chipmunk / unintelligible), so the UI stays inside a range that always
+// produces speech a person can follow.
+export const SHAPE_LIMITS = { pitch: { min: 0.5, max: 1.8 }, rate: { min: 0.6, max: 1.6 } };
 
 /**
  * Picks the OS voice that best matches a curated entry.
@@ -47,6 +65,7 @@ export function useSpeech(language: string) {
   const [voiceId, setVoiceId] = useState<string>("");
   const [autoSpeak, setAutoSpeak] = useState(false);
   const [speaking, setSpeaking] = useState(false);
+  const [shape, setShape] = useState<VoiceShape>(DEFAULT_SHAPE);
   const [error, setError] = useState<string | null>(null);
   const osVoices = useRef<SpeechSynthesisVoice[]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -80,10 +99,52 @@ export function useSpeech(language: string) {
 
   useEffect(() => {
     const raf = requestAnimationFrame(() => {
-      setAutoSpeak(localStorage.getItem(AUTOSPEAK_KEY) === "on");
+      // Default ON. Reading a translation aloud is the whole point of the
+      // feature; requiring a click per line defeats the interpreter use case.
+      // An explicit "off" is respected, an absent preference is not.
+      setAutoSpeak(localStorage.getItem(AUTOSPEAK_KEY) !== "off");
     });
     return () => cancelAnimationFrame(raf);
   }, []);
+
+  // Shape is stored per voice: "Miles, a bit deeper and slower" is a different
+  // preference from "Aria at default", and switching voices should recall it.
+  useEffect(() => {
+    if (!voiceId) return;
+    const raf = requestAnimationFrame(() => {
+      const raw = localStorage.getItem(`${SHAPE_KEY}-${voiceId}`);
+      if (!raw) {
+        setShape(DEFAULT_SHAPE);
+        return;
+      }
+      try {
+        const parsed = JSON.parse(raw) as VoiceShape;
+        setShape({
+          pitch: Number(parsed.pitch) || 1,
+          rate: Number(parsed.rate) || 1,
+        });
+      } catch {
+        setShape(DEFAULT_SHAPE);
+      }
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [voiceId]);
+
+  const adjustShape = useCallback(
+    (next: Partial<VoiceShape>) => {
+      setShape((prev) => {
+        const merged = { ...prev, ...next };
+        if (voiceId) localStorage.setItem(`${SHAPE_KEY}-${voiceId}`, JSON.stringify(merged));
+        return merged;
+      });
+    },
+    [voiceId],
+  );
+
+  const resetShape = useCallback(() => {
+    setShape(DEFAULT_SHAPE);
+    if (voiceId) localStorage.removeItem(`${SHAPE_KEY}-${voiceId}`);
+  }, [voiceId]);
 
   const chooseVoice = useCallback(
     (id: string) => {
@@ -128,6 +189,8 @@ export function useSpeech(language: string) {
         }
         const utterance = new SpeechSynthesisUtterance(trimmed);
         utterance.lang = language === "ko" ? "ko-KR" : "en-US";
+        utterance.pitch = shape.pitch;
+        utterance.rate = shape.rate;
         if (voice) {
           const os = pickBrowserVoice(voice, osVoices.current);
           if (os) utterance.voice = os;
@@ -163,8 +226,21 @@ export function useSpeech(language: string) {
         setError(err instanceof Error ? err.message : "Couldn't speak that.");
       }
     },
-    [language, stop, voiceId, voices],
+    [language, shape, stop, voiceId, voices],
   );
 
-  return { voices, voiceId, chooseVoice, speak, stop, speaking, autoSpeak, toggleAutoSpeak, error };
+  return {
+    voices,
+    voiceId,
+    chooseVoice,
+    speak,
+    stop,
+    speaking,
+    autoSpeak,
+    toggleAutoSpeak,
+    shape,
+    adjustShape,
+    resetShape,
+    error,
+  };
 }

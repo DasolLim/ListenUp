@@ -29,6 +29,19 @@ def languages() -> dict[str, str]:
 
 @router.post("")
 async def translate(request: TranslateRequest) -> dict:
+    # Same-language request: return the text untouched rather than paying a
+    # provider to echo it. Users hit this whenever the target still matches the
+    # language they typed, and a "translation" identical to the input reads as a
+    # broken tool.
+    if request.source_lang and request.source_lang == request.target_lang:
+        return {
+            "translation": request.text,
+            "detectedSourceLang": request.source_lang,
+            "cached": True,
+            "characters": 0,
+            "unchanged": True,
+        }
+
     service = get_translation_service()
     try:
         result = await service.translate(

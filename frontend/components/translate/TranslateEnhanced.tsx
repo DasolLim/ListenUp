@@ -3,11 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import { MicIcon } from "@/components/shell/icons";
 import Button from "@/components/ui/Button";
-import SpeakButton from "@/components/speech/SpeakButton";
-import VoicePicker from "@/components/speech/VoicePicker";
+import ReadAloudBar from "@/components/speech/ReadAloudBar";
+import TranslateShell from "@/components/translate/TranslateShell";
 import { useSpeech } from "@/lib/useSpeech";
 import { useStickyLanguage } from "@/lib/useStickyLanguage";
-import GlassCard from "@/components/ui/GlassCard";
 import Pill from "@/components/ui/Pill";
 import SpokenLanguagePicker from "@/components/SpokenLanguagePicker";
 import { useTranscription } from "@/lib/useTranscription";
@@ -92,6 +91,17 @@ function ResultCard({
 }) {
   const speech = useSpeech(target);
   const shown = result.upgraded ?? result.fast;
+  const autoSpokenRef = useRef<string>("");
+
+  // Speak the settled translation once. `upgraded` replaces `fast` when the LLM
+  // lands, so keying on the text means the better version is what gets spoken,
+  // not the interim one.
+  useEffect(() => {
+    if (!speech.autoSpeak || !shown) return;
+    if (autoSpokenRef.current === shown) return;
+    autoSpokenRef.current = shown;
+    void speech.speak(shown);
+  }, [shown, speech]);
   if (!shown) return null;
   return (
     <div className="rounded-2xl border border-white/60 bg-white/60 p-4">
@@ -111,15 +121,7 @@ function ResultCard({
           </span>
         )}
       </div>
-      <div className="mt-1.5 flex items-start justify-between gap-2">
-        <p className="caption-text min-w-0 flex-1 text-ink">{shown}</p>
-        <SpeakButton
-          onSpeak={() => speech.speak(shown)}
-          onStop={speech.stop}
-          speaking={speech.speaking}
-          label="the translation"
-        />
-      </div>
+      <p className="caption-text mt-1.5 text-ink">{shown}</p>
       {result.notes.length > 0 && (
         <div className="mt-2 flex flex-col gap-2">
           {result.notes.map((note) => (
@@ -142,6 +144,16 @@ function ResultCard({
           ))}
         </div>
       )}
+
+      <ReadAloudBar
+        text={shown}
+        voice={speech.voices.find((v) => v.id === speech.voiceId)}
+        onSpeak={() => speech.speak(shown)}
+        onStop={speech.stop}
+        speaking={speech.speaking}
+        autoSpeak={speech.autoSpeak}
+        onToggleAutoSpeak={speech.toggleAutoSpeak}
+      />
     </div>
   );
 }
@@ -149,8 +161,7 @@ function ResultCard({
 export default function TranslateEnhanced() {
   const [mode, setMode] = useState<Mode>("text");
   const [languages, setLanguages] = useState<Record<string, string>>({});
-  const [target, setTarget] = useStickyLanguage("listenup-target-enhanced");
-  const speech = useSpeech(target);
+  const [target, setTarget] = useStickyLanguage("listenup-target-enhanced", "ko");
 
   // text mode
   const [input, setInput] = useState("");
@@ -236,8 +247,11 @@ export default function TranslateEnhanced() {
   const listening = status === "listening" || status === "connecting";
 
   return (
-    <GlassCard strong className="flex flex-col gap-5 p-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <TranslateShell
+      title="Cultural translation"
+      tier="Enhanced"
+      tagline="Slang, tone, and register explained, not just the words. Slower than General, because a model reads the nuance."
+      modes={
         <div className="flex gap-2" role="group" aria-label="Input mode">
           <Pill active={mode === "text"} onClick={() => setMode("text")}>
             Text
@@ -246,15 +260,17 @@ export default function TranslateEnhanced() {
             Voice
           </Pill>
         </div>
+      }
+      languageRow={
         <div className="flex items-center gap-2">
-          <label htmlFor="enhanced-target" className="text-sm font-medium">
-            To
+          <label htmlFor="enhanced-target" className="text-sm font-medium text-ink">
+            Translate to
           </label>
           <select
             id="enhanced-target"
             value={target}
             onChange={(e) => setTarget(e.target.value)}
-            className="glass-strong rounded-xl border border-white/60 px-3 py-2 text-sm text-ink shadow-glass outline-none"
+            className="glass-strong min-h-11 rounded-xl border border-white/60 px-3 text-sm text-ink shadow-glass outline-none"
           >
             {Object.entries(languages).map(([code, name]) => (
               <option key={code} value={code}>
@@ -263,24 +279,9 @@ export default function TranslateEnhanced() {
             ))}
           </select>
         </div>
-      </div>
+      }
+    >
 
-      {/* Voice selection sits with the language controls — choosing who reads
-          the translation out is part of choosing the translation. */}
-      <div className="flex flex-wrap items-center gap-3 border-t border-white/40 pt-3">
-        <VoicePicker
-          id="enhanced-voice"
-          voices={speech.voices}
-          voiceId={speech.voiceId}
-          onChoose={speech.chooseVoice}
-          onPreview={(text, id) => speech.speak(text, id)}
-          onStop={speech.stop}
-          speaking={speech.speaking}
-          autoSpeak={speech.autoSpeak}
-          onToggleAutoSpeak={speech.toggleAutoSpeak}
-          language={target}
-        />
-      </div>
 
       {mode === "text" ? (
         <>
@@ -374,6 +375,6 @@ export default function TranslateEnhanced() {
           </div>
         </div>
       )}
-    </GlassCard>
+    </TranslateShell>
   );
 }

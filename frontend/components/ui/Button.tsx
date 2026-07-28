@@ -12,7 +12,7 @@ export default function Button({ variant = "primary", className = "", ...props }
       : "btn-ghost text-ink font-medium";
   return (
     <button
-      className={`rounded-full px-5 py-2.5 text-sm transition-transform hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0 ${styles} ${className}`}
+      className={`inline-flex min-h-11 items-center justify-center rounded-full px-5 text-sm transition-transform hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0 ${styles} ${className}`}
       {...props}
     />
   );

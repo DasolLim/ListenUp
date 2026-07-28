@@ -330,3 +330,54 @@ h3 {
     scroll-behavior: auto !important;
   }
 }
+
+/* ─── Range sliders (voice shaping) ───
+   The native control renders ~16px tall, which is far below the 44px touch
+   minimum. Padding the box keeps the hit area tappable while the visible track
+   stays slim, and the thumb is enlarged so it can actually be grabbed. */
+input[type="range"] {
+  min-height: 44px;
+  width: 100%;
+  background: transparent;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid var(--glass-border);
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 22px;
+  width: 22px;
+  margin-top: -9px;
+  border-radius: 50%;
+  background: var(--accent-strong);
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgba(60, 45, 80, 0.3);
+}
+
+input[type="range"]::-moz-range-track {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.7);
+}
+
+input[type="range"]::-moz-range-thumb {
+  height: 20px;
+  width: 20px;
+  border-radius: 50%;
+  background: var(--accent-strong);
+  border: 2px solid #fff;
+}
+
+[data-contrast="high"] input[type="range"]::-webkit-slider-runnable-track,
+[data-contrast="high"] input[type="range"]::-moz-range-track {
+  background: #fff;
+  border: 2px solid #1a1714;
+}

@@ -4,6 +4,7 @@ import Reveal from "@/components/Reveal";
 import { Eyebrow } from "@/components/marketing/Section";
 import { CaptionsIcon, TranslateIcon } from "@/components/shell/icons";
 import Orb from "@/components/ui/Orb";
+import VoiceStudio from "@/components/speech/VoiceStudio";
 
 export const metadata: Metadata = { title: "Dashboard — ListenUp" };
 
@@ -174,6 +175,50 @@ export default function DashboardPage() {
           </div>
         </section>
       ))}
+
+      {/* Read-aloud settings live on the dashboard rather than buried in a tool:
+          the voice applies everywhere, so configuring it is an account-level
+          job, not a per-translation one. */}
+      <section aria-labelledby="voice-studio" className="flex flex-col gap-5">
+        <Reveal>
+          <div className="flex flex-col gap-1.5 border-b border-white/40 pb-4">
+            <div className="flex items-center gap-2.5">
+              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-white/60 text-accent-strong">
+                <SpeakerIcon />
+              </span>
+              <h2 id="voice-studio" className="font-display text-[22px] font-bold tracking-tight">
+                Read aloud
+              </h2>
+            </div>
+            <p className="text-[15px] text-ink-soft">
+              The voice that speaks translations, anywhere in the app.
+            </p>
+          </div>
+        </Reveal>
+        <Reveal>
+          <VoiceStudio />
+        </Reveal>
+      </section>
     </div>
+  );
+}
+
+function SpeakerIcon() {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M11 5 6 9H3v6h3l5 4V5Z" />
+      <path d="M15.5 8.5a5 5 0 0 1 0 7" />
+      <path d="M18.5 5.5a9 9 0 0 1 0 13" />
+    </svg>
   );
 }
