@@ -8,7 +8,7 @@ import { MicIcon } from "@/components/shell/icons";
 import Button from "@/components/ui/Button";
 import GlassCard from "@/components/ui/GlassCard";
 import VoicePicker from "@/components/speech/VoicePicker";
-import { useSpeech } from "@/lib/useSpeech";
+import { SpeechProvider, useAutoSpeak, useSharedSpeech } from "@/lib/SpeechProvider";
 import { useStickyLanguage } from "@/lib/useStickyLanguage";
 import { useLiveTranslation } from "@/lib/useLiveTranslation";
 import { useTranscription } from "@/lib/useTranscription";
@@ -28,7 +28,14 @@ const AUTOSCROLL_SLACK_PX = 48;
 
 type ProfileOption = { id: string; display_name: string };
 
-export default function LiveCaptions({ enhanced = false }: { enhanced?: boolean }) {
+function LiveCaptionsInner(
+  props: {
+    enhanced?: boolean;
+    targetLang: string;
+    setTargetLang: (v: string) => void;
+  },
+) {
+  const { enhanced = false } = props;
   const [spoken, setSpoken] = useStickyLanguage("listenup-spoken-captions");
   const { status, error, segments, latency, start, stop, correct, sessionId } = useTranscription({
     enhanced,
@@ -40,7 +47,7 @@ export default function LiveCaptions({ enhanced = false }: { enhanced?: boolean 
   const [profileOptions, setProfileOptions] = useState<ProfileOption[]>([]);
   const [correcting, setCorrecting] = useState<string | null>(null);
   const [languages, setLanguages] = useState<Record<string, string>>({});
-  const [targetLang, setTargetLang] = useStickyLanguage("listenup-target-captions");
+  const { targetLang, setTargetLang } = props;
   const [translateOn, setTranslateOn] = useState(false);
   const {
     translations,
@@ -48,19 +55,17 @@ export default function LiveCaptions({ enhanced = false }: { enhanced?: boolean 
     costs,
     reset: resetTranslations,
   } = useLiveTranslation(segments, targetLang, enhanced && translateOn);
-  const speech = useSpeech(targetLang);
-  const spokenIds = useRef<Set<string>>(new Set());
+  const speech = useSharedSpeech();
 
-  // Auto-speak: read each newly translated FINAL line aloud once, so the other
-  // person hears their own language without anyone reading it out. Interims are
-  // skipped (they change mid-sentence) and each id speaks at most once.
-  useEffect(() => {
-    if (!translateOn || !speech.autoSpeak) return;
-    const latest = [...segments].reverse().find((s) => s.isFinal && translations[s.id]);
-    if (!latest || spokenIds.current.has(latest.id)) return;
-    spokenIds.current.add(latest.id);
-    void speech.speak(translations[latest.id].text);
-  }, [segments, translations, translateOn, speech]);
+  // Auto-speak the newest FINAL translated line. Keyed on the segment id rather
+  // than the text, because the same sentence can legitimately be said twice in a
+  // conversation and both should be read out. Interims are skipped: they change
+  // mid-sentence, so speaking one would stutter.
+  const latestSpoken = [...segments].reverse().find((s) => s.isFinal && translations[s.id]);
+  useAutoSpeak(
+    translateOn && latestSpoken ? latestSpoken.id : "",
+    latestSpoken ? (translations[latestSpoken.id]?.text ?? "") : "",
+  );
 
   // STT duration = audio timeline processed (last segment's end timestamp).
   // Rough per-session cost: AssemblyAI ~$0.15/hr, Google $20/M chars, 4o-mini ~$0.60/M tokens.
@@ -386,5 +391,22 @@ export default function LiveCaptions({ enhanced = false }: { enhanced?: boolean 
         </p>
       )}
     </GlassCard>
+  );
+}
+
+/**
+ * The caption target language lives here so `SpeechProvider` receives it before
+ * the log renders: the shared engine loads voices for the language it will read.
+ */
+export default function LiveCaptions({ enhanced = false }: { enhanced?: boolean }) {
+  const [targetLang, setTargetLang] = useStickyLanguage("listenup-target-captions", "ko");
+  return (
+    <SpeechProvider language={targetLang}>
+      <LiveCaptionsInner
+        enhanced={enhanced}
+        targetLang={targetLang}
+        setTargetLang={setTargetLang}
+      />
+    </SpeechProvider>
   );
 }

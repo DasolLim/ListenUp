@@ -78,7 +78,7 @@ export default function Navbar() {
       >
         <Link
           href="/"
-          className="flex items-center gap-2.5 font-display text-[17px] font-bold tracking-tight"
+          className="inline-flex min-h-11 items-center gap-2.5 font-display text-[17px] font-bold tracking-tight"
         >
           <Orb size="sm" />
           ListenUp
@@ -113,7 +113,7 @@ export default function Navbar() {
           onClick={() => setOpen(true)}
           aria-expanded={open}
           aria-label="Open menu"
-          className="btn-ghost flex h-10 w-10 items-center justify-center rounded-full text-ink md:hidden"
+          className="btn-ghost flex h-11 w-11 items-center justify-center rounded-full text-ink md:hidden"
         >
           <MenuIcon />
         </button>

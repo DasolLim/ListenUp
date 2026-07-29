@@ -5,7 +5,7 @@ import { MicIcon } from "@/components/shell/icons";
 import Button from "@/components/ui/Button";
 import ReadAloudBar from "@/components/speech/ReadAloudBar";
 import TranslateShell from "@/components/translate/TranslateShell";
-import { useSpeech } from "@/lib/useSpeech";
+import { SpeechProvider, useAutoSpeak, useSharedSpeech } from "@/lib/SpeechProvider";
 import { useStickyLanguage } from "@/lib/useStickyLanguage";
 import Pill from "@/components/ui/Pill";
 import SpokenLanguagePicker from "@/components/SpokenLanguagePicker";
@@ -89,19 +89,12 @@ function ResultCard({
   target: string;
   languages: Record<string, string>;
 }) {
-  const speech = useSpeech(target);
+  const speech = useSharedSpeech();
   const shown = result.upgraded ?? result.fast;
-  const autoSpokenRef = useRef<string>("");
 
-  // Speak the settled translation once. `upgraded` replaces `fast` when the LLM
-  // lands, so keying on the text means the better version is what gets spoken,
-  // not the interim one.
-  useEffect(() => {
-    if (!speech.autoSpeak || !shown) return;
-    if (autoSpokenRef.current === shown) return;
-    autoSpokenRef.current = shown;
-    void speech.speak(shown);
-  }, [shown, speech]);
+  // Keyed on the text, so when `upgraded` replaces `fast` the better version is
+  // what gets spoken rather than the interim one.
+  useAutoSpeak(shown ?? "", shown ?? "");
   if (!shown) return null;
   return (
     <div className="rounded-2xl border border-white/60 bg-white/60 p-4">
@@ -158,10 +151,10 @@ function ResultCard({
   );
 }
 
-export default function TranslateEnhanced() {
+function TranslateEnhancedInner(props: { target: string; setTarget: (v: string) => void }) {
   const [mode, setMode] = useState<Mode>("text");
   const [languages, setLanguages] = useState<Record<string, string>>({});
-  const [target, setTarget] = useStickyLanguage("listenup-target-enhanced", "ko");
+  const { target, setTarget } = props;
 
   // text mode
   const [input, setInput] = useState("");
@@ -376,5 +369,15 @@ export default function TranslateEnhanced() {
         </div>
       )}
     </TranslateShell>
+  );
+}
+
+/** Language lives here so the shared speech engine knows which voices to load. */
+export default function TranslateEnhanced() {
+  const [target, setTarget] = useStickyLanguage("listenup-target-enhanced", "ko");
+  return (
+    <SpeechProvider language={target}>
+      <TranslateEnhancedInner target={target} setTarget={setTarget} />
+    </SpeechProvider>
   );
 }

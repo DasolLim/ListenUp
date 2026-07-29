@@ -201,7 +201,7 @@ export default function Home() {
                 <p className="max-w-md leading-relaxed text-ink-soft">{pillar.body}</p>
                 <Link
                   href={pillar.href}
-                  className="mt-1 inline-flex w-fit items-center gap-1.5 font-medium text-accent-strong hover:underline"
+                  className="mt-1 inline-flex min-h-11 w-fit items-center gap-1.5 font-medium text-accent-strong hover:underline"
                 >
                   {pillar.cta}
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

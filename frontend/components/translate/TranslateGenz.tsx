@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import Button from "@/components/ui/Button";
 import SpeakButton from "@/components/speech/SpeakButton";
-import { useSpeech } from "@/lib/useSpeech";
+import { SpeechProvider, useSharedSpeech } from "@/lib/SpeechProvider";
 import { networkError } from "@/lib/networkError";
 import GlassCard from "@/components/ui/GlassCard";
 import ShareCard from "@/components/translate/ShareCard";
@@ -35,7 +35,7 @@ function Meta({ label, value }: { label: string; value: string }) {
 
 function ExplanationCard({ data }: { data: Explanation }) {
   const low = data.confidence === "low";
-  const speech = useSpeech("en");
+  const speech = useSharedSpeech();
   const [sharing, setSharing] = useState(false);
   return (
     <article className="rounded-2xl border border-white/60 bg-white/60 p-5">
@@ -106,7 +106,7 @@ function ExplanationCard({ data }: { data: Explanation }) {
   );
 }
 
-export default function TranslateGenz() {
+function TranslateGenzInner() {
   const [input, setInput] = useState("");
   const [result, setResult] = useState<Explanation | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -214,5 +214,14 @@ export default function TranslateGenz() {
         )}
       </div>
     </GlassCard>
+  );
+}
+
+/** Slang explanations are written in English, so the voice language is fixed. */
+export default function TranslateGenz() {
+  return (
+    <SpeechProvider language="en">
+      <TranslateGenzInner />
+    </SpeechProvider>
   );
 }

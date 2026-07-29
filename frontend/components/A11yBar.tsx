@@ -63,7 +63,7 @@ export default function A11yBar() {
         type="button"
         aria-pressed={contrast}
         onClick={toggleContrast}
-        className={`rounded-full px-3 py-1.5 text-[13px] font-medium transition-colors ${
+        className={`inline-flex min-h-11 items-center rounded-full px-3.5 text-[13px] font-medium transition-colors ${
           contrast ? "bg-(--text-primary) text-white" : "pill-inactive text-ink-soft hover:text-ink"
         }`}
       >
@@ -78,7 +78,7 @@ export default function A11yBar() {
             aria-pressed={size === option.key}
             aria-label={`Caption size ${option.key}`}
             onClick={() => chooseSize(option.key)}
-            className={`min-w-8 rounded-full px-2 py-1.5 text-[13px] font-semibold transition-colors ${
+            className={`inline-flex min-h-11 min-w-11 items-center justify-center rounded-full text-[13px] font-semibold transition-colors ${
               size === option.key
                 ? "bg-accent-strong text-on-accent"
                 : "pill-inactive text-ink-soft hover:text-ink"

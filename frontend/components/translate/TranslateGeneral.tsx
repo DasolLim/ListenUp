@@ -6,7 +6,7 @@ import Button from "@/components/ui/Button";
 import SpeakButton from "@/components/speech/SpeakButton";
 import ReadAloudBar from "@/components/speech/ReadAloudBar";
 import TranslateShell from "@/components/translate/TranslateShell";
-import { useSpeech } from "@/lib/useSpeech";
+import { SpeechProvider, useAutoSpeak, useSharedSpeech } from "@/lib/SpeechProvider";
 import { useStickyLanguage } from "@/lib/useStickyLanguage";
 import Pill from "@/components/ui/Pill";
 import SpokenLanguagePicker from "@/components/SpokenLanguagePicker";
@@ -27,24 +27,17 @@ async function requestTranslation(text: string, targetLang: string) {
   return body as { translation: string; detectedSourceLang: string | null; cached: boolean };
 }
 
-export default function TranslateGeneral() {
+function TranslateGeneralInner(props: { target: string; setTarget: (v: string) => void }) {
   const [mode, setMode] = useState<Mode>("text");
   const [languages, setLanguages] = useState<Record<string, string>>({});
-  const [target, setTarget] = useStickyLanguage("listenup-target-general", "ko");
-  const speech = useSpeech(target);
-  const autoSpokenRef = useRef<string>("");
+  const { target, setTarget } = props;
+  const speech = useSharedSpeech();
 
   const [input, setInput] = useState("");
   const [output, setOutput] = useState<{ text: string; source: string | null } | null>(null);
 
-  // Auto-speak a new translation once. Keyed on the text so re-renders don't
-  // repeat it and a repeat translation of the same phrase stays quiet.
-  useEffect(() => {
-    if (!speech.autoSpeak || !output?.text) return;
-    if (autoSpokenRef.current === output.text) return;
-    autoSpokenRef.current = output.text;
-    void speech.speak(output.text);
-  }, [output, speech]);
+  // Keyed on the text: a repeat translation of the same phrase stays quiet.
+  useAutoSpeak(output?.text ?? "", output?.text ?? "");
 
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -238,5 +231,19 @@ export default function TranslateGeneral() {
         </div>
       )}
     </TranslateShell>
+  );
+}
+
+/**
+ * The language lives in the wrapper so `SpeechProvider` can be given the target
+ * before the tool renders: the shared engine needs to know which language's
+ * voices to load, and that is the same value the tool translates into.
+ */
+export default function TranslateGeneral() {
+  const [target, setTarget] = useStickyLanguage("listenup-target-general", "ko");
+  return (
+    <SpeechProvider language={target}>
+      <TranslateGeneralInner target={target} setTarget={setTarget} />
+    </SpeechProvider>
   );
 }

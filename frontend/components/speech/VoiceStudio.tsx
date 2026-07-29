@@ -7,7 +7,8 @@ import { MicIcon } from "@/components/shell/icons";
 import Button from "@/components/ui/Button";
 import SpeakButton from "@/components/speech/SpeakButton";
 import VoiceShaper from "@/components/speech/VoiceShaper";
-import { SHAPE_LIMITS, useSpeech } from "@/lib/useSpeech";
+import { SHAPE_LIMITS } from "@/lib/useSpeech";
+import { SpeechProvider, useSharedSpeech } from "@/lib/SpeechProvider";
 import { networkError } from "@/lib/networkError";
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8000";
@@ -45,8 +46,8 @@ async function authHeader(): Promise<Record<string, string>> {
  * footnote: you cannot reach Save without naming the person and confirming they
  * agreed.
  */
-export default function VoiceStudio({ language = "en" }: { language?: string }) {
-  const speech = useSpeech(language);
+function VoiceStudioInner({ language = "en" }: { language?: string }) {
+  const speech = useSharedSpeech();
   const recorder = usePcmRecorder(MAX_SECONDS);
 
   const [voices, setVoices] = useState<CustomVoice[]>([]);
@@ -490,5 +491,14 @@ export default function VoiceStudio({ language = "en" }: { language?: string }) 
         </section>
       )}
     </div>
+  );
+}
+
+/** Wraps the studio in its own speech engine so previews use the chosen voice. */
+export default function VoiceStudio({ language = "en" }: { language?: string }) {
+  return (
+    <SpeechProvider language={language}>
+      <VoiceStudioInner language={language} />
+    </SpeechProvider>
   );
 }

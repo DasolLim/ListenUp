@@ -26,7 +26,7 @@ export default function SiteFooter() {
     <footer className="mt-8 border-t border-white/40 bg-white/25">
       <div className="mx-auto grid w-full max-w-6xl gap-10 px-5 py-14 sm:px-8 md:grid-cols-[1.4fr_1fr_1fr]">
         <div className="flex flex-col gap-3">
-          <Link href="/" className="flex items-center gap-2.5 font-display text-[17px] font-bold">
+          <Link href="/" className="inline-flex min-h-11 items-center gap-2.5 font-display text-[17px] font-bold">
             <Orb size="sm" />
             ListenUp
           </Link>
@@ -43,12 +43,14 @@ export default function SiteFooter() {
             <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-ink-faint">
               {column.heading}
             </p>
-            <ul className="flex flex-col gap-2.5">
+            {/* min-h-11 makes each link a real touch target (they rendered at
+                17px tall); the negative margin keeps the footer's rhythm. */}
+            <ul className="-my-1.5 flex flex-col">
               {column.links.map((link) => (
                 <li key={link.href}>
                   <Link
                     href={link.href}
-                    className="text-sm text-ink-soft transition-colors hover:text-ink"
+                    className="inline-flex min-h-11 items-center text-sm text-ink-soft transition-colors hover:text-ink"
                   >
                     {link.label}
                   </Link>
