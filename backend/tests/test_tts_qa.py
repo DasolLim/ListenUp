@@ -94,6 +94,35 @@ def test_consent_copy_names_the_obligations():
         assert phrase in text, f"consent text never mentions {phrase!r}"
 
 
+def test_missing_table_says_so_instead_of_a_generic_502(monkeypatch):
+    """Regression: before migration 0003 was applied, listing custom voices
+    returned a bare 502, so the real cause (a missing table) was invisible.
+    Postgrest reports PGRST205 when the table isn't in the schema cache."""
+
+    class _Missing:
+        status_code = 404
+        text = '{"code":"PGRST205","message":"Could not find the table '\
+               '\'public.custom_voices\' in the schema cache"}'
+
+        def json(self):
+            return {}
+
+    async def _fake_verify(_token: str) -> str:
+        return "11111111-1111-1111-1111-111111111111"
+
+    async def _fake_rest(*_a, **_k):
+        return _Missing()
+
+    monkeypatch.setattr("app.routes.tts.verify_user", _fake_verify)
+    monkeypatch.setattr("app.routes.tts.rest", _fake_rest)
+
+    response = client.get("/tts/custom-voices", headers={"Authorization": "Bearer t"})
+    assert response.status_code == 503
+    detail = response.json()["detail"].lower()
+    assert "custom_voices table is missing" in detail
+    assert "preset voices still work" in detail
+
+
 def test_browser_service_reports_characters_for_the_cost_audit():
     service = BrowserTtsService()
     result = asyncio.run(service.speak("hello there", "browser-en-female"))

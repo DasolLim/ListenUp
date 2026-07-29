@@ -108,6 +108,19 @@ async def list_custom_voices(user: Annotated[tuple[str, str], Depends(auth)]) ->
         params={"select": "id,display_name,provider_voice_id,language,created_at"},
     )
     if response.status_code != 200:
+        # A missing migration is the likeliest cause and used to surface as a
+        # generic 502, sending people hunting through server logs. Postgrest
+        # reports PGRST205 when the table isn't in the schema cache.
+        body = response.text or ""
+        missing_table = "PGRST205" in body or (
+            response.status_code == 404 and "custom_voices" in body
+        )
+        if missing_table:
+            raise HTTPException(
+                503,
+                "Custom voices aren't set up on this deployment yet: the "
+                "custom_voices table is missing. Preset voices still work.",
+            )
         raise HTTPException(502, "Could not load your custom voices.")
     return response.json()
 
