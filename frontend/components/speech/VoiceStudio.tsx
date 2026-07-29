@@ -5,7 +5,6 @@ import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import { usePcmRecorder } from "@/lib/usePcmRecorder";
 import { MicIcon } from "@/components/shell/icons";
 import Button from "@/components/ui/Button";
-import GlassCard from "@/components/ui/GlassCard";
 import SpeakButton from "@/components/speech/SpeakButton";
 import VoiceShaper from "@/components/speech/VoiceShaper";
 import { SHAPE_LIMITS, useSpeech } from "@/lib/useSpeech";
@@ -167,20 +166,7 @@ export default function VoiceStudio({ language = "en" }: { language?: string }) 
   const enough = recorder.seconds >= MIN_SECONDS;
 
   return (
-    <GlassCard strong className="flex flex-col gap-5 p-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="font-display text-[22px] font-semibold">Voice studio</h2>
-          <p className="mt-1 max-w-xl text-sm leading-relaxed text-ink-soft">
-            Choose how translations sound when the app reads them aloud, or record someone&apos;s
-            voice so it can read in theirs.
-          </p>
-        </div>
-        {!creating && (
-          <Button onClick={() => setCreating(true)}>Record a voice</Button>
-        )}
-      </div>
-
+    <div className="flex flex-col gap-5">
       {message && (
         <p
           role={message.kind === "error" ? "alert" : "status"}
@@ -192,16 +178,29 @@ export default function VoiceStudio({ language = "en" }: { language?: string }) 
         </p>
       )}
 
-      {/* ── Shape the preset voices (works today, no key needed) ── */}
-      <section aria-labelledby="shape-heading" className="flex flex-col gap-3">
-        <div>
-          <h3 id="shape-heading" className="text-sm font-semibold text-ink">
-            How it sounds
-          </h3>
-          <p className="mt-0.5 text-[13px] text-ink-soft">
-            Lower the pitch for a deeper voice, raise it for a lighter one. Saved per voice.
-          </p>
-        </div>
+      {/* Two tiles matching the dashboard's tool-tile vocabulary: a coloured
+          wash header, a 17px card title, quiet body copy, coral spent only on
+          the one action. The section heading above already says "Read aloud",
+          so these name what they each do instead of repeating it. */}
+      <div className="grid gap-5 lg:grid-cols-2">
+        {/* ── Tile 1: shape the preset voices (free, no key needed) ── */}
+        <section
+          aria-labelledby="shape-heading"
+          className="glass-card flex flex-col overflow-hidden"
+        >
+          <span aria-hidden="true" className="tile-wash-amber h-16 w-full" />
+          <div className="flex flex-1 flex-col gap-3 p-5">
+            <div>
+              <h3
+                id="shape-heading"
+                className="font-display text-[17px] font-semibold text-ink"
+              >
+                How it sounds
+              </h3>
+              <p className="mt-1 text-sm leading-relaxed text-ink-soft">
+                Lower the pitch for a deeper voice, raise it for a lighter one. Saved per voice.
+              </p>
+            </div>
 
         <div className="flex flex-wrap items-center gap-2">
           <label htmlFor="studio-voice" className="text-sm text-ink">
@@ -233,21 +232,43 @@ export default function VoiceStudio({ language = "en" }: { language?: string }) 
           />
         </div>
 
-        <VoiceShaper
-          shape={speech.shape}
-          limits={SHAPE_LIMITS}
-          onChange={speech.adjustShape}
-          onReset={speech.resetShape}
-        />
-      </section>
+            <VoiceShaper
+              shape={speech.shape}
+              limits={SHAPE_LIMITS}
+              onChange={speech.adjustShape}
+              onReset={speech.resetShape}
+            />
+          </div>
+        </section>
 
-      {/* ── Saved custom voices ── */}
-      {voices.length > 0 && (
-        <section aria-labelledby="custom-heading" className="flex flex-col gap-2.5">
-          <h3 id="custom-heading" className="text-sm font-semibold text-ink">
-            Your recorded voices
-          </h3>
-          <ul className="flex flex-col gap-2.5">
+        {/* ── Tile 2: recorded voices ── */}
+        <section
+          aria-labelledby="custom-heading"
+          className="glass-card flex flex-col overflow-hidden"
+        >
+          <span aria-hidden="true" className="tile-wash-lilac h-16 w-full" />
+          <div className="flex flex-1 flex-col gap-3 p-5">
+            <div>
+              <h3
+                id="custom-heading"
+                className="font-display text-[17px] font-semibold text-ink"
+              >
+                Recorded voices
+              </h3>
+              <p className="mt-1 text-sm leading-relaxed text-ink-soft">
+                Record someone you talk with often, with their consent, and translations can read
+                in their voice.
+              </p>
+            </div>
+
+            {/* Empty state teaches the feature rather than saying "none yet". */}
+            {voices.length === 0 && !creating && (
+              <p className="rounded-xl border border-dashed border-ink-faint/40 px-4 py-3 text-[13px] leading-relaxed text-ink-soft">
+                No recorded voices yet. Aria, Miles and the system voice are always available.
+              </p>
+            )}
+
+            <ul className="flex flex-col gap-2.5">
             {voices.map((voice) => (
               <li
                 key={voice.id}
@@ -310,15 +331,27 @@ export default function VoiceStudio({ language = "en" }: { language?: string }) 
                 )}
               </li>
             ))}
-          </ul>
-        </section>
-      )}
+            </ul>
 
-      {/* ── Record a new voice ── */}
+            {!creating && (
+              <div className="pt-1">
+                {/* Ghost, not coral: dashboard tiles spend coral only on the
+                    small arrow, so a filled primary here would out-shout every
+                    tool card beside it. */}
+                <Button variant="ghost" onClick={() => setCreating(true)}>
+                  Record a voice
+                </Button>
+              </div>
+            )}
+          </div>
+        </section>
+      </div>
+
+      {/* ── Record a new voice: full width, since it is a focused task ── */}
       {creating && (
         <section
           aria-labelledby="record-heading"
-          className="flex flex-col gap-4 rounded-2xl border border-white/60 bg-white/50 p-5"
+          className="glass-card flex flex-col gap-4 p-5"
         >
           <div>
             <h3 id="record-heading" className="font-display text-[17px] font-semibold text-ink">
@@ -419,6 +452,6 @@ export default function VoiceStudio({ language = "en" }: { language?: string }) 
           </div>
         </section>
       )}
-    </GlassCard>
+    </div>
   );
 }
