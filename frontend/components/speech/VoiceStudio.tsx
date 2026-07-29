@@ -208,7 +208,7 @@ export default function VoiceStudio({ language = "en" }: { language?: string }) 
           aria-labelledby="shape-heading"
           className="glass-card flex flex-col overflow-hidden"
         >
-          <span aria-hidden="true" className="tile-wash-amber h-16 w-full" />
+          <span aria-hidden="true" className="tile-wash-teal h-16 w-full" />
           <div className="flex flex-1 flex-col gap-3 p-5">
             <div>
               <h3
@@ -266,7 +266,7 @@ export default function VoiceStudio({ language = "en" }: { language?: string }) 
           aria-labelledby="custom-heading"
           className="glass-card flex flex-col overflow-hidden"
         >
-          <span aria-hidden="true" className="tile-wash-lilac h-16 w-full" />
+          <span aria-hidden="true" className="tile-wash-teal h-16 w-full opacity-70" />
           <div className="flex flex-1 flex-col gap-3 p-5">
             <div>
               <h3

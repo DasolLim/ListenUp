@@ -39,17 +39,30 @@ export const SHAPE_LIMITS = { pitch: { min: 0.5, max: 1.8 }, rate: { min: 0.6, m
  * Picks the OS voice that best matches a curated entry.
  *
  * `browser_hint` is a `|`-separated preference list, most specific first, so a
- * Mac with Samantha uses Samantha while Windows falls through to Aria. If none
- * match we return any voice for the right language rather than nothing —
- * speaking in a slightly different voice beats silence.
+ * Mac with Yuna uses Yuna while Windows falls through to Heami. Any voice for
+ * the right *language* is an acceptable second choice: a different Korean voice
+ * still reads Korean correctly.
+ *
+ * Returns `undefined` when the device ships no voice for the language at all.
+ * That case must not be silent — leaving `utterance.voice` unset makes the
+ * browser read Hangul with an English voice, which sounds like gibberish. The
+ * caller surfaces it instead.
  */
-function pickBrowserVoice(voice: Voice, available: SpeechSynthesisVoice[]) {
+function pickBrowserVoice(
+  voice: Voice,
+  available: SpeechSynthesisVoice[],
+): SpeechSynthesisVoice | undefined {
   const forLanguage = available.filter((v) => v.lang.toLowerCase().startsWith(voice.language));
   for (const hint of voice.browser_hint.split("|").filter(Boolean)) {
     const match = forLanguage.find((v) => v.name.toLowerCase().includes(hint.toLowerCase()));
     if (match) return match;
   }
   return forLanguage[0];
+}
+
+/** Human-readable language name for user-facing copy. */
+function languageName(code: string) {
+  return code === "ko" ? "Korean" : "English";
 }
 
 /**
@@ -70,15 +83,35 @@ export function useSpeech(language: string) {
   const osVoices = useRef<SpeechSynthesisVoice[]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // The OS voice list is populated asynchronously in most browsers.
+  /**
+   * Keep a warm copy of the OS voice list.
+   *
+   * `getVoices()` is asynchronous in most browsers: the first call often returns
+   * an empty array, and Chrome does not reliably fire `voiceschanged`. Caching a
+   * snapshot at mount therefore risks caching *nothing* forever, so this only
+   * primes the cache. `speak()` re-reads the list at call time (see
+   * `currentOsVoices`), which is the value that actually decides the voice.
+   */
   useEffect(() => {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
     const load = () => {
-      osVoices.current = window.speechSynthesis.getVoices();
+      const list = window.speechSynthesis.getVoices();
+      if (list.length > 0) osVoices.current = list;
     };
     load();
     window.speechSynthesis.addEventListener("voiceschanged", load);
     return () => window.speechSynthesis.removeEventListener("voiceschanged", load);
+  }, []);
+
+  /** The freshest voice list available right now, preferring a live read. */
+  const currentOsVoices = useCallback((): SpeechSynthesisVoice[] => {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) return [];
+    const live = window.speechSynthesis.getVoices();
+    if (live.length > 0) {
+      osVoices.current = live;
+      return live;
+    }
+    return osVoices.current;
   }, []);
 
   useEffect(() => {
@@ -192,8 +225,21 @@ export function useSpeech(language: string) {
         utterance.pitch = shape.pitch;
         utterance.rate = shape.rate;
         if (voice) {
-          const os = pickBrowserVoice(voice, osVoices.current);
-          if (os) utterance.voice = os;
+          const available = currentOsVoices();
+          const os = pickBrowserVoice(voice, available);
+          if (os) {
+            utterance.voice = os;
+          } else if (available.length > 0) {
+            // The device has voices, but none for this language. Speaking anyway
+            // would read the text with a wrong-language voice (Hangul in an
+            // English voice is unintelligible), so refuse and say why. The
+            // translation itself is already on screen, so nothing is lost.
+            setError(
+              `This device has no ${languageName(language)} voice installed, so it can't read ` +
+                `${languageName(language)} aloud. The text above is still correct.`,
+            );
+            return;
+          }
         }
         utterance.onend = () => setSpeaking(false);
         utterance.onerror = () => setSpeaking(false);
@@ -226,7 +272,7 @@ export function useSpeech(language: string) {
         setError(err instanceof Error ? err.message : "Couldn't speak that.");
       }
     },
-    [language, shape, stop, voiceId, voices],
+    [currentOsVoices, language, shape, stop, voiceId, voices],
   );
 
   return {

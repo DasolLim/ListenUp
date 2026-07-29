@@ -40,6 +40,29 @@ def test_every_voice_has_a_human_label():
         assert voice.id not in voice.label, "labels must be human, not ids"
 
 
+def test_hints_cover_macos_windows_and_android():
+    """A hint list that only names macOS voices leaves Windows and Android
+    falling through to the platform default, which for Korean can mean an
+    English voice reading Hangul. Each hinted voice must name at least one
+    Microsoft (Windows/SAPI) and one Google/Android candidate."""
+    hinted = [v for v in BROWSER_VOICES if v.browser_hint]
+    assert hinted, "no voices carry hints"
+    for voice in hinted:
+        hint = voice.browser_hint.lower()
+        assert "microsoft" in hint, f"{voice.id} has no Windows candidate"
+        assert "google" in hint or "-x-" in hint, f"{voice.id} has no Google/Android candidate"
+
+
+def test_hint_lists_are_pipe_separated_and_clean():
+    """The client splits on '|'. Stray empty segments would match everything."""
+    for voice in BROWSER_VOICES:
+        if not voice.browser_hint:
+            continue
+        parts = voice.browser_hint.split("|")
+        assert all(p.strip() for p in parts), f"{voice.id} has an empty hint segment"
+        assert len(parts) == len(set(parts)), f"{voice.id} repeats a hint"
+
+
 def test_korean_voices_carry_korean_hints():
     """browser_hint drives OS voice matching. A Korean voice with only English
     hints would fall back to an English speaker reading Hangul."""

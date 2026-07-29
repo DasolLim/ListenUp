@@ -238,6 +238,21 @@ h3 {
     linear-gradient(155deg, #f9e6cd 0%, #f2c8a0 55%, #dfa26e 100%);
 }
 
+/* Read-aloud section. A fifth hue so speech settings never borrow a tool
+   tile's identity colour: with only four washes, amber and lilac were each
+   doing two jobs across the dashboard. */
+.tile-wash-teal {
+  background:
+    radial-gradient(115% 85% at 25% 18%, rgba(255, 255, 255, 0.55), transparent 58%),
+    radial-gradient(95% 85% at 80% 82%, rgba(90, 165, 170, 0.42), transparent 70%),
+    linear-gradient(152deg, #e4f1f0 0%, #b8dcdb 55%, #8fc4c6 100%);
+}
+
+[data-contrast="high"] .tile-wash-teal {
+  background: #ffffff;
+  border: 2px solid #1a1714 !important;
+}
+
 /* Speaker caption bubbles: tinted glass; new bubbles fade + rise 6px. */
 .bubble-glass {
   border: 1px solid rgba(255, 255, 255, 0.5);

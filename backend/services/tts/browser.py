@@ -22,7 +22,10 @@ BROWSER_VOICES: tuple[Voice, ...] = (
         language="en",
         gender="female",
         provider="browser",
-        browser_hint="Samantha|Google US English|Microsoft Aria|Karen|female",
+        browser_hint=(
+            "Samantha|Google US English|Microsoft Aria|Microsoft Zira"
+            "|Karen|Moira|en-us-x-tpf|female"
+        ),
     ),
     Voice(
         id="browser-en-male",
@@ -30,7 +33,10 @@ BROWSER_VOICES: tuple[Voice, ...] = (
         language="en",
         gender="male",
         provider="browser",
-        browser_hint="Daniel|Google UK English Male|Microsoft Guy|Alex|male",
+        browser_hint=(
+            "Daniel|Google UK English Male|Microsoft Guy|Microsoft David"
+            "|Alex|Fred|en-us-x-tpd|male"
+        ),
     ),
     Voice(
         id="browser-en-neutral",
@@ -46,7 +52,9 @@ BROWSER_VOICES: tuple[Voice, ...] = (
         language="ko",
         gender="female",
         provider="browser",
-        browser_hint="Yuna|Google 한국의|Microsoft Heami|female",
+        browser_hint=(
+            "Yuna|Google 한국의|Microsoft Heami|Microsoft SunHi|Sora|ko-kr-x-ism|female"
+        ),
     ),
     Voice(
         id="browser-ko-male",
@@ -54,7 +62,9 @@ BROWSER_VOICES: tuple[Voice, ...] = (
         language="ko",
         gender="male",
         provider="browser",
-        browser_hint="Minsu|Microsoft InJoon|male",
+        browser_hint=(
+            "Minsu|Microsoft InJoon|Microsoft GookMin|Jina|ko-kr-x-koc|male"
+        ),
     ),
     Voice(
         id="browser-ko-neutral",
