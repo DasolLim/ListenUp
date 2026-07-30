@@ -173,9 +173,18 @@ export function useTranscription(options?: { enhanced?: boolean; language?: stri
         setSegments((list) => smooth(mergeSegment(list, segment)));
       } else if (message.type === "speakerUpdate") {
         // A speaker was identified (or corrected) — relabel their past bubbles.
+        //
+        // `fillOnly` marks an automatic identification, which may only name
+        // bubbles that are still unnamed: one diarization label can carry
+        // different people across a session, so overwriting every bubble would
+        // rewrite the earlier speaker's lines with the current speaker's name.
+        // A manual correction arrives without the flag and overwrites, because
+        // the user is explicitly fixing that label.
         setSegments((list) =>
           list.map((s) =>
-            s.speaker === message.speaker ? { ...s, speakerName: message.speakerName } : s
+            s.speaker === message.speaker && !(message.fillOnly && s.speakerName)
+              ? { ...s, speakerName: message.speakerName }
+              : s
           )
         );
       } else if (message.type === "done") {

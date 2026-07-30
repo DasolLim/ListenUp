@@ -251,11 +251,22 @@ async def ws_transcribe(websocket: WebSocket) -> None:
             label = mapper.label(segment.speaker)
             payload = _segment_payload(segment, label, name)
             await _queue_put_with_backpressure(send_queue, payload, segment.is_final)
-            # Name resolved (or corrected): relabel this speaker's PAST bubbles too.
+            # Name resolved: fill in this speaker's earlier bubbles that were
+            # still unnamed. `fillOnly` matters now that a label can carry
+            # different people over a session — without it, naming the current
+            # turn would rewrite the previous speaker's history under the same
+            # label. Bubbles already carry their own per-turn name.
             if name is not None and announced.get(label) != name:
                 announced[label] = name
                 await send_queue.put(
-                    json.dumps({"type": "speakerUpdate", "speaker": label, "speakerName": name})
+                    json.dumps(
+                        {
+                            "type": "speakerUpdate",
+                            "speaker": label,
+                            "speakerName": name,
+                            "fillOnly": True,
+                        }
+                    )
                 )
         await send_queue.put(None)
 
