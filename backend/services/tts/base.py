@@ -96,10 +96,21 @@ def assert_speakable(language: str) -> None:
 
 
 class TtsService(ABC):
+    # Whether `speak()` accepts an `expressiveness` keyword. Only services that
+    # render audio server-side can act on it: the browser tier hands rendering to
+    # the client, which has no such control. The route checks this rather than
+    # assuming every service takes the argument.
+    supports_expressiveness: bool = False
+
     @abstractmethod
     async def voices(self, language: str | None = None) -> list[Voice]:
         """Selectable voices, optionally filtered to one language."""
 
     @abstractmethod
     async def speak(self, text: str, voice_id: str) -> Speech:
-        """Render `text` in `voice_id`."""
+        """Render `text` in `voice_id`.
+
+        Services that set `supports_expressiveness` also accept an
+        `expressiveness: float` keyword (0–1) controlling how much the delivery
+        varies.
+        """

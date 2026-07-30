@@ -54,6 +54,10 @@ async def auth(
 class SpeakRequest(BaseModel):
     text: str = Field(min_length=1, max_length=2000)
     voice_id: str = Field(min_length=1, max_length=120)
+    # How much the voice varies its delivery. Rendered by the provider, so it
+    # must arrive with the request; browser voices ignore it. Optional so older
+    # clients and the free tier keep working unchanged.
+    expressiveness: float | None = Field(default=None, ge=0.0, le=1.0)
 
 
 @router.get("/voices")
@@ -81,7 +85,16 @@ async def speak(request: SpeakRequest) -> dict:
     """
     service = get_tts_service()
     try:
-        result = await service.speak(request.text, request.voice_id)
+        # Only pass expressiveness to services that render audio; the browser
+        # tier's signature stays two-argument because it has nothing to apply it
+        # to (the client speaks locally).
+        shapeable = getattr(service, "supports_expressiveness", False)
+        if request.expressiveness is not None and shapeable:
+            result = await service.speak(
+                request.text, request.voice_id, expressiveness=request.expressiveness
+            )
+        else:
+            result = await service.speak(request.text, request.voice_id)
     except TtsError as exc:
         # 503, not 500: the caption/translation is already on screen, so this is
         # a degraded-but-recoverable state, and the client falls back to a

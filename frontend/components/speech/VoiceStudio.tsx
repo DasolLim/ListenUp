@@ -16,6 +16,13 @@ const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8000";
 const MIN_SECONDS = 30;
 const MAX_SECONDS = 180;
 
+/** Gender groups for the voice select, in display order. */
+const VOICE_GROUPS: { gender: string; label: string }[] = [
+  { gender: "female", label: "Female voices" },
+  { gender: "male", label: "Male voices" },
+  { gender: "neutral", label: "System" },
+];
+
 const READING_SCRIPT =
   "Hi, this is my voice for ListenUp. I'm reading for about half a minute so the " +
   "app can learn how I sound. I'm speaking at my normal pace, the way I would in " +
@@ -66,6 +73,26 @@ function VoiceStudioInner({ language = "en" }: { language?: string }) {
    * `null` while we're still asking.
    */
   const [cloningReady, setCloningReady] = useState<boolean | null>(null);
+
+  /**
+   * How much real voice variety this device has.
+   *
+   * Read after the catalogue loads rather than during render, because
+   * `getVoices()` is async and an early read reports nothing. Kept in state so
+   * the notice appears once the answer is actually known.
+   */
+  const [variety, setVariety] = useState<{ unique: number; offered: number } | null>(null);
+
+  const { voices: catalogue, distinctVoices } = speech;
+  useEffect(() => {
+    if (catalogue.length === 0) return;
+    // Two reads: one now, one after the OS voice list has had a chance to
+    // populate, since Chrome does not reliably fire `voiceschanged`.
+    const check = () => setVariety(distinctVoices());
+    check();
+    const timer = setTimeout(check, 600);
+    return () => clearTimeout(timer);
+  }, [catalogue, distinctVoices]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -233,11 +260,19 @@ function VoiceStudioInner({ language = "en" }: { language?: string }) {
             onChange={(event) => speech.chooseVoice(event.target.value)}
             className="glass-strong min-h-11 rounded-xl border border-white/60 px-3 text-sm text-ink shadow-glass outline-none"
           >
-            {speech.voices.map((voice) => (
-              <option key={voice.id} value={voice.id}>
-                {voice.label}
-              </option>
-            ))}
+            {VOICE_GROUPS.map(({ gender, label }) => {
+              const group = speech.voices.filter((voice) => voice.gender === gender);
+              if (group.length === 0) return null;
+              return (
+                <optgroup key={gender} label={label}>
+                  {group.map((voice) => (
+                    <option key={voice.id} value={voice.id}>
+                      {voice.label}
+                    </option>
+                  ))}
+                </optgroup>
+              );
+            })}
           </select>
           <SpeakButton
             onSpeak={() =>
@@ -253,11 +288,31 @@ function VoiceStudioInner({ language = "en" }: { language?: string }) {
           />
         </div>
 
+            {/* Say it when the device can't back the choice on offer, rather
+                than letting someone pick "Dohyun (male)" and hear a female
+                voice. macOS ships exactly one Korean voice, so this is the
+                normal case for Korean, not an edge case. */}
+            {variety !== null && variety.unique < variety.offered && (
+              <p role="status" className="text-[13px] leading-relaxed text-ink-soft">
+                This device has{" "}
+                <span className="font-medium text-ink">
+                  {variety.unique === 1
+                    ? `only one ${language === "ko" ? "Korean" : "English"} voice`
+                    : `${variety.unique} distinct ${language === "ko" ? "Korean" : "English"} voices`}
+                </span>{" "}
+                installed, so some options above will sound the same. The pitch and speed sliders
+                below still change how it reads.
+              </p>
+            )}
+
             <VoiceShaper
               shape={speech.shape}
               limits={SHAPE_LIMITS}
               onChange={speech.adjustShape}
               onReset={speech.resetShape}
+              provider={
+                speech.voices.find((v) => v.id === speech.voiceId)?.provider ?? "browser"
+              }
             />
           </div>
         </section>
@@ -291,15 +346,15 @@ function VoiceStudioInner({ language = "en" }: { language?: string }) {
                 className="rounded-xl border border-warning bg-white/70 px-4 py-3 text-[13px] leading-relaxed text-ink"
               >
                 <span className="font-semibold">Recording a voice isn&apos;t available yet.</span>{" "}
-                It needs a cloud voice provider, which isn&apos;t switched on for this account. Aria,
-                Miles and the system voice work everywhere in the meantime, and you can change how
-                they sound on the left.
+                It needs a cloud voice provider, which isn&apos;t switched on for this account. The
+                built-in voices work everywhere in the meantime, and you can change how they sound
+                on the left.
               </p>
             )}
 
             {cloningReady !== false && voices.length === 0 && !creating && (
               <p className="rounded-xl border border-dashed border-ink-faint/40 px-4 py-3 text-[13px] leading-relaxed text-ink-soft">
-                No recorded voices yet. Aria, Miles and the system voice are always available.
+                No recorded voices yet. The built-in voices are always available.
               </p>
             )}
 

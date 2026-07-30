@@ -6,6 +6,7 @@ and it is asserted here at the API boundary.
 """
 
 import asyncio
+from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
@@ -31,6 +32,62 @@ def test_voices_endpoint_offers_male_and_female_per_language():
         genders = {v["gender"] for v in voices if v["language"] == language}
         assert "female" in genders, f"no female voice for {language}"
         assert "male" in genders, f"no male voice for {language}"
+
+
+def test_voices_offer_real_variety_per_gender_and_language():
+    """Three of each gender per language, so picking a voice is a real choice.
+
+    Asserted at the API because the catalogue is the contract the picker renders;
+    dropping back to one voice each would silently shrink the feature.
+    """
+    body = client.get("/tts/voices").json()
+    for language in ("en", "ko"):
+        for gender in ("female", "male"):
+            matching = [
+                v for v in body["voices"] if v["language"] == language and v["gender"] == gender
+            ]
+            assert len(matching) >= 3, f"only {len(matching)} {gender} voice(s) for {language}"
+
+
+def test_every_named_voice_has_distinct_hints_and_labels():
+    """Two entries resolving to the same OS voice would make the picker lie.
+
+    Identical labels or identical first-choice hints are the two ways that
+    happens, so both are checked here rather than discovered by ear.
+    """
+    voices = client.get("/tts/voices").json()["voices"]
+    labels = [v["label"] for v in voices]
+    assert len(labels) == len(set(labels)), "duplicate voice label"
+
+    for language in ("en", "ko"):
+        named = [
+            v for v in voices if v["language"] == language and v["browser_hint"]
+        ]
+        first_choices = [v["browser_hint"].split("|")[0] for v in named]
+        assert len(first_choices) == len(set(first_choices)), (
+            f"{language}: two voices claim the same first-choice OS voice"
+        )
+
+
+def test_every_voice_id_is_unique_and_speakable():
+    """An id collision would make one voice unreachable through /tts/speak."""
+    voices = client.get("/tts/voices").json()["voices"]
+    ids = [v["id"] for v in voices]
+    assert len(ids) == len(set(ids))
+    for voice_id in ids:
+        response = client.post("/tts/speak", json={"text": "hello", "voice_id": voice_id})
+        assert response.status_code == 200, f"{voice_id} is listed but not speakable"
+
+
+def test_each_language_keeps_a_system_default():
+    """The no-hint entry is the fallback when a device has unusual voices."""
+    voices = client.get("/tts/voices").json()["voices"]
+    for language in ("en", "ko"):
+        neutral = [
+            v for v in voices if v["language"] == language and v["gender"] == "neutral"
+        ]
+        assert len(neutral) == 1
+        assert neutral[0]["browser_hint"] == ""
 
 
 def test_voices_can_be_filtered_by_language():
@@ -96,6 +153,78 @@ def test_unknown_voice_id_is_rejected_not_silently_substituted():
     )
     assert response.status_code == 503
     assert "unknown voice" in response.json()["detail"].lower()
+
+
+def test_expressiveness_is_accepted_and_ignored_by_the_free_tier():
+    """The browser tier renders client-side, so it has nothing to apply
+    expressiveness to — but sending it must not break the request, or a user who
+    set the slider on a cloud voice could no longer speak with a browser one."""
+    response = client.post(
+        "/tts/speak",
+        json={"text": "hello", "voice_id": "browser-en-female", "expressiveness": 0.9},
+    )
+    assert response.status_code == 200
+    assert response.json()["speak_locally"] is True
+
+
+def test_expressiveness_outside_zero_to_one_is_rejected():
+    """Out-of-range values would be passed to the provider verbatim."""
+    for bad in (-0.5, 1.5):
+        response = client.post(
+            "/tts/speak",
+            json={"text": "hello", "voice_id": "browser-en-female", "expressiveness": bad},
+        )
+        assert response.status_code == 422, f"{bad} was accepted"
+
+
+def test_expressiveness_maps_to_inverse_stability_and_varies_the_cache_key():
+    """Two things at once, because they are the same bug if either is wrong:
+    expressiveness must invert to `stability`, and it must be part of the cache
+    key — otherwise the first setting rendered is replayed for every later one.
+    """
+    from services.tts.elevenlabs import ElevenLabsTtsService
+
+    service = ElevenLabsTtsService(api_key="test-key")
+    sent: list[dict] = []
+
+    class _FakeResponse:
+        content = b"audio-bytes"
+
+        def raise_for_status(self):
+            return None
+
+    class _FakeClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_):
+            return False
+
+        async def post(self, _url, **kwargs):
+            sent.append(kwargs["json"])
+            return _FakeResponse()
+
+    import httpx
+
+    # The TTS cache is a process-wide singleton, so text used by another test
+    # would be served from cache and never reach the fake client. A unique
+    # phrase keeps this test independent of suite ordering.
+    phrase = f"expressiveness probe {uuid4()}"
+
+    original = httpx.AsyncClient
+    httpx.AsyncClient = lambda **_kw: _FakeClient()  # type: ignore[assignment]
+    try:
+        asyncio.run(service.speak(phrase, "voice-1", expressiveness=1.0))
+        asyncio.run(service.speak(phrase, "voice-1", expressiveness=0.0))
+    finally:
+        httpx.AsyncClient = original  # type: ignore[assignment]
+
+    # Fully expressive → stability 0; fully flat → stability 1.
+    assert sent[0]["voice_settings"]["stability"] == pytest.approx(0.0)
+    # A second call with different expressiveness must reach the provider rather
+    # than being served the first call's cached audio.
+    assert len(sent) == 2, "the cache served different expressiveness from one key"
+    assert sent[1]["voice_settings"]["stability"] == pytest.approx(1.0)
 
 
 def test_browser_service_never_returns_audio():

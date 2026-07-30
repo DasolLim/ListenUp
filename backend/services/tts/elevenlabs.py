@@ -48,6 +48,10 @@ PRESETS: tuple[tuple[str, str, str], ...] = (
 
 
 class ElevenLabsTtsService(TtsService):
+    # Tells the route it can pass `expressiveness`. The browser tier has no
+    # equivalent, so the capability is advertised rather than assumed.
+    supports_expressiveness = True
+
     def __init__(self, api_key: str | None = None) -> None:
         self._api_key = api_key or os.environ.get("ELEVENLABS_API_KEY", "")
         if not self._api_key:
@@ -76,13 +80,25 @@ class ElevenLabsTtsService(TtsService):
                 )
         return out
 
-    async def speak(self, text: str, voice_id: str) -> Speech:
+    async def speak(
+        self, text: str, voice_id: str, expressiveness: float | None = None
+    ) -> Speech:
         clean = text.strip()
         if not clean:
             raise TtsError("Nothing to speak.")
 
+        # ElevenLabs' `stability` is the inverse of how expressive a read is:
+        # high stability means flat and consistent, low means varied. Exposing it
+        # as "expressiveness" describes the audible result rather than the
+        # vendor's internal name.
+        expr = 0.5 if expressiveness is None else min(1.0, max(0.0, expressiveness))
+        stability = 1.0 - expr
+
         cache = get_cache()
-        key = cache_key("tts", clean, voice_id, MODEL_ID)
+        # Expressiveness changes the rendered audio, so it must be part of the
+        # key — otherwise the first setting served would be replayed for every
+        # later one.
+        key = cache_key("tts", clean, voice_id, f"{MODEL_ID}:expr={expr:.2f}")
         if (hit := await cache.get(key)) is not None:
             # Cached as latin-1 text because the cache stores JSON strings.
             return Speech(
@@ -101,7 +117,10 @@ class ElevenLabsTtsService(TtsService):
                     json={
                         "text": clean,
                         "model_id": MODEL_ID,
-                        "voice_settings": {"stability": 0.5, "similarity_boost": 0.75},
+                        "voice_settings": {
+                            "stability": stability,
+                            "similarity_boost": 0.75,
+                        },
                     },
                 )
                 response.raise_for_status()

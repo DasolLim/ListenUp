@@ -8,6 +8,13 @@ const PREVIEW: Record<string, string> = {
   ko: "일요일에 저녁 먹으러 올 거예요?",
 };
 
+/** Gender groups, in picker order. "neutral" reads as the device's own choice. */
+const GROUPS: { gender: string; label: string }[] = [
+  { gender: "female", label: "Female voices" },
+  { gender: "male", label: "Male voices" },
+  { gender: "neutral", label: "System" },
+];
+
 /**
  * Choose the voice that reads translations aloud, with a preview and an
  * auto-speak toggle.
@@ -51,11 +58,30 @@ export default function VoicePicker({
         onChange={(event) => onChoose(event.target.value)}
         className="glass-strong rounded-xl border border-white/60 px-3 py-2 text-sm text-ink shadow-glass outline-none"
       >
-        {voices.map((voice) => (
-          <option key={voice.id} value={voice.id}>
-            {voice.label}
-          </option>
-        ))}
+        {/* Grouped by gender: with several voices per language a flat list is a
+            wall of names, and the group label is the distinction people are
+            actually scanning for. */}
+        {GROUPS.map(({ gender, label }) => {
+          const group = voices.filter((voice) => voice.gender === gender);
+          if (group.length === 0) return null;
+          return (
+            <optgroup key={gender} label={label}>
+              {group.map((voice) => (
+                <option key={voice.id} value={voice.id}>
+                  {voice.label}
+                </option>
+              ))}
+            </optgroup>
+          );
+        })}
+        {/* Anything with an unexpected gender (a recorded voice) still shows. */}
+        {voices
+          .filter((voice) => !GROUPS.some((g) => g.gender === voice.gender))
+          .map((voice) => (
+            <option key={voice.id} value={voice.id}>
+              {voice.label}
+            </option>
+          ))}
       </select>
 
       <SpeakButton
