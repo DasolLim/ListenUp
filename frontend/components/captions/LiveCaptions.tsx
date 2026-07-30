@@ -1,7 +1,7 @@
 "use client";
 
 import posthog from "posthog-js";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import SpeakerBubble from "@/components/captions/SpeakerBubble";
 import SpokenLanguagePicker from "@/components/SpokenLanguagePicker";
 import { MicIcon } from "@/components/shell/icons";
@@ -28,13 +28,11 @@ const AUTOSCROLL_SLACK_PX = 48;
 
 type ProfileOption = { id: string; display_name: string };
 
-function LiveCaptionsInner(
-  props: {
-    enhanced?: boolean;
-    targetLang: string;
-    setTargetLang: (v: string) => void;
-  },
-) {
+function LiveCaptionsInner(props: {
+  enhanced?: boolean;
+  targetLang: string;
+  setTargetLang: (v: string) => void;
+}) {
   const { enhanced = false } = props;
   const [spoken, setSpoken] = useStickyLanguage("listenup-spoken-captions");
   const { status, error, segments, latency, start, stop, correct, sessionId } = useTranscription({
@@ -43,6 +41,8 @@ function LiveCaptionsInner(
   });
   const logRef = useRef<HTMLDivElement>(null);
   const [pinnedToBottom, setPinnedToBottom] = useState(true);
+  // Transcript length when the reader scrolled away; null while pinned.
+  const [unreadAnchor, setUnreadAnchor] = useState<number | null>(null);
   const [feedbackSent, setFeedbackSent] = useState(false);
   const [profileOptions, setProfileOptions] = useState<ProfileOption[]>([]);
   const [correcting, setCorrecting] = useState<string | null>(null);
@@ -64,7 +64,7 @@ function LiveCaptionsInner(
   const latestSpoken = [...segments].reverse().find((s) => s.isFinal && translations[s.id]);
   useAutoSpeak(
     translateOn && latestSpoken ? latestSpoken.id : "",
-    latestSpoken ? (translations[latestSpoken.id]?.text ?? "") : "",
+    latestSpoken ? (translations[latestSpoken.id]?.text ?? "") : ""
   );
 
   // STT duration = audio timeline processed (last segment's end timestamp).
@@ -145,17 +145,38 @@ function LiveCaptionsInner(
     }
   }
 
-  // Autoscroll to newest caption unless the reader scrolled up on purpose.
-  useEffect(() => {
+  const scrollToLatest = useCallback((smooth: boolean) => {
     const log = logRef.current;
-    if (log && pinnedToBottom) log.scrollTop = log.scrollHeight;
-  }, [segments, pinnedToBottom]);
+    if (!log) return;
+    // Streaming text is retargeted many times a second, so only a deliberate
+    // jump animates — smooth-scrolling every interim update reads as jitter.
+    const reduced =
+      typeof window !== "undefined" &&
+      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    log.scrollTo({
+      top: log.scrollHeight,
+      behavior: smooth && !reduced ? "smooth" : "auto",
+    });
+  }, []);
+
+  // Follow the newest caption, unless the reader scrolled up to read history —
+  // then hold their position, the way a message thread does. Yanking someone
+  // back mid-sentence loses the line they were on.
+  useEffect(() => {
+    if (pinnedToBottom) scrollToLatest(false);
+  }, [segments, pinnedToBottom, scrollToLatest]);
+
+  // How many captions have arrived since the reader scrolled away, derived from
+  // the transcript length at that moment rather than counted in an effect.
+  const unread = unreadAnchor === null ? 0 : Math.max(0, segments.length - unreadAnchor);
 
   function handleScroll() {
     const log = logRef.current;
     if (!log) return;
     const fromBottom = log.scrollHeight - log.scrollTop - log.clientHeight;
-    setPinnedToBottom(fromBottom < AUTOSCROLL_SLACK_PX);
+    const atBottom = fromBottom < AUTOSCROLL_SLACK_PX;
+    setPinnedToBottom(atBottom);
+    setUnreadAnchor((anchor) => (atBottom ? null : (anchor ?? segments.length)));
   }
 
   const listening = status === "listening" || status === "connecting";
@@ -175,7 +196,7 @@ function LiveCaptionsInner(
   const identityColor = (key: string) => identityIndexMap.get(key) ?? 0;
 
   return (
-    <GlassCard strong className="flex h-full min-h-120 flex-col gap-4 p-6">
+    <GlassCard strong className="flex flex-col gap-4 p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="font-display text-[22px] font-semibold">Live captions</h2>
@@ -251,49 +272,85 @@ function LiveCaptionsInner(
       )}
 
       {error && (
-        <p role="alert" className="rounded-xl border border-error bg-white/70 px-4 py-3 text-sm text-error-strong">
+        <p
+          role="alert"
+          className="rounded-xl border border-error bg-white/70 px-4 py-3 text-sm text-error-strong"
+        >
           {error}
         </p>
       )}
 
-      <div
-        ref={logRef}
-        onScroll={handleScroll}
-        role="log"
-        aria-live="polite"
-        aria-label="Live captions"
-        className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto scroll-pt-2"
-      >
-        {segments.length === 0 && !error && (
-          <p className="m-auto max-w-sm text-center text-sm text-ink-soft">
-            Start captions and speak — each person gets their own colored bubble with a label,
-            up to 4 speakers plus “Other”.
-          </p>
-        )}
-        {segments.map((segment) => (
-          <SpeakerBubble
-            key={segment.id}
-            caption={{
-              id: segment.id,
-              speaker: segment.speaker,
-              speakerName: segment.speakerName,
-              // Color by identity (name when known), so one person keeps one
-              // color even when diarization churns the underlying speaker label.
-              speakerIndex: identityColor(segment.speakerName ?? segment.speaker),
-              text: segment.text,
-              interim: !segment.isFinal,
-              translated: translateOn ? (translations[segment.id] ?? null) : null,
+      {/* The transcript is a fixed pane, not a growing list: captions scroll
+          inside it while the controls above and below stay where the user left
+          them. Sizing to content instead made the page grow with every line, so
+          the newest caption — the only one that matters live — kept sliding
+          below the fold. */}
+      <div className="relative h-[clamp(18rem,55vh,34rem)]">
+        <div
+          ref={logRef}
+          onScroll={handleScroll}
+          role="log"
+          aria-live="polite"
+          aria-label="Live captions"
+          className="flex h-full flex-col overflow-y-auto overscroll-contain px-0.5"
+        >
+          {segments.length === 0 && !error ? (
+            <p className="m-auto max-w-sm text-center text-sm text-ink-soft">
+              Start captions and speak — each person gets their own colored bubble with a label, up
+              to 4 speakers plus “Other”.
+            </p>
+          ) : (
+            // `mt-auto` sits a short transcript at the bottom, so the first
+            // caption appears where the next one will, rather than at the top of
+            // an empty pane with the conversation drifting downward.
+            <div className="mt-auto flex flex-col gap-2.5">
+              {segments.map((segment) => (
+                <SpeakerBubble
+                  key={segment.id}
+                  caption={{
+                    id: segment.id,
+                    speaker: segment.speaker,
+                    speakerName: segment.speakerName,
+                    // Color by identity (name when known), so one person keeps one
+                    // color even when diarization churns the underlying speaker label.
+                    speakerIndex: identityColor(segment.speakerName ?? segment.speaker),
+                    text: segment.text,
+                    interim: !segment.isFinal,
+                    translated: translateOn ? (translations[segment.id] ?? null) : null,
+                  }}
+                  onCorrectClick={enhanced && status === "listening" ? openCorrection : undefined}
+                  onSpeak={
+                    translateOn && translations[segment.id]
+                      ? () => speech.speak(translations[segment.id].text)
+                      : undefined
+                  }
+                  onStopSpeaking={speech.stop}
+                  speaking={speech.speaking}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Floats over the transcript instead of sitting below it, so showing or
+            hiding it never resizes the pane the user is reading. */}
+        {!pinnedToBottom && (
+          <button
+            type="button"
+            onClick={() => {
+              setPinnedToBottom(true);
+              setUnreadAnchor(null);
+              scrollToLatest(true);
             }}
-            onCorrectClick={enhanced && status === "listening" ? openCorrection : undefined}
-            onSpeak={
-              translateOn && translations[segment.id]
-                ? () => speech.speak(translations[segment.id].text)
-                : undefined
-            }
-            onStopSpeaking={speech.stop}
-            speaking={speech.speaking}
-          />
-        ))}
+            className="btn-ghost absolute inset-x-0 bottom-2 mx-auto flex min-h-11 w-fit items-center gap-2 rounded-full px-4 text-sm text-ink shadow-glass"
+          >
+            {unread > 0 && (
+              // Paired with the count in words — never colour alone (§7).
+              <span aria-hidden="true" className="size-2 rounded-full bg-accent-strong" />
+            )}
+            {unread > 0 ? `${unread} new caption${unread === 1 ? "" : "s"}` : "Jump to latest"}
+          </button>
+        )}
       </div>
 
       {correcting && (
@@ -330,20 +387,6 @@ function LiveCaptionsInner(
         </div>
       )}
 
-      {!pinnedToBottom && (
-        <button
-          type="button"
-          onClick={() => {
-            setPinnedToBottom(true);
-            const log = logRef.current;
-            if (log) log.scrollTop = log.scrollHeight;
-          }}
-          className="btn-ghost self-center rounded-full px-4 py-1.5 text-sm text-ink"
-        >
-          Jump to latest
-        </button>
-      )}
-
       {status === "stopped" && finalsCount > 0 && (
         <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/60 bg-white/50 px-4 py-3">
           {feedbackSent ? (
@@ -360,7 +403,17 @@ function LiveCaptionsInner(
                   aria-label="Captions were good"
                   className="btn-ghost flex h-9 w-9 items-center justify-center rounded-full text-ink"
                 >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
                     <path d="M7 11v9m0-9 4-7.5a2 2 0 0 1 2 2V9h5.2a2 2 0 0 1 2 2.4l-1.2 6A2 2 0 0 1 17 19H7m0-8H4a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h3" />
                   </svg>
                 </button>
@@ -370,7 +423,17 @@ function LiveCaptionsInner(
                   aria-label="Captions had problems"
                   className="btn-ghost flex h-9 w-9 items-center justify-center rounded-full text-ink"
                 >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
                     <path d="M17 13V4m0 9-4 7.5a2 2 0 0 1-2-2V15H5.8a2 2 0 0 1-2-2.4l1.2-6A2 2 0 0 1 7 5h10m0 8h3a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1h-3" />
                   </svg>
                 </button>
