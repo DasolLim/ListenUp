@@ -88,8 +88,75 @@ def pcm(name: str) -> bytes:
         return w.readframes(w.getnframes())
 
 
-def final(raw: str, start: float, end: float) -> TranscriptSegment:
-    return TranscriptSegment(speaker=raw, text="hello there", start=start, end=end, is_final=True)
+def final(raw: str, start: float, end: float, turn_id: int = 0) -> TranscriptSegment:
+    return TranscriptSegment(
+        speaker=raw, text="hello there", start=start, end=end, is_final=True, turn_id=turn_id
+    )
+
+
+def interim(raw: str, start: float, end: float, turn_id: int = 0) -> TranscriptSegment:
+    return TranscriptSegment(
+        speaker=raw, text="hello", start=start, end=end, is_final=False, turn_id=turn_id
+    )
+
+
+# ── Real-time naming (while the person is still speaking) ─────────────────────
+
+def test_speaker_is_named_during_the_turn_not_only_when_it_ends() -> None:
+    """Identifying only on the final segment means the caption carries the old
+    name for the whole turn and then flips — visibly naming the wrong person
+    first. A turn must be identified from the voice as it is being spoken."""
+    namer = SessionNamer(enrolled_matcher())
+    conversation(namer, [("bob", 3.0)])
+
+    async def run() -> str | None:
+        # 1.5s into the turn, before any final arrives.
+        match = await namer.observe(interim("A", 0.0, 1.5, turn_id=1))
+        return match.display_name if match else None
+
+    assert asyncio.run(run()) == "Bob"
+
+
+def test_a_new_speaker_after_a_pause_is_not_shown_as_the_previous_one() -> None:
+    """The reported symptom: the caption shows the previous speaker while the
+    new one talks. After a pause the name must be dropped until verified —
+    unnamed is honest, the previous person's name is not."""
+    namer = SessionNamer(enrolled_matcher())
+    # Alice, one second of silence, then Bob.
+    audio = bytearray(say("alice", 3.0, take=0))
+    audio.extend(b"\x00" * (SR * 2))  # 1.0s silence (16-bit mono)
+    audio.extend(say("bob", 3.0, take=1))
+    namer.add_audio(bytes(audio))
+
+    async def run() -> tuple[str | None, str | None]:
+        await namer.observe(final("A", 0.0, 3.0, turn_id=1))
+        # Bob's turn opens; too little voice yet to identify anyone.
+        early = await namer.observe(interim("A", 4.0, 4.4, turn_id=2))
+        # ...and once there is enough, it is Bob, never Alice.
+        later = await namer.observe(interim("A", 4.0, 5.6, turn_id=2))
+        return (
+            early.display_name if early else None,
+            later.display_name if later else None,
+        )
+
+    assert asyncio.run(run()) == (None, "Bob")
+
+
+def test_interim_matching_is_bounded_per_turn() -> None:
+    """Interim segments arrive several times a second; embedding every one
+    would burn CPU for no benefit."""
+    from app.naming import MAX_INTERIM_EMBEDS_PER_TURN
+
+    namer = SessionNamer(enrolled_matcher())
+    conversation(namer, [("cara", 8.0)])
+
+    async def run() -> int:
+        before = namer.embeds_computed
+        for tenth in range(10, 80):  # 70 interim frames across one turn
+            await namer.observe(interim("A", 0.0, tenth / 10, turn_id=1))
+        return namer.embeds_computed - before
+
+    assert asyncio.run(run()) <= MAX_INTERIM_EMBEDS_PER_TURN
 
 
 # ── The reported bug ──────────────────────────────────────────────────────────

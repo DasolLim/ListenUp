@@ -36,6 +36,26 @@ BUFFER_CAP_S = 180.0
 SHORT_TURN_MIN_S = float(os.environ.get("SPEAKER_SHORT_TURN_MIN_S", "1.0"))
 SHORT_TURN_MARGIN = float(os.environ.get("SPEAKER_SHORT_TURN_MARGIN", "0.10"))
 
+# Identifying only when a turn goes final means the caption carries the label's
+# previous name for the whole turn and then flips — the user sees a wrong
+# speaker, then a correction. Interim segments are therefore matched mid-turn,
+# as soon as this turn has enough of its own voice, and re-checked as it grows.
+INTERIM_REEMBED_GROWTH_S = float(os.environ.get("SPEAKER_INTERIM_GROWTH_S", "1.0"))
+MAX_INTERIM_EMBEDS_PER_TURN = int(os.environ.get("SPEAKER_MAX_INTERIM_EMBEDS", "4"))
+
+# ECAPA needs about a second of voice to be trustworthy (measured on the real
+# model: at the worst position in an utterance a 1.0s window scores 0.633 for
+# the right person against a 0.55 threshold, while 0.6s scores 0.478 and fails).
+# So roughly one second of "not yet sure" at a speaker change is a floor we
+# cannot engineer away — only decide what to display during it.
+#
+# This governs that display choice, separately from CONTIGUOUS_GAP_S which
+# governs which audio may be combined. A name is carried into a new turn only
+# when the turn follows the last one almost instantly, which is speech split
+# mid-flow. Anything longer starts unnamed rather than showing the previous
+# speaker, because a wrong name is worse than no name (INTRODUCTION §5.7).
+CARRY_GAP_S = float(os.environ.get("SPEAKER_CARRY_GAP_S", "0.25"))
+
 # When a turn is too short to identify alone, it may be extended backwards with
 # earlier audio from the same label — but only across gaps this small. A short
 # gap means one continuous utterance that diarization split; a longer one is
@@ -88,6 +108,12 @@ class _SpeakerState:
     # A human said who this is (tap-to-correct). That beats the matcher and is
     # the one case where a label's name is allowed to stick.
     overridden: bool = False
+    # The turn currently being spoken, so identification is scoped to it rather
+    # than to the label. Keyed on (turn_id, start) because turn_id alone is not
+    # unique in every provider/mock path.
+    turn_key: tuple[int, float] | None = None
+    turn_embeds: int = 0
+    last_embed_audio_s: float = 0.0
 
 
 class SessionNamer:
@@ -191,6 +217,72 @@ class SessionNamer:
             earliest = window_start
         return b"".join(reversed(parts))
 
+    def _begin_turn(self, state: _SpeakerState, segment: TranscriptSegment) -> None:
+        """Notice when a new turn starts under this label and reset per-turn state.
+
+        The carry rule lives here. A name is only allowed to continue into a new
+        turn that runs straight on from the last one: speech split mid-flow is
+        still the same person, but after a real pause anyone can have started
+        talking, and showing the previous speaker's name until the turn ends is
+        precisely the "wrong speaker, then corrected" the user sees. Unnamed is
+        the honest state while we do not yet know (INTRODUCTION §5.7).
+        """
+        key = (segment.turn_id, round(segment.start, 2))
+        if state.turn_key == key:
+            return
+        state.turn_key = key
+        state.turn_embeds = 0
+        state.last_embed_audio_s = 0.0
+        last_end = state.windows[-1][1] if state.windows else None
+        if last_end is not None and segment.start - last_end > CARRY_GAP_S:
+            state.resolved = None
+
+    async def _identify_interim(
+        self, state: _SpeakerState, segment: TranscriptSegment
+    ) -> Match | None:
+        """Match the turn in progress, from the audio spoken so far.
+
+        Only ever *upgrades* the name: a confident match is applied, but a weak
+        one leaves the current name alone rather than clearing it, because
+        interim results arrive several times a second and flipping a correct
+        name to generic and back would be worse than waiting. The final segment
+        is the authoritative decision.
+        """
+        pcm = self._slice(segment.start, segment.end)
+        audio_s = len(pcm) / BYTES_PER_SECOND
+        if audio_s < SHORT_TURN_MIN_S or state.turn_embeds >= MAX_INTERIM_EMBEDS_PER_TURN:
+            return state.resolved
+        # Re-check as the turn grows: a second of speech is enough to be useful,
+        # more is enough to be sure. Bounded so a long turn can't spin the CPU.
+        if (
+            state.turn_embeds > 0
+            and audio_s - state.last_embed_audio_s < INTERIM_REEMBED_GROWTH_S
+        ):
+            return state.resolved
+
+        state.turn_embeds += 1
+        state.last_embed_audio_s = audio_s
+        self.embeds_computed += 1
+        try:
+            embedding = await asyncio.to_thread(get_speaker_embedder().embed, pcm, 16000)
+        except ValueError:
+            return state.resolved
+        match = self.matcher.match(embedding)
+        if match is None:
+            return state.resolved
+        if audio_s < MIN_MATCH_AUDIO_S and (
+            match.similarity < self.matcher.threshold + SHORT_TURN_MARGIN
+        ):
+            return state.resolved  # too little voice to assert this mid-turn
+
+        if state.resolved is None or state.resolved.profile_id != match.profile_id:
+            logger.info(
+                "speaker_named_live raw=%s name=%s similarity=%.3f audio=%.1fs",
+                segment.speaker, match.display_name, match.similarity, audio_s,
+            )
+        state.resolved = match
+        return state.resolved
+
     async def observe(self, segment: TranscriptSegment) -> Match | None:
         """Feed a FINAL segment; identify the speaker of *this turn*.
 
@@ -198,16 +290,21 @@ class SessionNamer:
         change is caught on the next turn instead of inheriting whoever the
         label resolved to first.
         """
-        if not segment.is_final:
-            state = self._speakers.get(segment.speaker)
-            return state.resolved if state else None
         state = self._speakers.setdefault(segment.speaker, _SpeakerState())
-        state.windows.append((segment.start, segment.end))
-        state.window_owners.append(None)
 
         # A human already said who this is; don't second-guess them.
         if state.overridden or not self.matcher.profiles:
             return state.resolved
+
+        self._begin_turn(state, segment)
+
+        # Interim: identify while the person is still talking, so the caption
+        # shows the right name during the turn instead of after it.
+        if not segment.is_final:
+            return await self._identify_interim(state, segment)
+
+        state.windows.append((segment.start, segment.end))
+        state.window_owners.append(None)
 
         pcm = self.turn_audio(state)
         audio_s = len(pcm) / BYTES_PER_SECOND
