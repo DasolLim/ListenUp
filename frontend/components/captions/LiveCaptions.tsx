@@ -85,13 +85,10 @@ function LiveCaptionsInner(props: {
 
   async function openCorrection(speakerLabel: string) {
     if (profileOptions.length === 0) {
-      const { createClient } = await import("@/lib/supabase/client");
-      const { data } = await createClient().auth.getSession();
-      const token = data.session?.access_token;
-      if (token) {
-        const response = await fetch(`${BACKEND}/profiles`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+      const { authHeader } = await import("@/lib/auth/token");
+      const headers = await authHeader();
+      if (headers.Authorization) {
+        const response = await fetch(`${BACKEND}/profiles`, { headers });
         if (response.ok) setProfileOptions(await response.json());
       }
     }

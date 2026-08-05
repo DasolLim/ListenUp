@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
-import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
+import { getAccessToken } from "@/lib/auth/token";
 
 export type CaptionSegment = {
   id: string;
@@ -124,11 +124,9 @@ export function useTranscription(options?: { enhanced?: boolean; language?: stri
     wsRef.current = ws;
 
     ws.onopen = async () => {
-      let token: string | undefined;
-      if (enhanced && isSupabaseConfigured()) {
-        const { data } = await createClient().auth.getSession();
-        token = data.session?.access_token;
-      }
+      // Enhanced mode needs an identity so the backend can load voice
+      // profiles; general captions are anonymous by design.
+      const token = enhanced ? ((await getAccessToken()) ?? undefined) : undefined;
       ws.send(
         JSON.stringify({
           sampleRate: SAMPLE_RATE,

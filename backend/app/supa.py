@@ -26,16 +26,16 @@ def _config() -> tuple[str, str]:
 
 
 async def verify_user(token: str) -> str:
-    """Validate a Supabase access token → user id, or 401."""
-    url, key = _config()
-    async with httpx.AsyncClient(timeout=10) as client:
-        response = await client.get(
-            f"{url}/auth/v1/user",
-            headers={"apikey": key, "Authorization": f"Bearer {token}"},
-        )
-    if response.status_code != 200:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid or expired session.")
-    return str(response.json()["id"])
+    """Validate an access token → internal user uuid, or 401.
+
+    The provider (Supabase or Clerk) is chosen in `app.auth`; this signature is
+    the contract every route depends on and does not change with it. Routes get
+    an internal uuid either way, so the biometric tables keep `uuid` columns and
+    their `on delete cascade`.
+    """
+    from app.auth import get_auth_provider
+
+    return await get_auth_provider().user_id(token)
 
 
 async def rest(

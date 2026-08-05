@@ -6,3 +6,6 @@ httpx>=0.27
 python-multipart>=0.0.9
 redis>=5
 google-auth>=2.30
+# Local verification of Clerk session JWTs (app/auth.py) — keeps an HTTP round
+# trip off the authenticated request path.
+pyjwt[crypto]>=2.9

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
+import { authHeader, isAuthConfigured } from "@/lib/auth/token";
 import { usePcmRecorder } from "@/lib/usePcmRecorder";
 import { MicIcon } from "@/components/shell/icons";
 import Button from "@/components/ui/Button";
@@ -24,12 +24,6 @@ type Profile = {
   embedding_count: number;
 };
 
-async function authHeader(): Promise<Record<string, string>> {
-  const { data } = await createClient().auth.getSession();
-  const token = data.session?.access_token;
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
-
 export default function VoiceProfiles({ onChanged }: { onChanged?: () => void }) {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [enrolling, setEnrolling] = useState(false);
@@ -41,7 +35,7 @@ export default function VoiceProfiles({ onChanged }: { onChanged?: () => void })
   const recorder = usePcmRecorder(MAX_SECONDS);
 
   const refresh = useCallback(async () => {
-    if (!isSupabaseConfigured()) return;
+    if (!isAuthConfigured()) return;
     const response = await fetch(`${BACKEND}/profiles`, { headers: await authHeader() });
     if (response.ok) setProfiles(await response.json());
   }, []);
