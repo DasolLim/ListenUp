@@ -75,7 +75,7 @@ const pillars = [
     eyebrow: "Speaker-named captions",
     title: "Everyone gets their own name",
     body: "Enroll the people you talk with most. Their names sit on every line they say, in their own color. No more guessing who “Speaker 1” was.",
-    href: "/voice-to-text/enhanced",
+    href: "/captions",
     cta: "Set up voice profiles",
     visual: <NamedVisual />,
   },
@@ -83,7 +83,7 @@ const pillars = [
     eyebrow: "Cultural translation",
     title: "Meaning, not word-for-word",
     body: "Translation that carries register and slang. Each line comes with the plain meaning, the cultural context, and the closest equivalent in your language.",
-    href: "/translate/enhanced",
+    href: "/translate",
     cta: "Try cultural translation",
     visual: <TranslatedVisual />,
   },
@@ -91,7 +91,7 @@ const pillars = [
     eyebrow: "The combination",
     title: "Named, translated, live",
     body: "The part no other tool does: multi-speaker, multi-language captions in real time. A deaf Korean speaker sees each English voice translated to Korean, labeled by person, as it happens.",
-    href: "/voice-to-text/enhanced",
+    href: "/captions",
     cta: "See it live",
     visual: <ComboVisual />,
   },
@@ -189,10 +189,7 @@ export default function Home() {
         </Reveal>
         <div className="mt-12 flex flex-col gap-14 lg:gap-20">
           {pillars.map((pillar, i) => (
-            <Reveal
-              key={pillar.title}
-              className="grid items-center gap-6 lg:grid-cols-2 lg:gap-12"
-            >
+            <Reveal key={pillar.title} className="grid items-center gap-6 lg:grid-cols-2 lg:gap-12">
               <div className={`flex flex-col gap-3 ${i % 2 === 1 ? "lg:order-2" : ""}`}>
                 <Eyebrow>{pillar.eyebrow}</Eyebrow>
                 <h3 className="font-display text-[24px] font-bold tracking-tight sm:text-[28px]">
@@ -204,7 +201,17 @@ export default function Home() {
                   className="mt-1 inline-flex min-h-11 w-fit items-center gap-1.5 font-medium text-accent-strong hover:underline"
                 >
                   {pillar.cta}
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
                     <path d="M5 12h14M13 6l6 6-6 6" />
                   </svg>
                 </Link>

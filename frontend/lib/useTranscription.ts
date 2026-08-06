@@ -73,15 +73,47 @@ export function useTranscription(options?: { enhanced?: boolean; language?: stri
 
   const wsRef = useRef<WebSocket | null>(null);
   const audioRef = useRef<{ context: AudioContext; stream: MediaStream } | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const levelBufferRef = useRef<Uint8Array | null>(null);
   const captureStartRef = useRef<number>(0);
   const latenciesRef = useRef<number[]>([]);
   const counterRef = useRef(0);
   const sessionIdRef = useRef<string>("");
 
+  /**
+   * Current speaking loudness, 0–1.
+   *
+   * Deliberately a function rather than state: the orb samples this every frame,
+   * and putting it in state would re-render the whole caption list 60 times a
+   * second. Returns 0 whenever the mic is not running, so callers need no
+   * separate "is listening" check.
+   */
+  const getAudioLevel = useCallback((): number => {
+    const analyser = analyserRef.current;
+    if (!analyser) return 0;
+    if (!levelBufferRef.current || levelBufferRef.current.length !== analyser.frequencyBinCount) {
+      levelBufferRef.current = new Uint8Array(analyser.frequencyBinCount);
+    }
+    const bins = levelBufferRef.current;
+    analyser.getByteFrequencyData(bins as Uint8Array<ArrayBuffer>);
+    // RMS rather than peak: peak jumps on every consonant, while RMS tracks how
+    // loud someone actually is, which is what the orb should follow.
+    let sum = 0;
+    for (let i = 0; i < bins.length; i += 1) {
+      const value = bins[i] / 255;
+      sum += value * value;
+    }
+    return Math.min(1, Math.sqrt(sum / bins.length) * 3);
+  }, []);
+
   const cleanup = useCallback(() => {
     audioRef.current?.stream.getTracks().forEach((track) => track.stop());
     audioRef.current?.context.close().catch(() => undefined);
     audioRef.current = null;
+    // Drop the analyser with the context that owns it, so getAudioLevel goes
+    // back to 0 the moment captions stop.
+    analyserRef.current = null;
+    levelBufferRef.current = null;
     wsRef.current?.close();
     wsRef.current = null;
   }, []);
@@ -116,6 +148,17 @@ export function useTranscription(options?: { enhanced?: boolean; language?: stri
     const source = context.createMediaStreamSource(stream);
     const chunker = new AudioWorkletNode(context, "pcm-chunker");
     source.connect(chunker);
+
+    // Loudness tap for the voice orb. Branched off the STT stream on purpose:
+    // opening a second getUserMedia for visuals would capture the same device
+    // twice with different constraints (STT wants echo cancellation and noise
+    // suppression, a visualiser wants neither), which wastes a pipeline and on
+    // some devices fails outright. One microphone, one graph.
+    const analyser = context.createAnalyser();
+    analyser.fftSize = 512;
+    analyser.smoothingTimeConstant = 0.3; // responsive, but not jittery
+    source.connect(analyser);
+    analyserRef.current = analyser;
     audioRef.current = { context, stream };
 
     // 3) WebSocket to the transcription gateway.
@@ -196,7 +239,9 @@ export function useTranscription(options?: { enhanced?: boolean; language?: stri
     };
 
     ws.onerror = () => {
-      setStatus((current) => (current === "listening" || current === "connecting" ? "error" : current));
+      setStatus((current) =>
+        current === "listening" || current === "connecting" ? "error" : current
+      );
       setError((current) => current ?? "Lost the connection to the caption service.");
       cleanup();
     };
@@ -236,6 +281,7 @@ export function useTranscription(options?: { enhanced?: boolean; language?: stri
     start,
     stop,
     correct,
+    getAudioLevel,
     sessionId: sessionIdRef,
   };
 }

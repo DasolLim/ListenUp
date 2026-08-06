@@ -15,12 +15,15 @@ const links = [
 ];
 
 // Shown inside the mobile drawer once signed in, so a phone navigates like an app.
+//
+// Two things you do, plus a dictionary. The previous five entries were the same
+// two jobs listed twice under General/Enhanced tiers borrowed from the API — a
+// distinction the product has, not one the user has.
 const tools = [
-  { href: "/voice-to-text/general", label: "Live captions" },
-  { href: "/voice-to-text/enhanced", label: "Voice profiles" },
-  { href: "/translate/general", label: "Translate" },
-  { href: "/translate/enhanced", label: "Cultural translation" },
-  { href: "/translate/genz", label: "GenZ slang" },
+  { href: "/captions", label: "Captions" },
+  { href: "/translate", label: "Translate" },
+  { href: "/explain", label: "Explain a term" },
+  { href: "/settings", label: "Settings" },
 ];
 
 export default function Navbar() {

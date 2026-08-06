@@ -5,10 +5,10 @@ const columns = [
   {
     heading: "Product",
     links: [
-      { href: "/voice-to-text/general", label: "Live captions" },
-      { href: "/voice-to-text/enhanced", label: "Voice profiles" },
-      { href: "/translate/general", label: "Translate" },
-      { href: "/translate/genz", label: "GenZ slang" },
+      { href: "/captions", label: "Captions" },
+      { href: "/translate", label: "Translate" },
+      { href: "/explain", label: "Explain a term" },
+      { href: "/settings", label: "Settings" },
     ],
   },
   {
@@ -26,7 +26,10 @@ export default function SiteFooter() {
     <footer className="mt-8 border-t border-white/40 bg-white/25">
       <div className="mx-auto grid w-full max-w-6xl gap-10 px-5 py-14 sm:px-8 md:grid-cols-[1.4fr_1fr_1fr]">
         <div className="flex flex-col gap-3">
-          <Link href="/" className="inline-flex min-h-11 items-center gap-2.5 font-display text-[17px] font-bold">
+          <Link
+            href="/"
+            className="inline-flex min-h-11 items-center gap-2.5 font-display text-[17px] font-bold"
+          >
             <Orb size="sm" />
             ListenUp
           </Link>

@@ -11,14 +11,15 @@ export const metadata: Metadata = { title: "Dashboard — ListenUp" };
 type Tool = {
   href: string;
   name: string;
-  tier?: string;
   blurb: string;
   wash: string;
   badge?: string;
 };
 
-// Grouped by product family so it's obvious which tool belongs where,
-// mirroring the Product page (Voice-to-Text vs Translation).
+// The product is two things you do, plus a dictionary. The dashboard used to
+// group five tiles into "families" with General/Enhanced tiers — a shape
+// borrowed from the API, which made the product look wider than it is and asked
+// people to pick a lane before they knew what either one was.
 const families: {
   key: string;
   label: string;
@@ -27,52 +28,38 @@ const families: {
   tools: Tool[];
 }[] = [
   {
-    key: "voice-to-text",
-    label: "Voice-to-Text",
-    intro: "Live captions that name who is speaking.",
+    key: "conversation",
+    label: "In conversation",
+    intro: "The two things ListenUp does while people are talking.",
     icon: <CaptionsIcon />,
     tools: [
       {
-        href: "/voice-to-text/general",
-        name: "Live captions",
-        tier: "General",
-        blurb: "See who said what in real time, each speaker in their own colored bubble.",
+        href: "/captions",
+        name: "Captions",
+        blurb:
+          "See who said what, live. People you've enrolled appear by name; everyone else gets their own colour.",
         wash: "tile-wash-peach",
         badge: "Start here",
       },
       {
-        href: "/voice-to-text/enhanced",
-        name: "Voice profiles",
-        tier: "Enhanced",
-        blurb: "Name the people you talk to most, so captions show “Mom”, not “Speaker 1”.",
-        wash: "tile-wash-lilac",
+        href: "/translate",
+        name: "Translate",
+        blurb:
+          "English and Korean, by text or voice. The quick answer lands first, the cultural read follows.",
+        wash: "tile-wash-sage",
       },
     ],
   },
   {
-    key: "translation",
-    label: "Translation",
-    intro: "Translation that keeps the meaning, not just the words.",
+    key: "look-up",
+    label: "Look something up",
+    intro: "For a phrase you heard and didn't recognise.",
     icon: <TranslateIcon />,
     tools: [
       {
-        href: "/translate/general",
-        name: "Translate",
-        tier: "General",
-        blurb: "Translate between English and Korean, by text or voice.",
-        wash: "tile-wash-sage",
-      },
-      {
-        href: "/translate/enhanced",
-        name: "Cultural translation",
-        tier: "Enhanced",
-        blurb: "Meaning, register, and slang, with the closest local equivalent.",
-        wash: "tile-wash-amber",
-      },
-      {
-        href: "/translate/genz",
-        name: "GenZ slang",
-        blurb: "Modern internet slang and memes, decoded into plain language.",
+        href: "/explain",
+        name: "Explain a term",
+        blurb: "Internet slang and memes, decoded into plain language.",
         wash: "tile-wash-lilac",
       },
     ],
@@ -115,11 +102,6 @@ function ToolTile({ tool }: { tool: Tool }) {
       <span className="flex flex-1 flex-col gap-1.5 p-5">
         <span className="flex items-center gap-2">
           <span className="font-display text-[17px] font-semibold">{tool.name}</span>
-          {tool.tier && (
-            <span className="rounded-full bg-white/60 px-2 py-0.5 text-[11px] font-medium text-ink-soft">
-              {tool.tier}
-            </span>
-          )}
           <Arrow />
         </span>
         <span className="text-sm leading-relaxed text-ink-soft">{tool.blurb}</span>
@@ -141,8 +123,8 @@ export default function DashboardPage() {
             What do you want to caption?
           </h1>
           <p className="max-w-xl text-[15px] leading-relaxed text-ink-soft sm:text-base">
-            Two products, one conversation. Voice-to-Text names who is speaking; Translation
-            carries what they mean. Pick a tool to begin.
+            Two products, one conversation. Voice-to-Text names who is speaking; Translation carries
+            what they mean. Pick a tool to begin.
           </p>
         </div>
       </Reveal>

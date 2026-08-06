@@ -37,7 +37,7 @@ export default function DesignPage() {
 
       <section aria-label="Pills" className="flex gap-3">
         <Pill active>Live</Pill>
-        <Pill>Enhanced</Pill>
+        <Pill>Beta</Pill>
         <Pill>GenZ</Pill>
       </section>
 
@@ -45,23 +45,64 @@ export default function DesignPage() {
         <Button>Start captioning</Button>
         <Button variant="ghost">Learn more</Button>
         <IconButton label="Search">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+          >
             <circle cx="11" cy="11" r="7" />
             <path d="m20 20-3.5-3.5" />
           </svg>
         </IconButton>
         <IconButton label="Send" accent>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
             <path d="m22 2-7 20-4-9-9-4Z" />
           </svg>
         </IconButton>
       </section>
 
       <section aria-label="Image tiles" className="grid max-w-3xl grid-cols-2 gap-5">
-        <ImageTile href="/voice-to-text/general" label="Voice-to-Text" sublabel="Live captions" wash="peach" className="h-56" />
-        <ImageTile href="/translate/general" label="Translate" sublabel="English ↔ Korean" wash="sage" className="h-56" />
-        <ImageTile href="/translate/genz" label="GenZ" sublabel="Slang, decoded" wash="lilac" className="h-56" />
-        <ImageTile href="/voice-to-text/enhanced" label="My Sessions" sublabel="Saved transcripts" wash="amber" className="h-56" />
+        <ImageTile
+          href="/captions"
+          label="Voice-to-Text"
+          sublabel="Live captions"
+          wash="peach"
+          className="h-56"
+        />
+        <ImageTile
+          href="/translate"
+          label="Translate"
+          sublabel="English ↔ Korean"
+          wash="sage"
+          className="h-56"
+        />
+        <ImageTile
+          href="/explain"
+          label="GenZ"
+          sublabel="Slang, decoded"
+          wash="lilac"
+          className="h-56"
+        />
+        <ImageTile
+          href="/captions"
+          label="My Sessions"
+          sublabel="Saved transcripts"
+          wash="amber"
+          className="h-56"
+        />
       </section>
     </div>
   );

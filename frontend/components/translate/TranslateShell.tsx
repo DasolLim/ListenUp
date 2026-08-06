@@ -24,7 +24,6 @@ import GlassCard from "@/components/ui/GlassCard";
 export default function TranslateShell({
   title,
   tagline,
-  tier,
   modes,
   languageRow,
   children,
@@ -32,7 +31,6 @@ export default function TranslateShell({
   title: string;
   /** One line on what this tool does that the other one doesn't. */
   tagline: string;
-  tier: string;
   modes: ReactNode;
   languageRow: ReactNode;
   children: ReactNode;
@@ -42,9 +40,7 @@ export default function TranslateShell({
       <header className="flex flex-col gap-1.5">
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="font-display text-[22px] font-semibold text-ink">{title}</h2>
-          <span className="rounded-full bg-white/70 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-ink-soft">
-            {tier}
-          </span>
+          <span className="rounded-full bg-white/70 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-ink-soft"></span>
         </div>
         <p className="max-w-xl text-sm leading-relaxed text-ink-soft">{tagline}</p>
       </header>

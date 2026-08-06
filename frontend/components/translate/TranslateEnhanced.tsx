@@ -165,7 +165,13 @@ function TranslateEnhancedInner(props: { target: string; setTarget: (v: string) 
 
   // voice mode: one cultural result per finalized caption
   const [spoken, setSpoken] = useState("en");
-  const { status, error: micError, segments, start, stop } = useTranscription({
+  const {
+    status,
+    error: micError,
+    segments,
+    start,
+    stop,
+  } = useTranscription({
     language: spoken,
   });
   const [voiceResults, setVoiceResults] = useState<Record<string, Enhanced>>({});
@@ -241,9 +247,8 @@ function TranslateEnhancedInner(props: { target: string; setTarget: (v: string) 
 
   return (
     <TranslateShell
-      title="Cultural translation"
-      tier="Enhanced"
-      tagline="Slang, tone, and register explained, not just the words. Slower than General, because a model reads the nuance."
+      title="Translate"
+      tagline="English and Korean, by text or voice. The translation appears straight away; tone, register, and slang notes follow a moment later."
       modes={
         <div className="flex gap-2" role="group" aria-label="Input mode">
           <Pill active={mode === "text"} onClick={() => setMode("text")}>
@@ -274,8 +279,6 @@ function TranslateEnhancedInner(props: { target: string; setTarget: (v: string) 
         </div>
       }
     >
-
-
       {mode === "text" ? (
         <>
           <form
@@ -307,7 +310,10 @@ function TranslateEnhancedInner(props: { target: string; setTarget: (v: string) 
           </form>
 
           {error && (
-            <p role="alert" className="rounded-xl border border-error bg-white/70 px-4 py-3 text-sm text-error-strong">
+            <p
+              role="alert"
+              className="rounded-xl border border-error bg-white/70 px-4 py-3 text-sm text-error-strong"
+            >
               {error}
             </p>
           )}
@@ -336,7 +342,10 @@ function TranslateEnhancedInner(props: { target: string; setTarget: (v: string) 
             </p>
           </div>
           {micError && (
-            <p role="alert" className="rounded-xl border border-error bg-white/70 px-4 py-3 text-sm text-error-strong">
+            <p
+              role="alert"
+              className="rounded-xl border border-error bg-white/70 px-4 py-3 text-sm text-error-strong"
+            >
               {micError}
             </p>
           )}

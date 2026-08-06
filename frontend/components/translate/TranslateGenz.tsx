@@ -207,8 +207,8 @@ function TranslateGenzInner() {
         ) : (
           !busy && (
             <p className="rounded-2xl border border-dashed border-ink-faint/40 p-5 text-sm text-ink-soft">
-              Your explanation will appear here. Slang ages fast — if we don’t know a term yet, we’ll
-              give our best guess and flag it as unverified.
+              Your explanation will appear here. Slang ages fast — if we don’t know a term yet,
+              we’ll give our best guess and flag it as unverified.
             </p>
           )
         )}

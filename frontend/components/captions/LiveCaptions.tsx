@@ -1,8 +1,10 @@
 "use client";
 
 import posthog from "posthog-js";
+import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import SpeakerBubble from "@/components/captions/SpeakerBubble";
+import VoiceOrb from "@/components/captions/VoiceOrb";
 import SpokenLanguagePicker from "@/components/SpokenLanguagePicker";
 import { MicIcon } from "@/components/shell/icons";
 import Button from "@/components/ui/Button";
@@ -35,10 +37,11 @@ function LiveCaptionsInner(props: {
 }) {
   const { enhanced = false } = props;
   const [spoken, setSpoken] = useStickyLanguage("listenup-spoken-captions");
-  const { status, error, segments, latency, start, stop, correct, sessionId } = useTranscription({
-    enhanced,
-    language: spoken,
-  });
+  const { status, error, segments, latency, start, stop, correct, getAudioLevel, sessionId } =
+    useTranscription({
+      enhanced,
+      language: spoken,
+    });
   const logRef = useRef<HTMLDivElement>(null);
   const [pinnedToBottom, setPinnedToBottom] = useState(true);
   // Transcript length when the reader scrolled away; null while pinned.
@@ -54,7 +57,7 @@ function LiveCaptionsInner(props: {
     stats: translationStats,
     costs,
     reset: resetTranslations,
-  } = useLiveTranslation(segments, targetLang, enhanced && translateOn);
+  } = useLiveTranslation(segments, targetLang, translateOn);
   const speech = useSharedSpeech();
 
   // Auto-speak the newest FINAL translated line. Keyed on the segment id rather
@@ -74,14 +77,13 @@ function LiveCaptionsInner(props: {
     (sttSeconds / 3600) * 0.15 + (costs.googleChars / 1e6) * 20 + (costs.llmTokens / 1e6) * 0.6;
 
   useEffect(() => {
-    if (!enhanced) return;
     const controller = new AbortController();
     fetch(`${BACKEND}/translate/languages`, { signal: controller.signal })
       .then((r) => r.json())
       .then(setLanguages)
       .catch(() => undefined);
     return () => controller.abort();
-  }, [enhanced]);
+  }, []);
 
   async function openCorrection(speakerLabel: string) {
     if (profileOptions.length === 0) {
@@ -176,7 +178,25 @@ function LiveCaptionsInner(props: {
     setUnreadAnchor((anchor) => (atBottom ? null : (anchor ?? segments.length)));
   }
 
+  // Arriving from the floating "Start captions" control: open the microphone on
+  // landing so the tap that navigated here is also the tap that starts
+  // listening. Guarded by a ref because the effect must never re-fire and
+  // restart a session the user has deliberately stopped.
+  const searchParams = useSearchParams();
+  const autoStarted = useRef(false);
+  useEffect(() => {
+    if (searchParams.get("start") !== "1" || autoStarted.current) return;
+    autoStarted.current = true;
+    void start();
+  }, [searchParams, start]);
+
   const listening = status === "listening" || status === "connecting";
+
+  // Nudge toward naming only when it would actually help: someone is speaking,
+  // they're unnamed, and there is a name to give them. Enrolment used to be a
+  // separate destination in the nav, which is the wrong moment — you discover
+  // you want it while looking at "Speaker 1", not while browsing tools.
+  const hasUnnamedSpeaker = segments.some((segment) => segment.isFinal && !segment.speakerName);
 
   // Stable color per identity: assign the 4 speaker tints in first-appearance
   // order, keyed on the name when known. One person keeps one color even if the
@@ -195,11 +215,19 @@ function LiveCaptionsInner(props: {
   return (
     <GlassCard strong className="flex flex-col gap-4 p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="font-display text-[22px] font-semibold">Live captions</h2>
-          <p role="status" className="mt-0.5 text-sm text-ink-soft">
-            {statusCopy[status]}
-          </p>
+        <div className="flex items-center gap-3">
+          {/* Reacts to how loudly the room is speaking, so it doubles as a
+              "your mic is working" signal — the thing you most want confirmed
+              when captions are the reason you're in the conversation. */}
+          {listening && (
+            <VoiceOrb getLevel={getAudioLevel} active={listening} className="size-11 shrink-0" />
+          )}
+          <div>
+            <h2 className="font-display text-[22px] font-semibold">Live captions</h2>
+            <p role="status" className="mt-0.5 text-sm text-ink-soft">
+              {statusCopy[status]}
+            </p>
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <SpokenLanguagePicker
@@ -208,7 +236,7 @@ function LiveCaptionsInner(props: {
             onChange={setSpoken}
             disabled={listening}
           />
-          {enhanced && (
+          {
             <>
               <label className="flex items-center gap-2 text-sm text-ink">
                 <input
@@ -237,7 +265,7 @@ function LiveCaptionsInner(props: {
                 ))}
               </select>
             </>
-          )}
+          }
           {listening ? (
             <Button variant="ghost" onClick={handleStop}>
               Stop
@@ -251,7 +279,7 @@ function LiveCaptionsInner(props: {
         </div>
       </div>
 
-      {enhanced && translateOn && (
+      {translateOn && (
         <div className="flex flex-wrap items-center gap-3 border-t border-white/40 pt-3">
           <VoicePicker
             id="live-voice"
@@ -291,6 +319,13 @@ function LiveCaptionsInner(props: {
           aria-label="Live captions"
           className="flex h-full flex-col overflow-y-auto overscroll-contain px-0.5"
         >
+          {hasUnnamedSpeaker && status === "listening" && !correcting && (
+            <p className="rounded-2xl border border-white/60 bg-white/50 px-4 py-2.5 text-[13px] leading-relaxed text-ink-soft">
+              Tap a speaker&apos;s name to say who they are — ListenUp will recognise them next
+              time.
+            </p>
+          )}
+
           {segments.length === 0 && !error ? (
             <p className="m-auto max-w-sm text-center text-sm text-ink-soft">
               Start captions and speak — each person gets their own colored bubble with a label, up
@@ -315,7 +350,7 @@ function LiveCaptionsInner(props: {
                     interim: !segment.isFinal,
                     translated: translateOn ? (translations[segment.id] ?? null) : null,
                   }}
-                  onCorrectClick={enhanced && status === "listening" ? openCorrection : undefined}
+                  onCorrectClick={status === "listening" ? openCorrection : undefined}
                   onSpeak={
                     translateOn && translations[segment.id]
                       ? () => speech.speak(translations[segment.id].text)
@@ -458,15 +493,11 @@ function LiveCaptionsInner(props: {
  * The caption target language lives here so `SpeechProvider` receives it before
  * the log renders: the shared engine loads voices for the language it will read.
  */
-export default function LiveCaptions({ enhanced = false }: { enhanced?: boolean }) {
+export default function LiveCaptions() {
   const [targetLang, setTargetLang] = useStickyLanguage("listenup-target-captions", "ko");
   return (
     <SpeechProvider language={targetLang}>
-      <LiveCaptionsInner
-        enhanced={enhanced}
-        targetLang={targetLang}
-        setTargetLang={setTargetLang}
-      />
+      <LiveCaptionsInner targetLang={targetLang} setTargetLang={setTargetLang} />
     </SpeechProvider>
   );
 }

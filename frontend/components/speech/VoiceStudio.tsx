@@ -232,10 +232,7 @@ function VoiceStudioInner({ language = "en" }: { language?: string }) {
           <span aria-hidden="true" className="tile-wash-teal h-16 w-full" />
           <div className="flex flex-1 flex-col gap-3 p-5">
             <div>
-              <h3
-                id="shape-heading"
-                className="font-display text-[17px] font-semibold text-ink"
-              >
+              <h3 id="shape-heading" className="font-display text-[17px] font-semibold text-ink">
                 How it sounds
               </h3>
               <p className="mt-1 text-sm leading-relaxed text-ink-soft">
@@ -243,43 +240,43 @@ function VoiceStudioInner({ language = "en" }: { language?: string }) {
               </p>
             </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <label htmlFor="studio-voice" className="text-sm text-ink">
-            Voice
-          </label>
-          <select
-            id="studio-voice"
-            value={speech.voiceId}
-            onChange={(event) => speech.chooseVoice(event.target.value)}
-            className="glass-strong min-h-11 rounded-xl border border-white/60 px-3 text-sm text-ink shadow-glass outline-none"
-          >
-            {VOICE_GROUPS.map(({ gender, label }) => {
-              const group = speech.voices.filter((voice) => voice.gender === gender);
-              if (group.length === 0) return null;
-              return (
-                <optgroup key={gender} label={label}>
-                  {group.map((voice) => (
-                    <option key={voice.id} value={voice.id}>
-                      {voice.label}
-                    </option>
-                  ))}
-                </optgroup>
-              );
-            })}
-          </select>
-          <SpeakButton
-            onSpeak={() =>
-              speech.speak(
-                language === "ko"
-                  ? "일요일에 저녁 먹으러 올 거예요?"
-                  : "Are you coming over for dinner on Sunday?",
-              )
-            }
-            onStop={speech.stop}
-            speaking={speech.speaking}
-            label="a preview of this voice"
-          />
-        </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <label htmlFor="studio-voice" className="text-sm text-ink">
+                Voice
+              </label>
+              <select
+                id="studio-voice"
+                value={speech.voiceId}
+                onChange={(event) => speech.chooseVoice(event.target.value)}
+                className="glass-strong min-h-11 rounded-xl border border-white/60 px-3 text-sm text-ink shadow-glass outline-none"
+              >
+                {VOICE_GROUPS.map(({ gender, label }) => {
+                  const group = speech.voices.filter((voice) => voice.gender === gender);
+                  if (group.length === 0) return null;
+                  return (
+                    <optgroup key={gender} label={label}>
+                      {group.map((voice) => (
+                        <option key={voice.id} value={voice.id}>
+                          {voice.label}
+                        </option>
+                      ))}
+                    </optgroup>
+                  );
+                })}
+              </select>
+              <SpeakButton
+                onSpeak={() =>
+                  speech.speak(
+                    language === "ko"
+                      ? "일요일에 저녁 먹으러 올 거예요?"
+                      : "Are you coming over for dinner on Sunday?"
+                  )
+                }
+                onStop={speech.stop}
+                speaking={speech.speaking}
+                label="a preview of this voice"
+              />
+            </div>
 
             {/* Say it when the device can't back the choice on offer, rather
                 than letting someone pick "Dohyun (male)" and hear a female
@@ -303,9 +300,7 @@ function VoiceStudioInner({ language = "en" }: { language?: string }) {
               limits={SHAPE_LIMITS}
               onChange={speech.adjustShape}
               onReset={speech.resetShape}
-              provider={
-                speech.voices.find((v) => v.id === speech.voiceId)?.provider ?? "browser"
-              }
+              provider={speech.voices.find((v) => v.id === speech.voiceId)?.provider ?? "browser"}
             />
           </div>
         </section>
@@ -318,15 +313,12 @@ function VoiceStudioInner({ language = "en" }: { language?: string }) {
           <span aria-hidden="true" className="tile-wash-teal h-16 w-full opacity-70" />
           <div className="flex flex-1 flex-col gap-3 p-5">
             <div>
-              <h3
-                id="custom-heading"
-                className="font-display text-[17px] font-semibold text-ink"
-              >
+              <h3 id="custom-heading" className="font-display text-[17px] font-semibold text-ink">
                 Recorded voices
               </h3>
               <p className="mt-1 text-sm leading-relaxed text-ink-soft">
-                Record someone you talk with often, with their consent, and translations can read
-                in their voice.
+                Record someone you talk with often, with their consent, and translations can read in
+                their voice.
               </p>
             </div>
 
@@ -352,68 +344,68 @@ function VoiceStudioInner({ language = "en" }: { language?: string }) {
             )}
 
             <ul className="flex flex-col gap-2.5">
-            {voices.map((voice) => (
-              <li
-                key={voice.id}
-                className="flex flex-col gap-3 rounded-2xl border border-white/60 bg-white/50 px-4 py-3"
-              >
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <p className="font-medium text-ink">{voice.display_name}</p>
-                    <p className="text-[13px] text-ink-soft">
-                      {voice.language === "ko" ? "Korean" : "English"} · recorded with consent
-                    </p>
-                  </div>
-                  <div className="flex gap-2">
-                    <SpeakButton
-                      onSpeak={() =>
-                        speech.speak("This is how I sound.", voice.provider_voice_id)
-                      }
-                      onStop={speech.stop}
-                      speaking={speech.speaking}
-                      label={`${voice.display_name}'s voice`}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setConfirmDelete(voice.id)}
-                      aria-expanded={confirmDelete === voice.id}
-                      className="inline-flex min-h-11 items-center rounded-full border border-error bg-white/60 px-3.5 text-sm text-error-strong"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </div>
-
-                {confirmDelete === voice.id && (
-                  <div className="rounded-xl border border-error bg-white/80 p-3.5">
-                    <p className="text-sm font-medium text-ink">
-                      Delete {voice.display_name}&apos;s voice?
-                    </p>
-                    <p className="mt-1 text-[13px] leading-relaxed text-ink-soft">
-                      This removes the voice and their consent record permanently, here and at the
-                      voice provider. It cannot be undone.
-                    </p>
-                    <div className="mt-3 flex flex-wrap gap-2">
+              {voices.map((voice) => (
+                <li
+                  key={voice.id}
+                  className="flex flex-col gap-3 rounded-2xl border border-white/60 bg-white/50 px-4 py-3"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <p className="font-medium text-ink">{voice.display_name}</p>
+                      <p className="text-[13px] text-ink-soft">
+                        {voice.language === "ko" ? "Korean" : "English"} · recorded with consent
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <SpeakButton
+                        onSpeak={() =>
+                          speech.speak("This is how I sound.", voice.provider_voice_id)
+                        }
+                        onStop={speech.stop}
+                        speaking={speech.speaking}
+                        label={`${voice.display_name}'s voice`}
+                      />
                       <button
                         type="button"
-                        onClick={() => remove(voice)}
-                        disabled={busy}
-                        className="inline-flex min-h-11 items-center rounded-full border border-error bg-white/70 px-4 text-sm font-medium text-error-strong disabled:opacity-50"
+                        onClick={() => setConfirmDelete(voice.id)}
+                        aria-expanded={confirmDelete === voice.id}
+                        className="inline-flex min-h-11 items-center rounded-full border border-error bg-white/60 px-3.5 text-sm text-error-strong"
                       >
-                        {busy ? "Deleting…" : "Delete permanently"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setConfirmDelete(null)}
-                        className="inline-flex min-h-11 items-center rounded-full px-4 text-sm text-ink-soft hover:text-ink"
-                      >
-                        Keep it
+                        Delete
                       </button>
                     </div>
                   </div>
-                )}
-              </li>
-            ))}
+
+                  {confirmDelete === voice.id && (
+                    <div className="rounded-xl border border-error bg-white/80 p-3.5">
+                      <p className="text-sm font-medium text-ink">
+                        Delete {voice.display_name}&apos;s voice?
+                      </p>
+                      <p className="mt-1 text-[13px] leading-relaxed text-ink-soft">
+                        This removes the voice and their consent record permanently, here and at the
+                        voice provider. It cannot be undone.
+                      </p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => remove(voice)}
+                          disabled={busy}
+                          className="inline-flex min-h-11 items-center rounded-full border border-error bg-white/70 px-4 text-sm font-medium text-error-strong disabled:opacity-50"
+                        >
+                          {busy ? "Deleting…" : "Delete permanently"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmDelete(null)}
+                          className="inline-flex min-h-11 items-center rounded-full px-4 text-sm text-ink-soft hover:text-ink"
+                        >
+                          Keep it
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </li>
+              ))}
             </ul>
 
             {/* Hidden rather than disabled while cloning is unavailable: a
@@ -435,10 +427,7 @@ function VoiceStudioInner({ language = "en" }: { language?: string }) {
 
       {/* ── Record a new voice: full width, since it is a focused task ── */}
       {creating && (
-        <section
-          aria-labelledby="record-heading"
-          className="glass-card flex flex-col gap-4 p-5"
-        >
+        <section aria-labelledby="record-heading" className="glass-card flex flex-col gap-4 p-5">
           <div>
             <h3 id="record-heading" className="font-display text-[17px] font-semibold text-ink">
               Record a voice

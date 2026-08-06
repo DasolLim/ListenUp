@@ -13,48 +13,36 @@ type Feature = {
 
 const families: { key: string; heading: string; intro: string; features: Feature[] }[] = [
   {
-    key: "voice-to-text",
-    heading: "Voice-to-Text",
-    intro: "Live captions that keep a conversation readable, not a wall of text.",
+    key: "conversation",
+    heading: "In conversation",
+    intro: "The two things ListenUp does while people are talking.",
     features: [
       {
-        href: "/voice-to-text/general",
-        name: "General",
+        href: "/captions",
+        name: "Captions",
         blurb:
-          "Real-time captions with multi-speaker separation and a color-coded chat-bubble view.",
+          "Real-time captions that separate speakers into colour-coded bubbles. Enrol the people you talk with and they appear by name instead of “Speaker 1”.",
         wash: "tile-wash-peach",
       },
       {
-        href: "/voice-to-text/enhanced",
-        name: "Enhanced",
+        href: "/translate",
+        name: "Translate",
         blurb:
-          "Higher accuracy in busy settings, saved voice profiles that label people by name, and tap-to-correct.",
-        wash: "tile-wash-lilac",
+          "English ↔ Korean by text or voice. The fast translation lands immediately; register and slang notes follow a moment later.",
+        wash: "tile-wash-sage",
       },
     ],
   },
   {
-    key: "translation",
-    heading: "Translation",
-    intro: "Translation that carries meaning across a language, not just words.",
+    key: "look-up",
+    heading: "Look something up",
+    intro: "For a phrase you heard and didn’t recognise.",
     features: [
       {
-        href: "/translate/general",
-        name: "General",
-        blurb: "Fast English ↔ Korean translation, text or voice, cached for speed.",
-        wash: "tile-wash-sage",
-      },
-      {
-        href: "/translate/enhanced",
-        name: "Enhanced (Cultural)",
+        href: "/explain",
+        name: "Explain a term",
         blurb:
-          "Translation plus formality register and slang notes: meaning, context, and the closest local equivalent.",
-        wash: "tile-wash-amber",
-      },
-      {
-        href: "/translate/genz",
-        name: "GenZ slang",
-        blurb: "Modern internet slang, memes, and abbreviations explained, with shareable cards.",
+          "Internet slang, memes, and abbreviations decoded into plain language, with shareable cards.",
         wash: "tile-wash-lilac",
       },
     ],
@@ -78,11 +66,7 @@ export default function ProductPage() {
       </section>
 
       {families.map((family, index) => (
-        <Section
-          key={family.key}
-          tone={index % 2 === 1 ? "tint" : "plain"}
-          labelledBy={family.key}
-        >
+        <Section key={family.key} tone={index % 2 === 1 ? "tint" : "plain"} labelledBy={family.key}>
           <SectionHeading id={family.key} title={family.heading} intro={family.intro} />
           <div className="mt-8 grid gap-5 sm:grid-cols-2">
             {family.features.map((feature) => (
@@ -120,7 +104,10 @@ export default function ProductPage() {
 
       <Section labelledBy="product-cta">
         <div className="glass-card glass-strong flex flex-col items-center gap-5 px-6 py-12 text-center">
-          <h2 id="product-cta" className="font-display text-[26px] font-bold tracking-tight sm:text-[32px]">
+          <h2
+            id="product-cta"
+            className="font-display text-[26px] font-bold tracking-tight sm:text-[32px]"
+          >
             Start with live captions
           </h2>
           <p className="max-w-md leading-relaxed text-ink-soft">
