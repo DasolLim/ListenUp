@@ -127,9 +127,15 @@ def test_garbage_is_refused_rather_than_crashing():
         assert caught.value.status_code == 401
 
 
-def test_missing_issuer_config_is_a_503_not_a_401():
+def test_missing_issuer_config_is_a_503_not_a_401(monkeypatch):
     """An unconfigured server is our fault, not the user's — don't tell them
-    their session is invalid when the deployment is incomplete."""
+    their session is invalid when the deployment is incomplete.
+
+    CLERK_ISSUER is cleared explicitly: passing issuer="" is falsy, so the
+    constructor falls back to the environment, and this test silently stopped
+    testing anything the moment a real CLERK_ISSUER appeared in .env.
+    """
+    monkeypatch.delenv("CLERK_ISSUER", raising=False)
     provider = ClerkAuthProvider(issuer="")
     with pytest.raises(HTTPException) as caught:
         provider.claims("whatever")

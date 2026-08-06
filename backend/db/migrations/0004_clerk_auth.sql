@@ -61,6 +61,22 @@ on conflict (id) do nothing;
 -- `security definer` with a pinned search_path so the lookup works regardless of
 -- the caller's own read permissions on public.users, and cannot be hijacked by a
 -- search_path shadowing attack.
+-- DUAL-MODE ON PURPOSE. The Clerk branch is tried first; if the subject matches
+-- no mapping row, it falls back to auth.uid() — a still-valid Supabase Auth
+-- session.
+--
+-- Without this fallback, applying the migration would instantly break every
+-- signed-in Supabase user: their JWT subject is a uuid, which matches no
+-- clerk_user_id, so the policies would fail closed and the app would look empty
+-- until the Clerk cutover finished. The fallback turns a big-bang cutover into a
+-- migration both providers survive, and makes rollback a config change rather
+-- than a schema restore.
+--
+-- It is not a weakening: a Supabase session resolves to its own uuid (the
+-- backfill preserved ids), a Clerk session resolves via its mapping, and an
+-- anonymous caller gets NULL from both — still failing closed.
+--
+-- Remove the coalesce once AUTH_PROVIDER=clerk is permanent.
 create or replace function public.current_user_id()
 returns uuid
 language sql
@@ -68,12 +84,33 @@ stable
 security definer
 set search_path = public
 as $$
-  select u.id
-  from public.users u
-  where u.clerk_user_id = (select auth.jwt() ->> 'sub')
+  select coalesce(
+    -- Clerk session: mapped subject.
+    (select u.id from public.users u
+      where u.clerk_user_id = (select auth.jwt() ->> 'sub')),
+    -- Supabase Auth session: the subject IS the internal uuid.
+    --
+    -- Guarded rather than calling auth.uid(), which casts the subject to uuid
+    -- unconditionally. QA caught that: for a Clerk subject with no mapping row
+    -- yet (a user's very first request, before link_current_user runs) the first
+    -- branch is NULL, coalesce evaluates the second, and the cast raised
+    -- 22P02 — turning every RLS-protected query into a 500 exactly where a new
+    -- user starts. Casting only a uuid-shaped subject makes this total.
+    (select ((select auth.jwt() ->> 'sub'))::uuid
+      where (select auth.jwt() ->> 'sub')
+            ~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$')
+  )
 $$;
 
+-- `revoke ... from public` does NOT remove the EXECUTE that Supabase's default
+-- privileges grant to `anon` directly, so revoke that explicitly or the function
+-- stays callable at /rest/v1/rpc/current_user_id without signing in (caught by
+-- the Supabase security linter, not by review).
+--
+-- `authenticated` must keep EXECUTE: RLS policies call this as the calling role,
+-- so revoking it would break every policy.
 revoke all on function public.current_user_id() from public;
+revoke execute on function public.current_user_id() from anon;
 grant execute on function public.current_user_id() to authenticated;
 
 -- Resolve the caller to an internal uuid, creating or linking the row on first
@@ -127,7 +164,9 @@ begin
 end;
 $$;
 
+-- Same anon revoke as above, and it matters more here: this function writes.
 revoke all on function public.link_current_user(text) from public;
+revoke execute on function public.link_current_user(text) from anon;
 grant execute on function public.link_current_user(text) to authenticated;
 
 -- Users may read and update only their own mapping row. No insert or delete
@@ -278,6 +317,10 @@ commit;
 --    so every policy fails closed:
 --      select public.current_user_id();          -> NULL
 --      select count(*) from public.speaker_profiles;  -> 0 as anon
+--
+-- 2b. Existing Supabase sessions still work (the dual-mode fallback). Sign in
+--     as a current user and confirm their voice profiles are still listed. If
+--     they are not, do NOT proceed to the Clerk cutover.
 --
 -- 3. Every biometric row still resolves to a person:
 --      select count(*) from public.speaker_profiles p

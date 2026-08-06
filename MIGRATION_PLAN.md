@@ -157,7 +157,9 @@ select 'user_2abcDEF456ghiJKL'::uuid
 
 | Piece | State |
 |---|---|
-| `0004_clerk_auth.sql` — mapping table, `current_user_id()`, `link_current_user()` RPC, FK repoint, all 19 policies rewritten | **Written, not applied** |
+| `0004_clerk_auth.sql` — mapping table, `current_user_id()`, `link_current_user()` RPC, FK repoint, 14 policies rewritten | **✅ Applied 2026-08-06** — verified below |
+| `0004b_revoke_anon_execute` — closes anon EXECUTE the linter caught | **✅ Applied 2026-08-06** |
+| `0004c_fix_fallback_uuid_cast` — makes the fallback total (QA-4 bug) | **✅ Applied 2026-08-06** |
 | `0004_clerk_auth_rollback.sql` — restores `auth.uid()` policies | Written |
 | `app/auth.py` — provider abstraction; Clerk verified locally against JWKS | **Done**, 11 tests |
 | `verify_user()` delegates; still returns an internal uuid | **Done** — all 4 routes and 15 `rest()` sites unchanged |
@@ -166,6 +168,38 @@ select 'user_2abcDEF456ghiJKL'::uuid
 | Clerk sign-in UI (`AuthForm`, `Navbar`), `proxy.ts` guards | **Not done** — needs real keys |
 
 **No service-role key was introduced.** `link_current_user()` is `security definer` and reads the subject from the verified JWT *inside Postgres*, so a caller cannot claim another identity, and the backend keeps holding no privileged key.
+
+### Post-apply verification (2026-08-06, live project)
+
+| Check | Result |
+|---|---|
+| Policies still on `auth.uid()` | **0** (was 14) |
+| Policies on `current_user_id()` | **16** (14 biometric + 2 on `public.users`) |
+| **Fail-closed:** identity without a JWT | **NULL** ✅ |
+| Orphaned biometric rows | **0** |
+| Accounts mapped into `public.users` | **4 / 4** |
+| Voice profiles / embeddings intact | **3 / 3** |
+| FK target + delete rule | `public.users`, **CASCADE preserved** ✅ |
+| `anon` can execute the new functions | **No** (after `0004b`) |
+
+Remaining linter warnings are pre-existing and not from this migration: `match_slang_terms` (from `0002`) is anon-executable, and Supabase Auth's leaked-password protection is off — a one-click dashboard toggle worth enabling.
+
+### QA against the live database (simulated JWT claims, all rolled back)
+
+| # | Scenario | Result |
+|---|---|---|
+| QA-1 | Anonymous — no JWT | identity NULL, **0 rows** ✅ |
+| QA-2 | Supabase Auth session (dual-mode fallback) | identity resolves, sees own 3 profiles ✅ |
+| QA-3 | **Two-user isolation** — a different account | **0 profiles / 0 embeddings / 0 consent** ✅ |
+| QA-4 | Clerk subject with no mapping yet | **FAILED → fixed by `0004c`**, now NULL + 0 rows ✅ |
+| QA-5 | Existing account's first Clerk sign-in | linked by email, keeps all 3 profiles ✅ |
+| QA-6 | Erasure: delete identity row | cascades to profiles, embeddings, consent, voices ✅ |
+
+**QA-4 was a real bug, found by testing rather than review.** The fallback called `auth.uid()`, which casts the JWT subject to uuid unconditionally. For a Clerk user's very first request — before `link_current_user()` creates their mapping — that raised `22P02`, turning every RLS-protected query into a 500 precisely where a new user starts. `0004c` casts only a uuid-shaped subject, so the fallback can no longer raise.
+
+Post-QA state confirmed unchanged: 4 users, 4 accounts, 3 profiles, 3 embeddings, 3 consent records, 0 Clerk links.
+
+**Still unverified:** end-to-end sign-in with a real Clerk token. The dual-mode fallback means existing Supabase logins are unaffected either way.
 
 ### Cutover runbook
 
