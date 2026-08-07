@@ -37,18 +37,26 @@ const fragment = /* glsl */ `
 
   uniform float iTime;
   uniform vec3  iResolution;
-  uniform float level;      // 0..1 speaking loudness
+  uniform float level;      // 0..1 mic amplitude (listening only)
+  uniform float brightness; // 0..1 spectral tilt — timbre, not volume
+  uniform float breathe;    // 0..1 slow idle pulse, ~5s cycle
+  uniform float onset;      // 0..1 decaying accent when speech starts
+  uniform float thinking;   // 0..1 tight internal churn, no amplitude
+  uniform float talking;    // 0..1 rhythmic pulse while WE speak (TTS)
   uniform float rot;
   varying vec2  vUv;
 
-  // The coral ramp from globals.css .orb — peach highlight, coral body, deep
-  // coral core — so this is recognisably the same orb as the static brand mark.
-  const vec3 highlight = vec3(0.984, 0.788, 0.659);
-  const vec3 body      = vec3(0.910, 0.502, 0.310);
-  const vec3 core      = vec3(0.788, 0.322, 0.169);
-
-  const float innerRadius = 0.6;
-  const float noiseScale  = 0.65;
+  // The three stops of .orb in globals.css, exactly — #fbc9a8 / #e8804f /
+  // #c9522b. The animated orb and the static logo are meant to be one object, so
+  // the palette is copied rather than interpreted.
+  //
+  // An earlier pass invented a near-black #762814 for the reference image's dark
+  // translucent interior. That colour is what read as a black outline: where the
+  // inner glow fell off near the edge, the surface fell all the way to it.
+  // Nothing here is darker than the logo's darkest stop.
+  const vec3 peach = vec3(0.984, 0.788, 0.659);
+  const vec3 coral = vec3(0.910, 0.502, 0.310);
+  const vec3 ember = vec3(0.788, 0.322, 0.169);
 
   vec3 hash33(vec3 p3) {
     p3 = fract(p3 * vec3(0.1031, 0.11369, 0.13787));
@@ -73,85 +81,120 @@ const fragment = /* glsl */ `
     return dot(vec4(31.316), n);
   }
 
-  vec4 extractAlpha(vec3 c) {
-    float a = max(max(c.r, c.g), c.b);
-    return vec4(c / (a + 1e-5), a);
-  }
-
-  float light1(float intensity, float attenuation, float dist) {
-    return intensity / (1.0 + dist * attenuation);
-  }
-  float light2(float intensity, float attenuation, float dist) {
-    return intensity / (1.0 + dist * dist * attenuation);
-  }
-
-  vec4 draw(vec2 uv) {
-    float ang    = atan(uv.y, uv.x);
-    float len    = length(uv);
-    float invLen = len > 0.0 ? 1.0 / len : 0.0;
-
-    // Louder speech ripples the surface harder and quickens the churn, so the
-    // motion reads as "how loudly am I speaking" rather than a fixed idle.
-    float churn = 0.35 + level * 1.4;
-    float n0 = snoise3(vec3(uv * noiseScale, iTime * churn)) * 0.5 + 0.5;
-    float wobble = 0.4 + level * 0.35;
-    float r0 = mix(mix(innerRadius, 1.0, wobble), mix(innerRadius, 1.0, 0.6), n0);
-
-    float d0 = distance(uv, (r0 * invLen) * uv);
-    float v0 = light1(1.0, 10.0, d0) * smoothstep(r0 * 1.05, r0, len);
-    float cl = cos(ang + iTime * 2.0) * 0.5 + 0.5;
-
-    float a   = iTime * -1.0;
-    vec2  pos = vec2(cos(a), sin(a)) * r0;
-    float d   = distance(uv, pos);
-    float v1  = light2(1.5, 5.0, d) * light1(1.0, 50.0, d0);
-
-    float v2 = smoothstep(1.0, mix(innerRadius, 1.0, n0 * 0.5), len);
-    float v3 = smoothstep(innerRadius, mix(innerRadius, 1.0, 0.5), len);
-
-    vec3 col = mix(body, highlight, cl);
-    col = mix(core, col, v0);
-    col = (col + v1 * (0.6 + level)) * v2 * v3;
-    return extractAlpha(clamp(col, 0.0, 1.0));
-  }
-
   void main() {
     vec2 fragCoord = vUv * iResolution.xy;
     vec2 center = iResolution.xy * 0.5;
     float size  = min(iResolution.x, iResolution.y);
-    vec2 uv = (fragCoord - center) / size * 2.0;
+    vec2 uv = (fragCoord - center) / size * 2.2;
 
-    float s = sin(rot), c = cos(rot);
-    uv = vec2(c * uv.x - s * uv.y, s * uv.x + c * uv.y);
+    float ang = atan(uv.y, uv.x);
+    float len = length(uv);
 
-    // Surface displacement scales with loudness — silence leaves a calm sphere.
-    float push = level * 0.16;
-    uv.x += push * sin(uv.y * 10.0 + iTime);
-    uv.y += push * sin(uv.x * 10.0 + iTime);
+    // Amplitude and churn are separate drivers, which is what keeps the states
+    // distinguishable: thinking churns without swelling, a loud voice swells.
+    float amp   = clamp(level + onset * 0.5, 0.0, 1.0);
+    // Roughly half the previous rates. The states still separate clearly, but
+    // the surface drifts instead of boiling — this sits next to live captions
+    // someone is reading, so restless motion competes with the text.
+    // Tuned by measuring shape swing against rate of change. Amplitude carries
+    // the expressiveness (swing 0.17 -> 0.31, larger than the version that felt
+    // frantic), so the turbulence rate can come *down* rather than up: rate is
+    // roughly amplitude x frequency, and it is the frequency that reads as
+    // restless. Net result is bigger, slower, more fluid motion.
+    float churn = 0.11 + amp * 0.50 + thinking * 0.8 + talking * 0.22;
 
-    vec4 col = draw(uv);
-    gl_FragColor = vec4(col.rgb * col.a, col.a);
+    // Silhouette. Sampling noise on the unit circle keeps it seamless at the
+    // wrap, and two octaves give the reference's look: a few broad lobes with
+    // finer creases on top, rather than a fuzzy or perfectly round edge.
+    // rot drifts the sample angle so the lobes travel slowly around the rim
+    // instead of pulsing in place — the turbulence drift that keeps an idle orb
+    // from looking like a looping animation.
+    float drift = ang + rot;
+    float lobes  = snoise3(vec3(cos(drift) * 1.15, sin(drift) * 1.15, iTime * churn));
+    float creases= snoise3(vec3(cos(drift) * 3.30, sin(drift) * 3.30, iTime * churn * 1.4));
+
+    // The whole body swells, not just its edge. This is the single biggest
+    // contributor to feeling alive: a voice should visibly inflate the orb,
+    // where before only the silhouette rippled and the size held constant.
+    float rest = 0.68 + breathe * 0.075 + amp * 0.115 + talking * 0.055;
+    // Louder syllables push the edge out further and sharpen the creases.
+    // Weighted toward the broad lobes and away from the fine creases: big slow
+    // morphing reads as fluid, while high-frequency detail reads as noise and is
+    // what made this look busy at speed.
+    float radius = rest
+                 + lobes   * (0.075 + amp * 0.145)
+                 + creases * (0.005 + amp * 0.010 + thinking * 0.004);
+
+    // Feather the edge in PIXELS, not in uv units. This orb renders anywhere
+    // from 64 to 176 CSS px at 1x-2x DPR, and the previous fixed 0.030 uv
+    // feather worked out to 0.87px on the small orb (a visibly stair-stepped
+    // edge) and 4.8px on the large one. One constant cannot serve both.
+    //
+    // MSAA does not help here: the silhouette is computed in this shader on a
+    // full-screen triangle, so the only geometry edge the GPU antialiases is
+    // that triangle, off-screen. The edge quality is entirely this smoothstep.
+    float px = 2.2 / min(iResolution.x, iResolution.y);
+    float feather = max(px * 1.6, 0.014 + amp * 0.008);
+    float inside = smoothstep(radius + feather, radius - feather, len);
+    if (inside <= 0.001 && len > radius + 0.55) discard;
+
+    // One gradient, mirroring radial-gradient(circle at 35% 30%): the
+    // highlight sits up and to the left, coral at the midpoint, ember at the
+    // rim. No separate rim light and no dark core — every band those added was
+    // another edge that could read as a line across the surface.
+    vec2 lightAt = vec2(-0.30, 0.40);
+    float g = clamp(distance(uv, lightAt) / 1.45, 0.0, 1.0);
+    vec3 col = mix(peach, coral, smoothstep(0.0, 0.55, g));
+    col = mix(col, ember, smoothstep(0.55, 1.0, g));
+
+    // Speaking lifts it toward the highlight rather than adding a new colour, so
+    // it brightens without ever leaving the ramp.
+    col = mix(col, peach, clamp(amp * 0.30 + talking * 0.12 + brightness * 0.08, 0.0, 1.0));
+
+    // No outer halo. It was a wide soft bloom reaching well past the silhouette,
+    // and on a light glass card it read as a grey wash filling the canvas rather
+    // than as light. The orb now ends where its edge ends; the pixel-width
+    // feather below alone keeps that edge from looking cut out.
+    float alpha = inside * 0.96;
+    col = clamp(col, 0.0, 1.0);
+    gl_FragColor = vec4(col * alpha, alpha);
   }
 `;
 
 export default function VoiceOrb({
-  getLevel,
-  active,
+  getSignal,
+  state = "idle",
   className = "",
 }: {
-  /** Reads current loudness 0–1. Sampled per frame, never through React state. */
-  getLevel: () => number;
-  /** Animate only while captions are running; idle sessions cost nothing. */
-  active: boolean;
+  /** Loudness + timbre, sampled per frame — never through React state. */
+  getSignal: () => { level: number; brightness: number };
+  /**
+   * What the orb is saying. Distinct forms rather than one intensity dial:
+   *
+   *   idle      slow scale breathing, ~5s cycle — live and waiting
+   *   thinking  fast tight churn, no swelling — work with no audio behind it
+   *   listening mic amplitude drives displacement and turbulence
+   *   speaking  a rhythmic pulse of our own, so "it is talking" never looks
+   *             like "you are talking"
+   *
+   * The distinction matters most to the person this product is for — someone
+   * who cannot hear whether their microphone is working.
+   */
+  state?: "idle" | "thinking" | "listening" | "speaking";
   className?: string;
 }) {
   const mount = useRef<HTMLDivElement>(null);
   // Held in a ref so the render loop always calls the latest reader without the
   // effect re-running (and tearing down the WebGL context) on every render.
-  const levelRef = useRef(getLevel);
+  const signalRef = useRef(getSignal);
   useEffect(() => {
-    levelRef.current = getLevel;
-  }, [getLevel]);
+    signalRef.current = getSignal;
+  }, [getSignal]);
+  // Read inside the frame loop so a state change doesn't tear down the context.
+  const stateRef = useRef(state);
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
 
   useEffect(() => {
     const container = mount.current;
@@ -162,7 +205,7 @@ export default function VoiceOrb({
     const reduceMotion =
       typeof window !== "undefined" &&
       window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-    if (reduceMotion || !active) return;
+    if (reduceMotion) return;
 
     let renderer: Renderer;
     try {
@@ -184,6 +227,11 @@ export default function VoiceOrb({
         iTime: { value: 0 },
         iResolution: { value: new Vec3(1, 1, 1) },
         level: { value: 0 },
+        brightness: { value: 0 },
+        breathe: { value: 0 },
+        onset: { value: 0 },
+        thinking: { value: 0 },
+        talking: { value: 0 },
         rot: { value: 0 },
       },
     });
@@ -212,22 +260,71 @@ export default function VoiceOrb({
     let last = 0;
     let rotation = 0;
     let smoothed = 0;
+    let smoothBright = 0;
+    let onset = 0;
+    let thinking = 0;
+    let speaking = 0;
+    let talking = 0;
 
     const draw = (time: number) => {
       frame = requestAnimationFrame(draw);
-      const dt = last ? (time - last) * 0.001 : 0;
+      const dt = last ? Math.min((time - last) * 0.001, 0.1) : 0;
       last = time;
+      const seconds = time * 0.001;
+      const mode = stateRef.current;
 
       // Ease toward the measured level: raw RMS is spiky enough to make the orb
       // stutter on every syllable. Rising fast and falling slowly matches how a
       // voice actually sounds — quick onset, gentle decay.
-      const target = levelRef.current();
-      const ease = target > smoothed ? 0.35 : 0.08;
-      smoothed += (target - smoothed) * ease;
+      const signal = mode === "listening" ? signalRef.current() : { level: 0, brightness: 0 };
+      const previous = smoothed;
+      // Asymmetric on purpose, and that asymmetry is most of what makes it feel
+      // alive: it rises with the voice but glides back, so a sentence leaves a
+      // slow swell rather than a flicker. Still well below the 0.35 that had it
+      // snapping to every syllable edge.
+      const ease = signal.level > smoothed ? 0.22 : 0.045;
+      smoothed += (signal.level - smoothed) * ease;
+      smoothBright += (signal.brightness - smoothBright) * 0.12;
 
-      rotation += dt * (0.25 + smoothed * 1.6);
-      program.uniforms.iTime.value = time * 0.001;
+      // Fire an accent when speech *starts* — the transition from silence is the
+      // moment worth punctuating, and a decaying pulse reads as an event where a
+      // rising level alone just reads as "more".
+      // Scale the accent to the voice that triggered it. A flat +0.5 made a
+      // quiet "hello" bloom as hard as a shout, which inverted the whole point
+      // of an amplitude-driven orb.
+      if (previous < 0.12 && smoothed >= 0.12) onset = Math.min(1, smoothed * 2.2);
+      onset = Math.max(0, onset - dt * 1.1); // twice as long, half as abrupt
+
+      // Blend states rather than switching, so a change is a transition.
+      thinking += ((mode === "thinking" ? 1 : 0) - thinking) * 0.12;
+
+      // Speaking gets its own rhythm — a ~2.6 Hz pulse driven by nothing but the
+      // clock. It must not borrow the mic, or the orb would react to the room
+      // while the app is the one talking.
+      //
+      // Presence and rhythm are tracked separately on purpose: `speaking` is
+      // "are we in this state", `pulse` is the beat. Deriving both from one
+      // oscillating value let the orb resume breathing at every trough of the
+      // pulse, so the two motions fought each other.
+      speaking += ((mode === "speaking" ? 1 : 0) - speaking) * 0.12;
+      const pulse = Math.sin(seconds * 1.5) * 0.5 + 0.5; // ~4s, a calm cadence
+      talking = speaking * pulse;
+
+      // Breathing is the resting signal: ~5.7s cycle, fading out as a voice or a
+      // spoken reply takes over so the states never read as the same thing.
+      const busy = Math.min(1, smoothed * 2.5 + thinking + speaking);
+      const breathing = (Math.sin(seconds * 0.95) * 0.5 + 0.5) * (1 - busy); // ~6.6s
+
+      // A slow drift rather than a spin. At the previous rate a loud voice spun
+      // the silhouette fast enough to read as agitation rather than response.
+      rotation += dt * (0.05 + smoothed * 0.42 + thinking * 0.34 + talking * 0.12);
+      program.uniforms.iTime.value = seconds;
       program.uniforms.level.value = smoothed;
+      program.uniforms.brightness.value = smoothBright;
+      program.uniforms.breathe.value = breathing;
+      program.uniforms.onset.value = onset;
+      program.uniforms.thinking.value = thinking;
+      program.uniforms.talking.value = talking;
       program.uniforms.rot.value = rotation;
 
       gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
@@ -241,7 +338,7 @@ export default function VoiceOrb({
       if (gl.canvas.parentNode === container) container.removeChild(gl.canvas);
       gl.getExtension("WEBGL_lose_context")?.loseContext();
     };
-  }, [active]);
+  }, []);
 
   return (
     <div aria-hidden="true" className={`group relative isolate ${className}`}>

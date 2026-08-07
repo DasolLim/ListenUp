@@ -37,11 +37,21 @@ function LiveCaptionsInner(props: {
 }) {
   const { enhanced = false } = props;
   const [spoken, setSpoken] = useStickyLanguage("listenup-spoken-captions");
-  const { status, error, segments, latency, start, stop, correct, getAudioLevel, sessionId } =
-    useTranscription({
-      enhanced,
-      language: spoken,
-    });
+  const {
+    status,
+    error,
+    segments,
+    latency,
+    start,
+    stop,
+    correct,
+    getAudioLevel,
+    getVoiceSignal,
+    sessionId,
+  } = useTranscription({
+    enhanced,
+    language: spoken,
+  });
   const logRef = useRef<HTMLDivElement>(null);
   const [pinnedToBottom, setPinnedToBottom] = useState(true);
   // Transcript length when the reader scrolled away; null while pinned.
@@ -192,6 +202,36 @@ function LiveCaptionsInner(props: {
 
   const listening = status === "listening" || status === "connecting";
 
+  // Speaking wins over listening: the mic stays open while a translation is read
+  // aloud, so without this the orb would react to the room and look identical to
+  // "you are talking".
+  const orbState: "idle" | "thinking" | "listening" | "speaking" = speech.speaking
+    ? "speaking"
+    : status === "connecting"
+      ? "thinking"
+      : status === "listening"
+        ? "listening"
+        : "idle";
+
+  // Watch for a live microphone that is receiving nothing. Sampled on an
+  // interval rather than per frame: this drives copy, not motion, and a state
+  // update every frame would re-render the transcript continuously.
+  const [silent, setSilent] = useState(false);
+  useEffect(() => {
+    if (status !== "listening") return;
+    let quietSince = performance.now();
+    const timer = setInterval(() => {
+      if (getAudioLevel() > 0.04) quietSince = performance.now();
+      setSilent(performance.now() - quietSince > 6000);
+    }, 500);
+    // Cleared on the way out rather than on the way in, so a session that ended
+    // silent can't flash the warning over the first half-second of the next one.
+    return () => {
+      clearInterval(timer);
+      setSilent(false);
+    };
+  }, [status, getAudioLevel]);
+
   // Nudge toward naming only when it would actually help: someone is speaking,
   // they're unnamed, and there is a name to give them. Enrolment used to be a
   // separate destination in the nav, which is the wrong moment — you discover
@@ -220,7 +260,7 @@ function LiveCaptionsInner(props: {
               "your mic is working" signal — the thing you most want confirmed
               when captions are the reason you're in the conversation. */}
           {listening && (
-            <VoiceOrb getLevel={getAudioLevel} active={listening} className="size-11 shrink-0" />
+            <VoiceOrb getSignal={getVoiceSignal} state={orbState} className="size-16 shrink-0" />
           )}
           <div>
             <h2 className="font-display text-[22px] font-semibold">Live captions</h2>
@@ -319,6 +359,17 @@ function LiveCaptionsInner(props: {
           aria-label="Live captions"
           className="flex h-full flex-col overflow-y-auto overscroll-contain px-0.5"
         >
+          {silent && (
+            <p
+              role="status"
+              className="rounded-2xl border border-warning bg-white/70 px-4 py-2.5 text-[13px] leading-relaxed text-ink"
+            >
+              <span className="font-semibold">No sound is reaching the microphone.</span> Captions
+              are running, but nothing has been picked up for a few seconds — check the right
+              microphone is selected and unmuted.
+            </p>
+          )}
+
           {hasUnnamedSpeaker && status === "listening" && !correcting && (
             <p className="rounded-2xl border border-white/60 bg-white/50 px-4 py-2.5 text-[13px] leading-relaxed text-ink-soft">
               Tap a speaker&apos;s name to say who they are — ListenUp will recognise them next
@@ -327,10 +378,18 @@ function LiveCaptionsInner(props: {
           )}
 
           {segments.length === 0 && !error ? (
-            <p className="m-auto max-w-sm text-center text-sm text-ink-soft">
-              Start captions and speak — each person gets their own colored bubble with a label, up
-              to 4 speakers plus “Other”.
-            </p>
+            <div className="m-auto flex max-w-sm flex-col items-center gap-5 text-center">
+              <VoiceOrb
+                getSignal={getVoiceSignal}
+                state={orbState}
+                className="size-40 sm:size-44"
+              />
+              <p className="text-sm text-ink-soft">
+                {listening
+                  ? "Listening — speak and captions appear here. Each person gets their own colour, up to 4 speakers plus “Other”."
+                  : "Start captions and speak. Each person gets their own colour and label, up to 4 speakers plus “Other”."}
+              </p>
+            </div>
           ) : (
             // `mt-auto` sits a short transcript at the bottom, so the first
             // caption appears where the next one will, rather than at the top of
