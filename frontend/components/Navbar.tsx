@@ -105,6 +105,25 @@ export default function Navbar() {
                 </Link>
               </li>
             ))}
+            {/* Signed-in setup, reachable on desktop. The `tools` list below is
+                inside the mobile drawer only, so without this there was no path
+                to /settings — and therefore none to voice enrolment — on a
+                desktop at all. */}
+            {signedIn && (
+              <li>
+                <Link
+                  href="/settings"
+                  aria-current={isActive("/settings") ? "page" : undefined}
+                  className={`rounded-full px-3.5 py-1.5 text-[15px] font-medium transition-colors ${
+                    isActive("/settings")
+                      ? "nav-active text-ink"
+                      : "text-ink-soft hover:bg-white/50 hover:text-ink"
+                  }`}
+                >
+                  Settings
+                </Link>
+              </li>
+            )}
           </ul>
           <span className="mx-1 h-5 w-px bg-white/60" aria-hidden="true" />
           {authButton}

@@ -4,7 +4,6 @@ import Reveal from "@/components/Reveal";
 import { Eyebrow } from "@/components/marketing/Section";
 import { CaptionsIcon, TranslateIcon } from "@/components/shell/icons";
 import Orb from "@/components/ui/Orb";
-import VoiceStudio from "@/components/speech/VoiceStudio";
 
 export const metadata: Metadata = { title: "Dashboard — ListenUp" };
 
@@ -161,24 +160,41 @@ export default function DashboardPage() {
       {/* Read-aloud settings live on the dashboard rather than buried in a tool:
           the voice applies everywhere, so configuring it is an account-level
           job, not a per-translation one. */}
-      <section aria-labelledby="voice-studio" className="flex flex-col gap-5">
+      {/* Setup lives on its own page now. It needs a door from here: the tools
+          list in the navbar is mobile-only, so without this link /settings — and
+          with it voice enrolment — was unreachable on a desktop entirely. */}
+      <section aria-labelledby="setup" className="flex flex-col gap-5">
         <Reveal>
-          <div className="flex flex-col gap-1.5 border-b border-white/40 pb-4">
-            <div className="flex items-center gap-2.5">
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-3">
               <span className="flex h-9 w-9 items-center justify-center rounded-full bg-white/60 text-accent-strong">
                 <SpeakerIcon />
               </span>
-              <h2 id="voice-studio" className="font-display text-[22px] font-bold tracking-tight">
-                Read aloud
+              <h2 id="setup" className="font-display text-[22px] font-bold tracking-tight">
+                Set up
               </h2>
             </div>
             <p className="text-[15px] text-ink-soft">
-              The voice that speaks translations, anywhere in the app.
+              Do this once, and captions get better every time you use them.
             </p>
           </div>
         </Reveal>
         <Reveal>
-          <VoiceStudio />
+          <Link
+            href="/settings"
+            className="glass-card group flex items-center justify-between gap-4 p-5 transition-transform hover:-translate-y-0.5"
+          >
+            <span className="flex flex-col gap-1">
+              <span className="font-display text-[17px] font-semibold text-ink">
+                Voice profiles &amp; read-aloud
+              </span>
+              <span className="text-sm leading-relaxed text-ink-soft">
+                Record the people you talk with so captions show their name instead of “Speaker
+                1”, and choose the voice that reads translations aloud.
+              </span>
+            </span>
+            <Arrow />
+          </Link>
         </Reveal>
       </section>
     </div>
