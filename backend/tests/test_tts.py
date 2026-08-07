@@ -90,6 +90,59 @@ def test_each_language_keeps_a_system_default():
         assert neutral[0]["browser_hint"] == ""
 
 
+def test_recorded_voices_reach_the_picker():
+    """Regression: cloning used to be a dead end.
+
+    A voice could be created, listed in the studio and deleted, but /tts/voices
+    never queried custom_voices — so it never appeared in a picker and could
+    never actually be spoken with. The whole feature was unreachable.
+    """
+    monkey = pytest.MonkeyPatch()
+    monkey.setattr("app.routes.tts.rest", _fake_rest_one_voice)
+    try:
+        body = client.get("/tts/voices", headers={"Authorization": "Bearer test-token"}).json()
+    finally:
+        monkey.undo()
+    custom = [v for v in body["voices"] if v["provider"] == "custom"]
+    assert len(custom) == 1
+    assert custom[0]["id"] == "el_voice_123"          # the provider handle to speak with
+    assert "Mom" in custom[0]["label"]
+    assert custom[0]["owner_name"] == "Mom"
+
+
+def test_anonymous_callers_still_get_preset_voices():
+    """The endpoint stays public: browser voices need no account."""
+    body = client.get("/tts/voices").json()
+    assert body["voices"]
+    assert all(v["provider"] == "browser" for v in body["voices"])
+
+
+def test_a_failed_custom_voice_lookup_does_not_break_the_preset_list():
+    """Captions and translation both depend on this endpoint. A missing table or
+    an expired token must cost you your own voices, not the ability to speak."""
+    monkey = pytest.MonkeyPatch()
+    monkey.setattr("app.routes.tts.rest", _fake_rest_exploding)
+    try:
+        response = client.get("/tts/voices", headers={"Authorization": "Bearer test-token"})
+    finally:
+        monkey.undo()
+    assert response.status_code == 200
+    assert response.json()["voices"], "preset voices disappeared when the lookup failed"
+
+
+def test_recorded_voices_respect_the_language_filter():
+    monkey = pytest.MonkeyPatch()
+    monkey.setattr("app.routes.tts.rest", _fake_rest_one_voice)
+    try:
+        body = client.get(
+            "/tts/voices", params={"language": "ko"}, headers={"Authorization": "Bearer t"}
+        ).json()
+    finally:
+        monkey.undo()
+    # The fixture voice is English, so a Korean picker must not offer it.
+    assert not [v for v in body["voices"] if v["provider"] == "custom"]
+
+
 def test_voices_can_be_filtered_by_language():
     body = client.get("/tts/voices", params={"language": "ko"}).json()
     assert body["voices"]
@@ -322,6 +375,17 @@ class _Response:
 
 async def _fake_rest(_method, _table, _token, **_kwargs):
     return _Response(200, [])
+
+
+async def _fake_rest_one_voice(_method, _table, _token, **_kwargs):
+    return _Response(
+        200,
+        [{"display_name": "Mom", "provider_voice_id": "el_voice_123", "language": "en"}],
+    )
+
+
+async def _fake_rest_exploding(_method, _table, _token, **_kwargs):
+    raise RuntimeError("supabase is down")
 
 
 _fake_rest_empty = _fake_rest

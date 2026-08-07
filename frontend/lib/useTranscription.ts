@@ -96,15 +96,65 @@ export function useTranscription(options?: { enhanced?: boolean; language?: stri
     }
     const bins = levelBufferRef.current;
     analyser.getByteFrequencyData(bins as Uint8Array<ArrayBuffer>);
+
+    // Measure only the band voices actually occupy. At a 16 kHz sample rate with
+    // fftSize 512 each bin spans ~31 Hz, so the array reaches 8 kHz — and better
+    // than half of it sits above where speech has meaningful energy. Averaging
+    // across all of it divides real speech by a long tail of near-silent bins,
+    // which is why a loud voice reads as a mild one. Bins ~3–128 cover roughly
+    // 100 Hz to 4 kHz: fundamentals through the consonant range.
+    const nyquistPerBin = (audioRef.current?.context.sampleRate ?? SAMPLE_RATE) / analyser.fftSize;
+    const first = Math.max(1, Math.floor(100 / nyquistPerBin));
+    const last = Math.min(bins.length - 1, Math.ceil(4000 / nyquistPerBin));
+
     // RMS rather than peak: peak jumps on every consonant, while RMS tracks how
     // loud someone actually is, which is what the orb should follow.
     let sum = 0;
-    for (let i = 0; i < bins.length; i += 1) {
+    for (let i = first; i <= last; i += 1) {
       const value = bins[i] / 255;
       sum += value * value;
     }
-    return Math.min(1, Math.sqrt(sum / bins.length) * 3);
+    const rms = Math.sqrt(sum / (last - first + 1));
+    // Gain of 2 on a speech-band reading lands normal conversation around the
+    // middle of the range, leaving headroom so shouting still looks different
+    // from talking — a level pinned at 1.0 is as uninformative as one stuck at 0.
+    return Math.min(1, rms * 2);
   }, []);
+
+  /**
+   * Loudness *and* timbre, for a visualiser that tracks a voice rather than a
+   * volume meter.
+   *
+   * `brightness` is the spectral centroid across the speech band, normalised:
+   * low when someone is speaking in a dark, chesty register, high on sibilants
+   * and brighter voices. It gives the orb a second, independent axis, so two
+   * people at the same volume don't drive identical motion.
+   */
+  const getVoiceSignal = useCallback((): { level: number; brightness: number } => {
+    const analyser = analyserRef.current;
+    if (!analyser) return { level: 0, brightness: 0 };
+    const level = getAudioLevel();
+    const bins = levelBufferRef.current;
+    if (!bins) return { level, brightness: 0 };
+
+    const perBin = (audioRef.current?.context.sampleRate ?? SAMPLE_RATE) / analyser.fftSize;
+    const first = Math.max(1, Math.floor(100 / perBin));
+    const last = Math.min(bins.length - 1, Math.ceil(4000 / perBin));
+
+    let weighted = 0;
+    let total = 0;
+    for (let i = first; i <= last; i += 1) {
+      const magnitude = bins[i] / 255;
+      weighted += magnitude * i;
+      total += magnitude;
+    }
+    // Silence has no meaningful centroid; report neutral rather than a number
+    // derived from noise, which would make the orb twitch when nobody is
+    // speaking — the opposite of what a "is my mic working" signal should do.
+    if (total < 0.001) return { level, brightness: 0 };
+    const centroid = weighted / total;
+    return { level, brightness: Math.min(1, Math.max(0, (centroid - first) / (last - first))) };
+  }, [getAudioLevel]);
 
   const cleanup = useCallback(() => {
     audioRef.current?.stream.getTracks().forEach((track) => track.stop());
@@ -282,6 +332,7 @@ export function useTranscription(options?: { enhanced?: boolean; language?: stri
     stop,
     correct,
     getAudioLevel,
+    getVoiceSignal,
     sessionId: sessionIdRef,
   };
 }

@@ -61,13 +61,45 @@ class SpeakRequest(BaseModel):
 
 
 @router.get("/voices")
-async def list_voices(language: str | None = None) -> dict:
-    """Preset voices, plus the consent copy the clone flow must display."""
+async def list_voices(
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer)],
+    language: str | None = None,
+) -> dict:
+    """Selectable voices, plus the consent copy the clone flow must display.
+
+    Auth is optional on purpose. Browser voices need no account, so this stays
+    public — but a signed-in caller also gets the voices they have recorded.
+    Without that, cloning was a dead end: a voice could be created, listed in the
+    studio and deleted, yet never appear in a picker, so it could never actually
+    be spoken with.
+    """
     service = get_tts_service()
     try:
         voices = await service.voices(language)
     except TtsError as exc:
         raise HTTPException(400, str(exc)) from exc
+
+    if credentials is not None:
+        try:
+            owned = await rest(
+                "GET",
+                "custom_voices",
+                credentials.credentials,
+                params={"select": "display_name,provider_voice_id,language"},
+            )
+            if owned.status_code == 200:
+                voices.extend(
+                    _voice_from_row(row)
+                    for row in owned.json()
+                    if language is None or row.get("language") == language
+                )
+        except Exception:
+            # A custom-voice lookup must never take the preset list down with it:
+            # live captions and translation both depend on this endpoint, and a
+            # missing table or an expired token should cost you your own voices,
+            # not the ability to speak at all.
+            logger.warning("custom_voice_list_failed", exc_info=True)
+
     return {
         "voices": [v.to_dict() for v in voices],
         "consent_text": VOICE_CLONE_CONSENT_TEXT,

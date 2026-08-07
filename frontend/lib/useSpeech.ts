@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { authHeader } from "@/lib/auth/token";
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8000";
 
@@ -364,9 +365,16 @@ export function useSpeech(language: string) {
 
   useEffect(() => {
     const controller = new AbortController();
-    fetch(`${BACKEND}/tts/voices?language=${encodeURIComponent(language)}`, {
-      signal: controller.signal,
-    })
+    // Send the token when there is one: the endpoint is public for preset
+    // voices, but a signed-in caller also gets back the voices they recorded.
+    // Without the header a cloned voice never reaches any picker.
+    authHeader()
+      .then((headers) =>
+        fetch(`${BACKEND}/tts/voices?language=${encodeURIComponent(language)}`, {
+          headers,
+          signal: controller.signal,
+        })
+      )
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error("voices"))))
       .then((body: { voices: Voice[] }) => {
         setVoices(body.voices);
