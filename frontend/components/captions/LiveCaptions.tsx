@@ -1,6 +1,7 @@
 "use client";
 
 import posthog from "posthog-js";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import SpeakerBubble from "@/components/captions/SpeakerBubble";
@@ -11,6 +12,7 @@ import Button from "@/components/ui/Button";
 import GlassCard from "@/components/ui/GlassCard";
 import VoicePicker from "@/components/speech/VoicePicker";
 import { SpeechProvider, useAutoSpeak, useSharedSpeech } from "@/lib/SpeechProvider";
+import { formatDate } from "@/lib/plans";
 import { useStickyLanguage } from "@/lib/useStickyLanguage";
 import { useLiveTranslation } from "@/lib/useLiveTranslation";
 import { useTranscription } from "@/lib/useTranscription";
@@ -40,6 +42,8 @@ function LiveCaptionsInner(props: {
   const {
     status,
     error,
+    limit,
+    allowanceWarning,
     segments,
     latency,
     start,
@@ -342,6 +346,39 @@ function LiveCaptionsInner(props: {
           className="rounded-xl border border-error bg-white/70 px-4 py-3 text-sm text-error-strong"
         >
           {error}
+        </p>
+      )}
+
+      {/* Running out of caption hours is not a malfunction, so it does not get
+          the error treatment. It says what ran out, when it comes back, and
+          what upgrading changes — with the upgrade as one link, not a funnel. */}
+      {limit && (
+        <div
+          role="status"
+          className="flex flex-col gap-2 rounded-xl border border-warning bg-white/70 px-4 py-3 text-sm text-ink"
+        >
+          <p className="leading-relaxed">
+            {limit.message}
+            {limit.resetsAt && ` It resets ${formatDate(limit.resetsAt)}.`}
+          </p>
+          <Link
+            href="/settings"
+            className="btn-primary inline-flex min-h-11 w-fit items-center rounded-full px-5 text-sm font-semibold text-on-accent"
+          >
+            {limit.upgradeTo === "pro" ? "Upgrade to Pro" : "See plans"}
+          </Link>
+        </div>
+      )}
+
+      {/* The 80% notice: early enough to be useful, quiet enough to ignore. */}
+      {allowanceWarning && !limit && (
+        <p
+          role="status"
+          className="rounded-xl border border-warning bg-white/70 px-4 py-2.5 text-[13px] leading-relaxed text-ink"
+        >
+          {Math.round(allowanceWarning.remaining / 60)} minutes of captions left this billing
+          period
+          {allowanceWarning.resetsAt && `, resetting ${formatDate(allowanceWarning.resetsAt)}`}.
         </p>
       )}
 

@@ -60,6 +60,21 @@ function smooth(list: CaptionSegment[]): CaptionSegment[] {
   return list;
 }
 
+/** Caption hours are gone for this billing period. */
+export type CaptionLimit = {
+  resetsAt: string | null;
+  upgradeTo: "basic" | "pro" | null;
+  message: string;
+};
+
+/** Past 80% — shown once, at the start of a session. */
+export type CaptionWarning = {
+  used: number;
+  limit: number;
+  remaining: number;
+  resetsAt: string | null;
+};
+
 export function useTranscription(options?: { enhanced?: boolean; language?: string }) {
   const enhanced = options?.enhanced ?? false;
   const language = options?.language ?? "en";
@@ -70,6 +85,11 @@ export function useTranscription(options?: { enhanced?: boolean; language?: stri
   // "batch" languages (no streaming model exists) lag a few seconds — the UI
   // says so instead of looking broken.
   const [mode, setMode] = useState<"streaming" | "batch">("streaming");
+  // Running out of caption hours is not a fault, so it is kept apart from
+  // `error`: a red "something went wrong" for a plan limit reads as a broken
+  // product and tells the user nothing they can act on.
+  const [limit, setLimit] = useState<CaptionLimit | null>(null);
+  const [allowanceWarning, setAllowanceWarning] = useState<CaptionWarning | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
   const audioRef = useRef<{ context: AudioContext; stream: MediaStream } | null>(null);
@@ -170,6 +190,8 @@ export function useTranscription(options?: { enhanced?: boolean; language?: stri
 
   const start = useCallback(async () => {
     setError(null);
+    setLimit(null);
+    setAllowanceWarning(null);
     setSegments([]);
     latenciesRef.current = [];
     setLatency(null);
@@ -217,9 +239,13 @@ export function useTranscription(options?: { enhanced?: boolean; language?: stri
     wsRef.current = ws;
 
     ws.onopen = async () => {
-      // Enhanced mode needs an identity so the backend can load voice
-      // profiles; general captions are anonymous by design.
-      const token = enhanced ? ((await getAccessToken()) ?? undefined) : undefined;
+      // Sent on every session, not only enhanced ones. Enhanced mode needs an
+      // identity to load voice profiles, but *all* captions are metered against
+      // the plan's hours — and the enhanced toggle is off by default, so
+      // attaching the token only there would leave the ordinary path both
+      // unmetered and uncapped. A signed-out user still gets captions; they
+      // simply aren't counted, because there is nobody to count them against.
+      const token = (await getAccessToken()) ?? undefined;
       ws.send(
         JSON.stringify({
           sampleRate: SAMPLE_RATE,
@@ -281,9 +307,29 @@ export function useTranscription(options?: { enhanced?: boolean; language?: stri
       } else if (message.type === "done") {
         // Session over: anything still marked interim is as final as it gets.
         setSegments((list) => list.map((s) => (s.isFinal ? s : { ...s, isFinal: true })));
+      } else if (message.type === "usage") {
+        // The 80% notice. Advisory only — the session is starting regardless,
+        // which is the whole point of warning early rather than at the wall.
+        setAllowanceWarning({
+          used: message.used,
+          limit: message.limit,
+          remaining: message.remaining,
+          resetsAt: message.resetsAt ?? null,
+        });
       } else if (message.type === "error") {
-        setStatus("error");
-        setError(message.message);
+        if (message.reason === "limit_reached") {
+          // Not a failure: the plan ran out. Surfaced separately so the UI can
+          // offer the way forward instead of an error banner.
+          setLimit({
+            resetsAt: message.resetsAt ?? null,
+            upgradeTo: message.upgradeTo ?? null,
+            message: message.message,
+          });
+          setStatus("stopped");
+        } else {
+          setStatus("error");
+          setError(message.message);
+        }
         cleanup();
       }
     };
@@ -325,6 +371,8 @@ export function useTranscription(options?: { enhanced?: boolean; language?: stri
   return {
     status,
     error,
+    limit,
+    allowanceWarning,
     segments,
     latency,
     mode,
