@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Paywall from "@/components/billing/Paywall";
 import TranslateEnhanced from "@/components/translate/TranslateEnhanced";
 
 export const metadata: Metadata = { title: "Translate — ListenUp" };
@@ -13,5 +14,9 @@ export const metadata: Metadata = { title: "Translate — ListenUp" };
  * people to choose a lane the system doesn't actually have.
  */
 export default function TranslatePage() {
-  return <TranslateEnhanced />;
+  return (
+    <Paywall feature="Translate" metric="translated">
+      <TranslateEnhanced />
+    </Paywall>
+  );
 }

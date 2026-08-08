@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Paywall from "@/components/billing/Paywall";
 import TranslateGenz from "@/components/translate/TranslateGenz";
 
 export const metadata: Metadata = { title: "Explain a term — ListenUp" };
@@ -13,5 +14,9 @@ export const metadata: Metadata = { title: "Explain a term — ListenUp" };
  * same job.
  */
 export default function ExplainPage() {
-  return <TranslateGenz />;
+  return (
+    <Paywall feature="Explain a term" metric="explain">
+      <TranslateGenz />
+    </Paywall>
+  );
 }

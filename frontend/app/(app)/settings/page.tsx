@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import SubscriptionPanel from "@/components/billing/SubscriptionPanel";
 import VoiceProfiles from "@/components/profiles/VoiceProfiles";
 import VoiceStudio from "@/components/speech/VoiceStudio";
 
@@ -18,9 +19,10 @@ export default function SettingsPage() {
       <header>
         <h1 className="font-display text-[26px] font-semibold text-ink">Settings</h1>
         <p className="mt-1 text-sm leading-relaxed text-ink-soft">
-          Enrol the people you talk with, and choose how translations are read aloud.
+          Your plan, the people you talk with, and how translations are read aloud.
         </p>
       </header>
+      <SubscriptionPanel />
       <VoiceProfiles />
       <VoiceStudio />
     </div>

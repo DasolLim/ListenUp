@@ -396,3 +396,89 @@ input[type="range"]::-moz-range-thumb {
   background: #fff;
   border: 2px solid #1a1714;
 }
+
+/* ─── Tabular figures ───
+   Used wherever a number changes in place (usage meters, voice shaper values).
+   Proportional digits have different widths, so "9.4 / 12" visibly jitters as it
+   ticks up; tabular figures keep the column still. The class was already in use
+   in five components but had never been defined — this makes it do its job. */
+.numeric {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/* ─── Usage meters (Settings → Subscription) ───
+   Proportion is read faster than arithmetic, so every allowance gets a bar as
+   well as its numbers. Colour is never the only signal: the figure beside the
+   bar and the state text below it carry the same information for anyone who
+   can't distinguish the fills. */
+.meter-track {
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid var(--glass-border);
+  overflow: hidden;
+}
+
+.meter-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #c4502a, #a63f19);
+  transition: width 320ms ease-out;
+}
+
+/* Amber from 80%. Deliberately not red — red at 80% teaches people to ignore
+   it, and by the time it matters the warning has lost its meaning. */
+.meter-fill[data-state="warning"] {
+  background: var(--warning);
+}
+
+/* Red only when the allowance is actually gone. */
+.meter-fill[data-state="limit"] {
+  background: var(--error);
+}
+
+/* Not included on this plan: a flat, quiet track with no fill at all, so it
+   reads as "absent" rather than "empty". */
+.meter-track[data-state="excluded"] {
+  background: rgba(140, 140, 150, 0.14);
+  border-style: dashed;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .meter-fill {
+    transition: none;
+  }
+}
+
+[data-contrast="high"] .meter-track {
+  background: #fff;
+  border: 2px solid #1a1714;
+  height: 12px;
+}
+
+[data-contrast="high"] .meter-fill {
+  background: #1a1714;
+}
+
+[data-contrast="high"] .meter-fill[data-state="warning"] {
+  background: var(--warning-strong);
+}
+
+[data-contrast="high"] .meter-fill[data-state="limit"] {
+  background: var(--error-strong);
+}
+
+/* An excluded meter must still read as "absent, not empty" in high contrast —
+   the base rule above resets background and border, which would otherwise make
+   "not on your plan" look identical to "nothing used yet". */
+[data-contrast="high"] .meter-track[data-state="excluded"] {
+  background: repeating-linear-gradient(
+    45deg,
+    #fff,
+    #fff 4px,
+    #d8d5d0 4px,
+    #d8d5d0 8px
+  );
+  border-style: dashed;
+}
