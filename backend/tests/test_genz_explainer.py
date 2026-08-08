@@ -20,6 +20,21 @@ from services.translate.cache import TranslationCache
 client = TestClient(app)
 
 
+
+# These tests exercise translation/explanation behaviour, not billing, so the
+# paywall is lifted for the module. Kept as an explicit override rather than a
+# global one in conftest so tests/test_billing.py still meets the real guard.
+@pytest.fixture(autouse=True)
+def _entitled():
+    # Pro, with nothing spent: these suites test translation and explanation
+    # behaviour, not allowances. The allowance paths have their own tests in
+    # test_plans_and_usage.py.
+    from tests.conftest import acting_as
+
+    with acting_as("pro"):
+        yield
+
+
 @pytest.fixture
 def fresh_cache(monkeypatch: pytest.MonkeyPatch) -> TranslationCache:
     isolated = TranslationCache()

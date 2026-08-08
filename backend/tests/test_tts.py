@@ -334,11 +334,29 @@ def test_cloning_without_a_named_consenting_person_is_refused(monkeypatch):
     assert "consent" in response.json()["detail"].lower()
 
 
-def test_cloning_on_the_free_tier_explains_itself(monkeypatch):
-    """Browser voices can't clone. The error must say what to do, and must not
-    pretend the voice was created."""
+def test_cloning_is_refused_on_a_plan_that_does_not_include_it(monkeypatch):
+    """Free and Basic don't clone. The refusal must name Pro rather than read as
+    a malfunction."""
     monkeypatch.setattr("app.routes.tts.verify_user", _fake_verify)
-    monkeypatch.setattr("app.routes.tts.rest", _fake_rest_empty)
+    for tier in ("free", "basic"):
+        monkeypatch.setattr("app.routes.tts.rest", _rest_on_plan(tier))
+        response = client.post(
+            "/tts/custom-voices",
+            headers={"Authorization": "Bearer test-token"},
+            data=_clone_form(),
+            files={"sample": ("v.wav", b"\x00" * 32000, "audio/wav")},
+        )
+        assert response.status_code == 402, tier
+        detail = response.json()["detail"]
+        assert detail["upgradeTo"] == "pro", tier
+        assert "pro" in detail["message"].lower(), tier
+
+
+def test_cloning_on_pro_without_a_cloud_provider_explains_itself(monkeypatch):
+    """The plan allows it but the deployment has no ElevenLabs key. The error
+    must say what to do, and must not pretend the voice was created."""
+    monkeypatch.setattr("app.routes.tts.verify_user", _fake_verify)
+    monkeypatch.setattr("app.routes.tts.rest", _fake_rest_pro)
     response = client.post(
         "/tts/custom-voices",
         headers={"Authorization": "Bearer test-token"},
@@ -388,4 +406,30 @@ async def _fake_rest_exploding(_method, _table, _token, **_kwargs):
     raise RuntimeError("supabase is down")
 
 
+def _rest_on_plan(tier: str):
+    """A `rest` double whose `subscriptions` table says the caller is on `tier`.
+
+    Every other table stays empty, so plan resolution is the only thing the
+    stub changes.
+    """
+
+    async def _rest(_method, table, _token, **_kwargs):
+        if str(table).startswith("subscriptions"):
+            if tier == "free":
+                return _Response(200, [])
+            return _Response(
+                200,
+                [{
+                    "user_id": "11111111-1111-1111-1111-111111111111",
+                    "status": "active",
+                    "tier": tier,
+                    "current_period_end": "2099-01-01T00:00:00+00:00",
+                }],
+            )
+        return _Response(200, [])
+
+    return _rest
+
+
 _fake_rest_empty = _fake_rest
+_fake_rest_pro = _rest_on_plan("pro")

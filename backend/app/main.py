@@ -7,6 +7,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.env import load_env
+from app.routes.billing import router as billing_router
 from app.routes.feedback import router as feedback_router
 from app.routes.genz import router as genz_router
 from app.routes.profiles import router as profiles_router
@@ -46,6 +47,7 @@ app.include_router(profiles_router)
 app.include_router(translate_router)
 app.include_router(genz_router)
 app.include_router(tts_router)
+app.include_router(billing_router)
 
 FRONTEND_ORIGIN = os.environ.get("FRONTEND_ORIGIN", "http://localhost:3000")
 

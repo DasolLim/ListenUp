@@ -102,6 +102,13 @@ class TtsService(ABC):
     # assuming every service takes the argument.
     supports_expressiveness: bool = False
 
+    # Whether rendering costs money. Browser voices are synthesised on the
+    # client, so they are free, offline, and available on every tier; a service
+    # that sets this bills per character and must therefore be metered and
+    # gated. The route asks the service rather than re-reading TTS_SERVICE, so
+    # adding a third provider can't silently skip the paywall.
+    renders_audio: bool = False
+
     @abstractmethod
     async def voices(self, language: str | None = None) -> list[Voice]:
         """Selectable voices, optionally filtered to one language."""

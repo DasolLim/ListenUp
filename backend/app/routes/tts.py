@@ -41,6 +41,33 @@ bearer = HTTPBearer(auto_error=False)
 # provider limit, and it keeps the picker readable.
 MAX_CUSTOM_VOICES = 4
 
+# Speech runs at roughly 870 characters per minute (SUBSCRIPTION.md §2), so this
+# converts billed characters into the seconds the cloud read-aloud allowance is
+# denominated in. Approximate by nature — the allowance is a cost ceiling, not a
+# stopwatch — and it errs slightly high, which favours the user.
+CHARS_PER_SECOND = 870 / 60
+
+
+async def cloud_caller(
+    credentials: HTTPAuthorizationCredentials | None,
+):
+    """Resolve a caller allowed to spend cloud read-aloud, or refuse.
+
+    Only reached when the configured service actually renders audio. Browser
+    voices never come through here, which is what keeps read-aloud free on every
+    tier — the free thing stays free without an auth round-trip.
+    """
+    from app.routes.billing import _refusal, caller_for_token
+
+    if credentials is None:
+        raise HTTPException(401, "Sign in to use cloud voices.")
+    who = await caller_for_token(credentials.credentials)
+
+    spent = who.allowance("cloud_tts")
+    if spent.blocked:
+        raise _refusal(who, spent)
+    return who
+
 
 async def auth(
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer)],
@@ -108,14 +135,24 @@ async def list_voices(
 
 
 @router.post("/speak")
-async def speak(request: SpeakRequest) -> dict:
+async def speak(
+    request: SpeakRequest,
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer)] = None,
+) -> dict:
     """Render text in a voice.
 
     Browser voices return `speak_locally: true` and no audio — the client speaks
     them with `speechSynthesis`. Cloud voices return base64 audio. One response
     shape for both so the frontend has a single code path.
+
+    The gate is asymmetric on purpose: browser voices are free on every tier and
+    need no sign-in, while cloud rendering is billed per character and so needs
+    a Pro caller with allowance left. Asking the *service* whether it renders
+    audio (rather than reading TTS_SERVICE here) means a future provider can't
+    be added past the paywall by accident.
     """
     service = get_tts_service()
+    who = await cloud_caller(credentials) if service.renders_audio else None
     try:
         # Only pass expressiveness to services that render audio; the browser
         # tier's signature stays two-argument because it has nothing to apply it
@@ -132,6 +169,11 @@ async def speak(request: SpeakRequest) -> dict:
         # a degraded-but-recoverable state, and the client falls back to a
         # browser voice.
         raise HTTPException(503, str(exc)) from exc
+
+    # Cached audio is replayed from Redis and costs nothing, so it spends no
+    # allowance — replaying a line you already heard should always be free.
+    if who is not None and not result.cached and result.characters:
+        await who.record("cloud_tts", max(1, round(result.characters / CHARS_PER_SECOND)))
 
     return {
         "voice_id": result.voice_id,
@@ -191,6 +233,29 @@ async def create_custom_voice(
             400,
             "Consent is required: the person being recorded must agree before ListenUp can "
             "build a voice from their speech. Their voice is biometric data.",
+        )
+
+    # Cloning is a Pro capability. Checked after consent so the biometric gate
+    # stays first — being on the wrong plan is a billing problem, but recording
+    # someone without their agreement is a legal one, and the order of these two
+    # checks is the order of their seriousness.
+    from app.routes.billing import plan_for_row
+
+    subscription = await rest(
+        "GET", "subscriptions", token, params={"user_id": f"eq.{user_id}", "select": "*"}
+    )
+    rows = subscription.json() if subscription.status_code == 200 else []
+    plan = plan_for_row(rows[0] if rows else {})
+    if not plan.voice_cloning:
+        raise HTTPException(
+            402,
+            {
+                "reason": "not_included",
+                "metric": "voice_cloning",
+                "plan": plan.tier,
+                "upgradeTo": "pro",
+                "message": "Recording your own voice is part of Pro.",
+            },
         )
 
     existing = await rest("GET", "custom_voices", token, params={"select": "id"})

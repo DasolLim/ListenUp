@@ -51,6 +51,8 @@ class ElevenLabsTtsService(TtsService):
     # Tells the route it can pass `expressiveness`. The browser tier has no
     # equivalent, so the capability is advertised rather than assumed.
     supports_expressiveness = True
+    # Billed per character: gated to Pro and metered against its allowance.
+    renders_audio = True
 
     def __init__(self, api_key: str | None = None) -> None:
         self._api_key = api_key or os.environ.get("ELEVENLABS_API_KEY", "")
