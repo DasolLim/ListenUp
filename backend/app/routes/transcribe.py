@@ -17,11 +17,11 @@ import asyncio
 import json
 import logging
 import os
+import time
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from app.naming import SessionNamer, load_profiles
-from app.supa import verify_user
 from services.assemblyai import AudioFormatError, TranscriptSegment
 from services.assemblyai.base import (
     BATCH_LANGUAGES,
@@ -201,20 +201,76 @@ async def ws_transcribe(websocket: WebSocket) -> None:
         return
     service = get_transcription_service(language)
 
+    # A token is now resolved whenever one is sent, not only in enhanced mode:
+    # caption *minutes* are metered on every tier, so the session needs to know
+    # who it belongs to even when no speaker naming is requested.
+    namer: SessionNamer | None = None
+    user_token: str | None = None
+    who = None
+    if config.get("token"):
+        try:
+            from app.routes.billing import caller_for_token
+
+            who = await caller_for_token(str(config["token"]))
+            user_token = str(config["token"])
+        except Exception:
+            # Failure here degrades to an unmetered, unnamed session rather than
+            # refusing to caption. Captions are the accessibility core; a
+            # billing lookup that times out must never be the reason someone
+            # can't follow a conversation.
+            logger.warning("transcribe_auth_failed client=%s", client)
+
+    # The caption allowance is checked *before* the session starts and never
+    # again. That is the whole design: a cap that fires mid-sentence can fire in
+    # a medical appointment, so it blocks the next start instead and the session
+    # already running always finishes.
+    if who is not None:
+        spent = who.allowance("captions")
+        if spent.blocked:
+            await websocket.send_text(
+                json.dumps(
+                    {
+                        "type": "error",
+                        "reason": "limit_reached",
+                        "metric": "captions",
+                        "plan": who.plan.tier,
+                        "resetsAt": who.usage.period_end,
+                        "upgradeTo": "basic" if who.plan.tier == "free" else "pro",
+                        "message": (
+                            "You've used all your caption hours for this billing period."
+                        ),
+                    }
+                )
+            )
+            await websocket.close(code=1008, reason="caption allowance reached")
+            logger.info("transcribe_blocked client=%s tier=%s", client, who.plan.tier)
+            return
+        if spent.warning:
+            # Warn once, at the start, so the user can decide how to spend what
+            # is left rather than discovering the cap when it arrives.
+            await websocket.send_text(
+                json.dumps(
+                    {
+                        "type": "usage",
+                        "metric": "captions",
+                        "used": spent.used,
+                        "limit": spent.limit,
+                        "remaining": spent.remaining,
+                        "resetsAt": who.usage.period_end,
+                    }
+                )
+            )
+
     # Enhanced mode: authenticated sessions match diarized speakers to the
     # user's saved voice profiles. Failure to authenticate degrades to generic
     # labels — captions must never break because naming can't run.
-    namer: SessionNamer | None = None
-    user_token: str | None = None
-    if config.get("enhanced") and config.get("token"):
+    if config.get("enhanced") and user_token:
         try:
-            await verify_user(str(config["token"]))
-            user_token = str(config["token"])
             profiles = await load_profiles(user_token)
             namer = SessionNamer(SpeakerMatcher(profiles))
             logger.info("transcribe_enhanced client=%s profiles=%d", client, len(profiles))
         except Exception:
-            logger.warning("transcribe_enhanced_auth_failed client=%s", client)
+            logger.warning("transcribe_enhanced_load_failed client=%s", client)
 
     try:
         await service.start(
@@ -236,6 +292,11 @@ async def ws_transcribe(websocket: WebSocket) -> None:
         client, type(service).__name__, language, mode,
     )
     await websocket.send_text(json.dumps({"type": "ready", "language": language, "mode": mode}))
+
+    # The clock starts once captioning actually begins. A session rejected for a
+    # bad audio format or an exhausted allowance never reaches here, so it costs
+    # the user nothing.
+    session_started = time.monotonic()
 
     send_queue: asyncio.Queue[str | None] = asyncio.Queue(maxsize=SEND_QUEUE_LIMIT)
     mapper = SpeakerMapper()
@@ -310,4 +371,14 @@ async def ws_transcribe(websocket: WebSocket) -> None:
                 task.cancel()
         await asyncio.gather(pump_task, send_task, return_exceptions=True)
         await service.stop()
+        # Meter on close rather than on a timer: the number we owe is the length
+        # of the session, and recording it once means a dropped connection can't
+        # leave a partially-counted session behind. `record` never raises.
+        if who is not None:
+            # Rounded, not truncated: `int()` always rounds down, so every
+            # session would under-count by up to a second and the error would
+            # accumulate in one direction across a month. A session that reached
+            # `ready` at all costs a real STT connection, so it bills at least
+            # one second rather than being free.
+            await who.record("captions", max(1, round(time.monotonic() - session_started)))
         logger.info("transcribe_end client=%s chunks=%d", client, chunks)
