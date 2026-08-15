@@ -11,6 +11,7 @@ from app.plans import ENHANCED_COST_RATIO
 from app.routes.billing import Caller, requires
 from app.timing import span
 from services.openrouter import get_enhanced_translation_service
+from services.openrouter.base import CulturalUnavailable
 from services.translate import TranslationError, get_translation_service
 from services.translate.base import SUPPORTED_LANGUAGES
 from services.translate.cache import get_cache
@@ -92,6 +93,16 @@ async def translate_enhanced(
             perf["notes"] = len(result.slang_notes) if result else 0
     except TranslationError as exc:
         raise HTTPException(400, str(exc)) from exc
+    except CulturalUnavailable as exc:
+        # Say what actually went wrong. The generic version of this message sent
+        # an operator hunting through logs for a cause the provider had already
+        # named — an expired key, an exhausted balance and a model the account
+        # cannot reach are all one opaque 502 otherwise, and they need three
+        # different fixes.
+        logger.warning("translate_enhanced_unavailable reason=%s", exc.reason)
+        raise HTTPException(
+            502, f"Cultural notes are unavailable: {exc.reason}"
+        ) from exc
     if result is None:
         raise HTTPException(
             502, "Cultural notes are unavailable right now; the fast translation stands."

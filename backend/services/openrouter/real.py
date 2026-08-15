@@ -9,8 +9,10 @@ from dataclasses import replace
 import httpx
 
 from services.openrouter.base import (
+    CulturalUnavailable,
     EnhancedTranslation,
     EnhancedTranslationService,
+    ProviderError,
     SlangNote,
     coerce_enhanced,
     parse_llm_json,
@@ -187,6 +189,25 @@ def _mark_grounding(result, grounding):
     return replace(result, slang_notes=notes)
 
 
+def _provider_detail(response: httpx.Response) -> str:
+    """The provider's own words, trimmed to something safe to show.
+
+    OpenRouter returns `{"error": {"message": …}}`; anything else falls back to
+    the raw body. Truncated because this reaches a user-facing message, and
+    length-capped rather than rewritten so an operator can still recognise the
+    provider's wording when searching for it.
+    """
+    try:
+        payload = response.json()
+        message = (payload.get("error") or {}).get("message") or payload.get("message")
+    except (ValueError, AttributeError):
+        message = None
+    text = str(message or response.text or "").strip().replace("\n", " ")
+    if not text:
+        return f"HTTP {response.status_code}"
+    return text[:200]
+
+
 class OpenRouterTranslationService(EnhancedTranslationService):
     def __init__(self) -> None:
         self._api_key = os.environ.get("OPENROUTER_API_KEY", "")
@@ -222,7 +243,16 @@ class OpenRouterTranslationService(EnhancedTranslationService):
                     "temperature": 0.3,
                 },
             )
-        response.raise_for_status()
+        if response.status_code >= 400:
+            raise ProviderError(
+                response.status_code,
+                _provider_detail(response),
+                # A 429 or a 5xx is worth a second try; a 401, 402, 403 or 404
+                # is a key, a balance or a model name, and hammering it twice
+                # per utterance for the length of a conversation only wastes
+                # time the caption budget does not have.
+                retryable=response.status_code in (408, 409, 429) or response.status_code >= 500,
+            )
         body = response.json()
         content = body["choices"][0]["message"]["content"]
         tokens = int((body.get("usage") or {}).get("total_tokens") or 0)
@@ -250,16 +280,31 @@ class OpenRouterTranslationService(EnhancedTranslationService):
             )
 
         # One retry with a strictness nudge — LLM JSON is never trusted blindly.
+        # `reason` survives the loop so the give-up can say what went wrong
+        # rather than leaving the user with a generic outage message for what is
+        # usually a key, a balance or a model name.
+        reason: str | None = None
         for attempt, nudge in enumerate((False, True)):
             try:
                 content, tokens = await self._complete(
                     text, target_lang, nudge, grounding
                 )
+            except ProviderError as exc:
+                reason = exc.detail
+                logger.warning(
+                    "openrouter_request_failed attempt=%d status=%s retryable=%s reason=%s",
+                    attempt, exc.status, exc.retryable, exc.detail,
+                )
+                if not exc.retryable:
+                    break
+                continue
             except (httpx.HTTPError, json.JSONDecodeError, KeyError) as exc:
+                reason = f"could not reach the model provider ({type(exc).__name__})"
                 logger.warning("openrouter_request_failed attempt=%d error=%s", attempt, exc)
                 continue
             parsed = parse_llm_json(content)
             if parsed is None:
+                reason = "the model returned something that wasn't valid JSON"
                 logger.warning("openrouter_bad_json attempt=%d head=%r", attempt, content[:80])
                 continue
             result = coerce_enhanced(parsed, self.model, tokens)
@@ -278,5 +323,11 @@ class OpenRouterTranslationService(EnhancedTranslationService):
                     self.model, tokens, len(result.slang_notes),
                 )
                 return result
-        logger.warning("openrouter_gave_up text_len=%d", len(text))
-        return None  # caller keeps the fast Google translation
+        logger.warning("openrouter_gave_up text_len=%d reason=%s", len(text), reason)
+        # The caller keeps the fast Google translation either way. Raising with
+        # the reason rather than returning a bare None is what lets the notice
+        # on screen say "insufficient credits" instead of "unavailable right
+        # now" — one of those an operator can act on.
+        if reason:
+            raise CulturalUnavailable(reason)
+        return None

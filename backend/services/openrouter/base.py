@@ -41,13 +41,48 @@ class EnhancedTranslation:
         return asdict(self)
 
 
+class ProviderError(Exception):
+    """The model provider refused or failed the call.
+
+    Carries the provider's own explanation, which `raise_for_status()` throws
+    away: an expired key, an exhausted balance and a model the account cannot
+    reach all arrive as a bare 4xx, and the difference is the entire fix. It is
+    the operator's message, so it is passed through rather than summarised.
+    """
+
+    def __init__(self, status: int | None, detail: str, retryable: bool) -> None:
+        super().__init__(detail)
+        self.status = status
+        self.detail = detail
+        self.retryable = retryable
+
+
+class CulturalUnavailable(Exception):
+    """The cultural pass gave up, and this is why.
+
+    Raised instead of returning `None` when there is a reason worth repeating.
+    `None` still means "nothing usable, nothing to say" — an outcome the mock
+    can produce — so the caller keeps the fast translation either way; the
+    difference is whether the user is told anything more useful than that it
+    didn't work.
+    """
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(reason)
+        self.reason = reason
+
+
 class EnhancedTranslationService(ABC):
     @abstractmethod
     async def translate(
         self, text: str, target_lang: str
     ) -> EnhancedTranslation | None:
         """None = LLM unavailable/unparseable after retry — callers must treat
-        the fast Google translation as the final answer."""
+        the fast Google translation as the final answer.
+
+        May raise `CulturalUnavailable` when the reason is known and worth
+        showing; the caller still keeps the fast translation.
+        """
 
 
 _FENCE = re.compile(r"^```(?:json)?\s*|\s*```$", re.MULTILINE)
