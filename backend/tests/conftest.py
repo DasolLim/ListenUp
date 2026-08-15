@@ -12,6 +12,15 @@ os.environ["TEXT_EMBEDDER"] = "hashing"
 os.environ["TTS_SERVICE"] = "browser"  # free tier; never call a paid voice API in tests
 os.environ.pop("MOCK_FIXTURE", None)
 
+# The slang KB writes ingested terms and gap-log lines to GENZ_DATA_DIR. Left at
+# its default that is the checked-out `services/genz/data/`, so running the suite
+# files real curation demand for strings like "zzblargh nonsense" — 128 such lines
+# had accumulated by the time this was noticed. Task 3 promotes gaps into the KB,
+# which makes a polluted log a correctness problem, not just untidiness.
+import tempfile  # noqa: E402
+
+os.environ["GENZ_DATA_DIR"] = tempfile.mkdtemp(prefix="listenup-genz-test-")
+
 from contextlib import contextmanager  # noqa: E402
 
 import pytest  # noqa: E402
