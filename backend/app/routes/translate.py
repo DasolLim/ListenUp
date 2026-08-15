@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 
 from app.plans import ENHANCED_COST_RATIO
 from app.routes.billing import Caller, requires
+from app.timing import span
 from services.openrouter import get_enhanced_translation_service
 from services.translate import TranslationError, get_translation_service
 from services.translate.base import SUPPORTED_LANGUAGES
@@ -50,9 +51,12 @@ async def translate(
 
     service = get_translation_service()
     try:
-        result = await service.translate(
-            request.text, request.target_lang, request.source_lang
-        )
+        async with span("translate_rt", lane="fast", language=request.target_lang) as perf:
+            result = await service.translate(
+                request.text, request.target_lang, request.source_lang
+            )
+            perf["cached"] = result.cached
+            perf["chars"] = result.characters
     except TranslationError as exc:
         raise HTTPException(400, str(exc)) from exc
     cache = get_cache()
@@ -82,7 +86,10 @@ async def translate_enhanced(
     can't produce usable JSON — the client keeps the fast translation."""
     service = get_enhanced_translation_service()
     try:
-        result = await service.translate(request.text, request.target_lang)
+        async with span("translate_rt", lane="enhanced", language=request.target_lang) as perf:
+            result = await service.translate(request.text, request.target_lang)
+            perf["cached"] = bool(result and result.cached)
+            perf["notes"] = len(result.slang_notes) if result else 0
     except TranslationError as exc:
         raise HTTPException(400, str(exc)) from exc
     if result is None:

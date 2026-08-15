@@ -16,6 +16,16 @@ class SlangNote:
     meaning: str
     cultural_context: str = ""
     equivalent: str = ""
+    # True when the slang KB supplied a definition for this phrase, rather than
+    # the model recalling one. An ungrounded note is the model's memory, which
+    # is fixed at its training cutoff — so it is right about established slang
+    # and confidently wrong about anything coined since.
+    grounded: bool = False
+    # The same fact in the vocabulary `/genz/explain` already uses, so both
+    # surfaces describe trust identically and the client needs one renderer.
+    # Derived from `grounded` at a single write site (`_mark_grounding`); the two
+    # are never set independently and a test pins that they cannot disagree.
+    confidence: str = "low"
 
 
 @dataclass(frozen=True)

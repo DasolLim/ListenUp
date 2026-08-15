@@ -8,24 +8,34 @@ from services.openrouter.base import (
 from services.translate.base import assert_supported
 from services.translate.cache import cache_key, get_cache
 
+# These are curated definitions, so the mock reports them the way the real
+# service reports a KB hit — grounded/high. Leaving them at the field defaults
+# would paint every note "unverified" in development and make a working UI look
+# broken to whoever is building against the mock.
 _KNOWN_SLANG: dict[str, SlangNote] = {
     "no cap": SlangNote(
         phrase="no cap",
         meaning="no lie; I'm being completely honest",
         cultural_context="Gen Z internet slang, from hip-hop; 'cap' means a lie",
         equivalent="de verdad",
+        grounded=True,
+        confidence="high",
     ),
     "spill the tea": SlangNote(
         phrase="spill the tea",
         meaning="share the gossip",
         cultural_context="drag/ballroom culture via Black Twitter",
         equivalent="cuenta el chisme",
+        grounded=True,
+        confidence="high",
     ),
     "goat": SlangNote(
         phrase="GOAT",
         meaning="Greatest Of All Time",
         cultural_context="sports fandom acronym",
         equivalent="el mejor de la historia",
+        grounded=True,
+        confidence="high",
     ),
 }
 

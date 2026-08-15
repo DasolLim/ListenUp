@@ -3,6 +3,8 @@
 import json
 import logging
 import os
+import re
+from dataclasses import replace
 
 import httpx
 
@@ -25,7 +27,9 @@ API_URL = "https://openrouter.ai/api/v1/chat/completions"
 DEFAULT_MODEL = "openai/gpt-4o"
 # Bump when the prompt changes so improvements invalidate cached translations
 # instead of serving stale output for up to the cache TTL.
-PROMPT_VERSION = "2026-07-23.v4"
+# Bumped for KB grounding (2026-08-10). The Redis cache key includes this, so a
+# prompt change that does not bump it serves pre-grounding answers indefinitely.
+PROMPT_VERSION = "2026-08-10.v5"
 
 # The translation itself must be culturally adapted (slang → equivalent target
 # slang), not literal-with-notes. Few-shot examples anchor slang-for-slang
@@ -37,6 +41,18 @@ PROMPT_VERSION = "2026-07-23.v4"
 # {target_name}, not just the translation. The few-shot examples below teach this
 # explicitly; an earlier version showed English notes for en→ko and the model
 # copied that, leaving Korean users with half-English explanations.
+# Grounding. The model's slang knowledge is frozen at its training cutoff, so it
+# is reliable on established terms and confidently wrong on recent ones — a
+# plausible false meaning, which is worse for the reader than an admission of
+# ignorance. Retrieved KB entries are stated as authoritative so the model
+# prefers them over recall, and the KB can be updated without touching the model.
+GROUNDING_PROMPT = """
+KNOWN TERMS (authoritative — prefer these over your own recollection):
+{terms}
+If a term above appears in the source, use its meaning as given. For any slang \
+NOT listed above, you may still explain it, but do not invent specificity you are \
+not sure of — say what it plainly means and no more."""
+
 SYSTEM_PROMPT = """You are a cultural translation engine for {target_name}.
 Translate the user's message the way a fluent NATIVE {target_name} speaker would \
 actually say or text it in the same situation: same tone, same energy, same register.
@@ -87,6 +103,90 @@ Korean to English (note: every explanation is in English):
 "cultural_context":"Korean net slang combining 'god' and 'life'","equivalent":"best life / grind life"}}]}}"""
 
 
+def _retrieve(text: str, k: int = 4):
+    """KB terms matching this text, or an empty list.
+
+    Fails open by design: retrieval is an *improvement* to the cultural pass, not
+    a precondition for it. If the KB is unavailable the translation still goes
+    out ungrounded — degraded, logged, and honest about it via `grounded=False`.
+    """
+    try:
+        from services.genz import get_slang_kb
+
+        return [match.term for match in get_slang_kb().search(text, k=k)]
+    except Exception as exc:
+        logger.warning("slang_grounding_unavailable error=%s", exc)
+        return []
+
+
+def _log_gap(text: str) -> None:
+    """Record slang the KB could not supply. This is the demand signal the
+    curation loop consumes — without it the corpus never learns what it is
+    missing, and 'stays current' has no mechanism behind it."""
+    try:
+        from services.genz import get_slang_kb
+
+        get_slang_kb().log_gap(text)
+    except Exception as exc:
+        logger.debug("slang_gap_log_failed error=%s", exc)
+
+
+def _covers(term: str, phrase: str) -> bool:
+    """Does KB `term` account for the slang in `phrase`?
+
+    Not equality: the model quotes the span it is annotating, which is often
+    wider than the headword — QA saw `zero rizz` against a KB entry for `rizz`,
+    a note whose definition *was* in the prompt being reported as ungrounded.
+    Exact matching therefore under-states grounding, and `grounded` is a trust
+    signal, so it should be neither over- nor under-stated.
+
+    Matching is script-dependent because word boundaries are. English needs them
+    (`mid` must not match `midnight`). Korean has none — `꿀잼` legitimately sits
+    inside `꿀잼이었어` — but it is agglutinative: particles and verb endings
+    attach to the *end* of a stem, so a term is required to begin a token rather
+    than float anywhere inside one. That accepts `썸` in `썸 타다` (QA saw exactly
+    this note) and rejects `갓생` in `인생`.
+
+    Residual limitation, accepted: a longer word starting with the same syllables
+    (`썸` in `썸네일`, thumbnail) would read as covered. It needs two coincidences
+    at once — retrieval scoring that term relevant for this sentence *and* the
+    model quoting the unrelated word as slang — so it is narrower than the
+    under-reporting a stricter rule causes, but it is a real edge and not a
+    solved one.
+    """
+    if not term or not phrase:
+        return False
+    if re.search(r"[a-z]", term):
+        return re.search(rf"(?<![a-z]){re.escape(term)}(?![a-z])", phrase) is not None
+    return any(token.startswith(term) for token in phrase.split())
+
+
+def _mark_grounding(result, grounding):
+    """Flag each note as grounded or not, and log the gaps.
+
+    A note whose phrase the KB supplied is trustworthy; one it did not is the
+    model's recall, which the reader deserves to have marked. Every unmatched
+    phrase is written to the gap log — that is the demand signal for curation,
+    and it is collected here rather than in a separate sweep because this is the
+    only moment we know both what was asked and what we could not answer.
+    """
+    known = [term.term.strip().lower() for term in grounding]
+    notes = []
+    for note in result.slang_notes:
+        phrase = note.phrase.strip().lower()
+        is_grounded = any(_covers(term, phrase) for term in known)
+        if not is_grounded and phrase:
+            _log_gap(note.phrase.strip())
+        notes.append(
+            replace(
+                note,
+                grounded=is_grounded,
+                confidence="high" if is_grounded else "low",
+            )
+        )
+    return replace(result, slang_notes=notes)
+
+
 class OpenRouterTranslationService(EnhancedTranslationService):
     def __init__(self) -> None:
         self._api_key = os.environ.get("OPENROUTER_API_KEY", "")
@@ -94,9 +194,14 @@ class OpenRouterTranslationService(EnhancedTranslationService):
             raise RuntimeError("OPENROUTER_API_KEY is not set")
         self.model = os.environ.get("OPENROUTER_MODEL", DEFAULT_MODEL)
 
-    async def _complete(self, text: str, target_lang: str, strict_nudge: bool) -> tuple[str, int]:
+    async def _complete(
+        self, text: str, target_lang: str, strict_nudge: bool, grounding=()
+    ) -> tuple[str, int]:
         target_name = SUPPORTED_LANGUAGES.get(target_lang, target_lang)
         system = SYSTEM_PROMPT.format(target_name=target_name)
+        if grounding:
+            lines = "\n".join(f"- {t.term}: {t.meaning}" for t in grounding)
+            system += GROUNDING_PROMPT.format(terms=lines)
         if strict_nudge:
             system += "\nYour previous output was invalid. Return ONLY valid JSON this time."
         async with httpx.AsyncClient(timeout=30) as client:
@@ -126,7 +231,15 @@ class OpenRouterTranslationService(EnhancedTranslationService):
     async def translate(self, text: str, target_lang: str) -> EnhancedTranslation | None:
         assert_supported(target_lang)
         cache = get_cache()
-        key = cache_key("llm", text, target_lang, f"{self.model}:{PROMPT_VERSION}")
+        # Retrieval happens before the cache lookup because the retrieved terms
+        # are part of the key: the same sentence grounded in a larger KB is a
+        # different answer, and serving the pre-grounding one would make new
+        # curation invisible until the TTL expired.
+        grounding = _retrieve(text)
+        fingerprint = ",".join(sorted(term.term for term in grounding))
+        key = cache_key(
+            "llm", text, target_lang, f"{self.model}:{PROMPT_VERSION}:{fingerprint}"
+        )
         if (hit := await cache.get(key)) is not None:
             return EnhancedTranslation(
                 translation=hit["translation"],
@@ -139,7 +252,9 @@ class OpenRouterTranslationService(EnhancedTranslationService):
         # One retry with a strictness nudge — LLM JSON is never trusted blindly.
         for attempt, nudge in enumerate((False, True)):
             try:
-                content, tokens = await self._complete(text, target_lang, nudge)
+                content, tokens = await self._complete(
+                    text, target_lang, nudge, grounding
+                )
             except (httpx.HTTPError, json.JSONDecodeError, KeyError) as exc:
                 logger.warning("openrouter_request_failed attempt=%d error=%s", attempt, exc)
                 continue
@@ -149,6 +264,7 @@ class OpenRouterTranslationService(EnhancedTranslationService):
                 continue
             result = coerce_enhanced(parsed, self.model, tokens)
             if result is not None:
+                result = _mark_grounding(result, grounding)
                 await cache.set(
                     key,
                     {
