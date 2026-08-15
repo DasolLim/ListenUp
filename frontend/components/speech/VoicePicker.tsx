@@ -56,7 +56,7 @@ export default function VoicePicker({
         id={id}
         value={voiceId}
         onChange={(event) => onChoose(event.target.value)}
-        className="glass-strong rounded-xl border border-white/60 px-3 py-2 text-sm text-ink shadow-glass outline-none"
+        className="glass-strong min-h-11 rounded-xl border border-white/60 px-3 py-2 text-sm text-ink shadow-glass outline-none"
       >
         {/* Grouped by gender: with several voices per language a flat list is a
             wall of names, and the group label is the distinction people are

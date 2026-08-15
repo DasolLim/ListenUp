@@ -3,16 +3,21 @@
 import posthog from "posthog-js";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import SpeakerBubble from "@/components/captions/SpeakerBubble";
+import SpeakerCorrectionDialog from "@/components/captions/SpeakerCorrectionDialog";
+import SpeakerName from "@/components/captions/SpeakerName";
 import VoiceOrb from "@/components/captions/VoiceOrb";
 import SpokenLanguagePicker from "@/components/SpokenLanguagePicker";
-import { MicIcon } from "@/components/shell/icons";
+import { MicIcon, PauseIcon } from "@/components/shell/icons";
 import Button from "@/components/ui/Button";
 import GlassCard from "@/components/ui/GlassCard";
 import VoicePicker from "@/components/speech/VoicePicker";
 import { SpeechProvider, useAutoSpeak, useSharedSpeech } from "@/lib/SpeechProvider";
 import { formatDate } from "@/lib/plans";
+import { useChatScroll } from "@/lib/useChatScroll";
+import { RAILS, identityColor, linePosition, stamp, turnGroups } from "@/lib/turnGroups";
+import { useSpeakerCorrection } from "@/lib/useSpeakerCorrection";
 import { useStickyLanguage } from "@/lib/useStickyLanguage";
 import { useLiveTranslation } from "@/lib/useLiveTranslation";
 import { useTranscription } from "@/lib/useTranscription";
@@ -24,20 +29,16 @@ const statusCopy = {
   idle: "Ready when you are.",
   connecting: "Starting the microphone…",
   listening: "Listening — captions appear below.",
+  paused: "Paused — the microphone is off. Your captions are kept.",
   stopped: "Stopped. Start again anytime.",
   error: "",
 } as const;
 
-const AUTOSCROLL_SLACK_PX = 48;
-
-type ProfileOption = { id: string; display_name: string };
 
 function LiveCaptionsInner(props: {
-  enhanced?: boolean;
   targetLang: string;
   setTargetLang: (v: string) => void;
 }) {
-  const { enhanced = false } = props;
   const [spoken, setSpoken] = useStickyLanguage("listenup-spoken-captions");
   const {
     status,
@@ -48,21 +49,15 @@ function LiveCaptionsInner(props: {
     latency,
     start,
     stop,
+    pause,
+    resume,
     correct,
     getAudioLevel,
     getVoiceSignal,
     sessionId,
-  } = useTranscription({
-    enhanced,
-    language: spoken,
-  });
-  const logRef = useRef<HTMLDivElement>(null);
-  const [pinnedToBottom, setPinnedToBottom] = useState(true);
-  // Transcript length when the reader scrolled away; null while pinned.
-  const [unreadAnchor, setUnreadAnchor] = useState<number | null>(null);
+  } = useTranscription({ language: spoken });
   const [feedbackSent, setFeedbackSent] = useState(false);
-  const [profileOptions, setProfileOptions] = useState<ProfileOption[]>([]);
-  const [correcting, setCorrecting] = useState<string | null>(null);
+  const correction = useSpeakerCorrection(correct);
   const [languages, setLanguages] = useState<Record<string, string>>({});
   const { targetLang, setTargetLang } = props;
   const [translateOn, setTranslateOn] = useState(false);
@@ -70,9 +65,19 @@ function LiveCaptionsInner(props: {
     translations,
     stats: translationStats,
     costs,
+    failure: translationFailure,
     reset: resetTranslations,
   } = useLiveTranslation(segments, targetLang, translateOn);
   const speech = useSharedSpeech();
+
+  // Only finalised captions count as "new". Interim text is retargeted several
+  // times a second, so counting it would run the unread badge up while one
+  // sentence is still being spoken.
+  const finalsCount = segments.filter((s) => s.isFinal).length;
+  const { containerRef, watchContent, pinned, unread, onScroll, jumpToLatest } = useChatScroll({
+    finalCount: finalsCount,
+  });
+  const latestFinal = [...segments].reverse().find((s) => s.isFinal) ?? null;
 
   // Auto-speak the newest FINAL translated line. Keyed on the segment id rather
   // than the text, because the same sentence can legitimately be said twice in a
@@ -98,25 +103,6 @@ function LiveCaptionsInner(props: {
       .catch(() => undefined);
     return () => controller.abort();
   }, []);
-
-  async function openCorrection(speakerLabel: string) {
-    if (profileOptions.length === 0) {
-      const { authHeader } = await import("@/lib/auth/token");
-      const headers = await authHeader();
-      if (headers.Authorization) {
-        const response = await fetch(`${BACKEND}/profiles`, { headers });
-        if (response.ok) setProfileOptions(await response.json());
-      }
-    }
-    setCorrecting(speakerLabel);
-  }
-
-  function applyCorrection(profileId: string | null) {
-    if (correcting) correct(correcting, profileId);
-    setCorrecting(null);
-  }
-
-  const finalsCount = segments.filter((s) => s.isFinal).length;
 
   function handleStop() {
     stop();
@@ -158,40 +144,6 @@ function LiveCaptionsInner(props: {
     }
   }
 
-  const scrollToLatest = useCallback((smooth: boolean) => {
-    const log = logRef.current;
-    if (!log) return;
-    // Streaming text is retargeted many times a second, so only a deliberate
-    // jump animates — smooth-scrolling every interim update reads as jitter.
-    const reduced =
-      typeof window !== "undefined" &&
-      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-    log.scrollTo({
-      top: log.scrollHeight,
-      behavior: smooth && !reduced ? "smooth" : "auto",
-    });
-  }, []);
-
-  // Follow the newest caption, unless the reader scrolled up to read history —
-  // then hold their position, the way a message thread does. Yanking someone
-  // back mid-sentence loses the line they were on.
-  useEffect(() => {
-    if (pinnedToBottom) scrollToLatest(false);
-  }, [segments, pinnedToBottom, scrollToLatest]);
-
-  // How many captions have arrived since the reader scrolled away, derived from
-  // the transcript length at that moment rather than counted in an effect.
-  const unread = unreadAnchor === null ? 0 : Math.max(0, segments.length - unreadAnchor);
-
-  function handleScroll() {
-    const log = logRef.current;
-    if (!log) return;
-    const fromBottom = log.scrollHeight - log.scrollTop - log.clientHeight;
-    const atBottom = fromBottom < AUTOSCROLL_SLACK_PX;
-    setPinnedToBottom(atBottom);
-    setUnreadAnchor((anchor) => (atBottom ? null : (anchor ?? segments.length)));
-  }
-
   // Arriving from the floating "Start captions" control: open the microphone on
   // landing so the tap that navigated here is also the tap that starts
   // listening. Guarded by a ref because the effect must never re-fire and
@@ -205,6 +157,7 @@ function LiveCaptionsInner(props: {
   }, [searchParams, start]);
 
   const listening = status === "listening" || status === "connecting";
+  const paused = status === "paused";
 
   // Speaking wins over listening: the mic stays open while a translation is read
   // aloud, so without this the orb would react to the room and look identical to
@@ -242,19 +195,7 @@ function LiveCaptionsInner(props: {
   // you want it while looking at "Speaker 1", not while browsing tools.
   const hasUnnamedSpeaker = segments.some((segment) => segment.isFinal && !segment.speakerName);
 
-  // Stable color per identity: assign the 4 speaker tints in first-appearance
-  // order, keyed on the name when known. One person keeps one color even if the
-  // diarization label churns; a bubble recolors if it later gains a name.
-  const identityIndexMap = new Map<string, number>();
-  let nextColor = 0;
-  for (const s of segments) {
-    const key = s.speakerName ?? s.speaker;
-    if (!identityIndexMap.has(key)) {
-      identityIndexMap.set(key, nextColor % 4);
-      nextColor += 1;
-    }
-  }
-  const identityColor = (key: string) => identityIndexMap.get(key) ?? 0;
+  const colorOf = identityColor(segments);
 
   return (
     <GlassCard strong className="flex flex-col gap-4 p-6">
@@ -310,14 +251,28 @@ function LiveCaptionsInner(props: {
               </select>
             </>
           }
-          {listening ? (
-            <Button variant="ghost" onClick={handleStop}>
-              Stop
+          {/* Pause holds the session without ending it, so the transcript on
+              screen survives a private aside; stopping clears it on the next
+              start. Paused time is neither billed nor counted as latency. */}
+          {paused ? (
+            <Button onClick={resume} className="flex items-center gap-2">
+              <MicIcon />
+              Resume
+            </Button>
+          ) : listening ? (
+            <Button variant="ghost" onClick={pause} className="flex items-center gap-2">
+              <PauseIcon />
+              Pause
             </Button>
           ) : (
             <Button onClick={start} className="flex items-center gap-2">
               <MicIcon />
               Start captions
+            </Button>
+          )}
+          {(listening || paused) && (
+            <Button variant="ghost" onClick={handleStop}>
+              Stop
             </Button>
           )}
         </div>
@@ -382,6 +337,43 @@ function LiveCaptionsInner(props: {
         </p>
       )}
 
+      {/* Translation stopped producing lines. Captions themselves are fine, so
+          this is a notice beside them rather than an error over them — and it
+          says which, because "translated captions aren't on your plan" and
+          "you've used this month's" need different answers. */}
+      {translateOn && translationFailure && (
+        <div
+          role="status"
+          className="flex flex-col gap-2 rounded-xl border border-warning bg-white/70 px-4 py-3 text-sm text-ink"
+        >
+          <p className="leading-relaxed">
+            Captions are still running, but translation stopped. {translationFailure.message}
+            {translationFailure.paywall?.resetsAt &&
+              ` It resets ${formatDate(translationFailure.paywall.resetsAt)}.`}
+          </p>
+          {translationFailure.paywall && (
+            <Link
+              href="/settings"
+              className="btn-primary inline-flex min-h-11 w-fit items-center rounded-full px-5 text-sm font-semibold text-on-accent"
+            >
+              {translationFailure.paywall.upgradeTo === "pro" ? "Upgrade to Pro" : "See plans"}
+            </Link>
+          )}
+        </div>
+      )}
+
+      {/* Announcements for screen readers.
+          `aria-live` deliberately does NOT sit on the transcript itself: that
+          region holds the in-progress caption, which is rewritten several times
+          a second, so a screen reader would talk over itself continuously. This
+          carries only the most recent finalised line — each caption announced
+          once, when it settles. */}
+      <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+        {latestFinal
+          ? `${latestFinal.speakerName ?? latestFinal.speaker}: ${latestFinal.text}`
+          : ""}
+      </p>
+
       {/* The transcript is a fixed pane, not a growing list: captions scroll
           inside it while the controls above and below stay where the user left
           them. Sizing to content instead made the page grow with every line, so
@@ -389,10 +381,9 @@ function LiveCaptionsInner(props: {
           below the fold. */}
       <div className="relative h-[clamp(18rem,55vh,34rem)]">
         <div
-          ref={logRef}
-          onScroll={handleScroll}
+          ref={containerRef}
+          onScroll={onScroll}
           role="log"
-          aria-live="polite"
           aria-label="Live captions"
           className="flex h-full flex-col overflow-y-auto overscroll-contain px-0.5"
         >
@@ -407,7 +398,7 @@ function LiveCaptionsInner(props: {
             </p>
           )}
 
-          {hasUnnamedSpeaker && status === "listening" && !correcting && (
+          {hasUnnamedSpeaker && (status === "listening" || paused) && !correction.correcting && (
             <p className="rounded-2xl border border-white/60 bg-white/50 px-4 py-2.5 text-[13px] leading-relaxed text-ink-soft">
               Tap a speaker&apos;s name to say who they are — ListenUp will recognise them next
               time.
@@ -431,45 +422,94 @@ function LiveCaptionsInner(props: {
             // `mt-auto` sits a short transcript at the bottom, so the first
             // caption appears where the next one will, rather than at the top of
             // an empty pane with the conversation drifting downward.
-            <div className="mt-auto flex flex-col gap-2.5">
-              {segments.map((segment) => (
-                <SpeakerBubble
-                  key={segment.id}
-                  caption={{
-                    id: segment.id,
-                    speaker: segment.speaker,
-                    speakerName: segment.speakerName,
-                    // Color by identity (name when known), so one person keeps one
-                    // color even when diarization churns the underlying speaker label.
-                    speakerIndex: identityColor(segment.speakerName ?? segment.speaker),
-                    text: segment.text,
-                    interim: !segment.isFinal,
-                    translated: translateOn ? (translations[segment.id] ?? null) : null,
-                  }}
-                  onCorrectClick={status === "listening" ? openCorrection : undefined}
-                  onSpeak={
-                    translateOn && translations[segment.id]
-                      ? () => speech.speak(translations[segment.id].text)
-                      : undefined
-                  }
-                  onStopSpeaking={speech.stop}
-                  speaking={speech.speaking}
-                />
-              ))}
+            <div ref={watchContent} className="mt-auto flex flex-col gap-2.5">
+              {turnGroups(segments).map((group) => {
+                const index = colorOf(group.speakerName ?? group.speaker);
+                const label = group.speakerName ?? group.speaker;
+                const source = translateOn
+                  ? (translations[group.lines[0].id]?.sourceLang ?? null)
+                  : null;
+                return (
+                  <div key={group.key} className="flex flex-col gap-2.5">
+                    {group.gapBefore && (
+                      <p className="turn-divider my-1" aria-hidden="true">
+                        {group.gapLabel}
+                      </p>
+                    )}
+                    <div
+                      className="group/turn turn-group flex flex-col gap-0.5"
+                      style={{ ["--turn-rail" as string]: RAILS[index] ?? "var(--speaker-other-rail)" }}
+                    >
+                      {/* The name is said once per run, not once per line. */}
+                      <div className="mb-0.5 flex items-baseline gap-2">
+                        <SpeakerName
+                          label={label}
+                          onCorrect={
+                            status === "listening" || paused
+                              ? () => void correction.open(group.speaker)
+                              : undefined
+                          }
+                        />
+                        {source && (
+                          <span className="text-[11px] uppercase tracking-wide text-ink-faint">
+                            {source}
+                          </span>
+                        )}
+                        {/* Shown on hover or focus rather than always: a stamp
+                            on every turn is noise in a live feed, but "when was
+                            that said" matters when scrolling back. */}
+                        <time
+                          className="numeric text-[11px] text-ink-faint opacity-0 transition-opacity group-hover/turn:opacity-100 group-focus-within/turn:opacity-100 motion-reduce:transition-none"
+                          dateTime={`PT${Math.round(group.lines[0].start)}S`}
+                        >
+                          {stamp(group.lines[0].start)}
+                        </time>
+                      </div>
+                      {group.lines.map((segment, i) => (
+                        <SpeakerBubble
+                          key={segment.id}
+                          position={linePosition(i, group.lines.length)}
+                          caption={{
+                            id: segment.id,
+                            speaker: segment.speaker,
+                            speakerName: segment.speakerName,
+                            // Color by identity (name when known), so one person keeps
+                            // one color even when diarization churns the label.
+                            speakerIndex: index,
+                            text: segment.text,
+                            interim: !segment.isFinal,
+                            translated: translateOn ? (translations[segment.id] ?? null) : null,
+                          }}
+                          onSpeak={
+                            translateOn && translations[segment.id]
+                              ? () => speech.speak(translations[segment.id].text)
+                              : undefined
+                          }
+                          onStopSpeaking={speech.stop}
+                          speaking={speech.speaking}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
 
         {/* Floats over the transcript instead of sitting below it, so showing or
             hiding it never resizes the pane the user is reading. */}
-        {!pinnedToBottom && (
+        {!pinned && (
           <button
             type="button"
-            onClick={() => {
-              setPinnedToBottom(true);
-              setUnreadAnchor(null);
-              scrollToLatest(true);
-            }}
+            onClick={jumpToLatest}
+            // The visible text says how many; the label also says what tapping
+            // does, which the count alone leaves to inference.
+            aria-label={
+              unread > 0
+                ? `${unread} new caption${unread === 1 ? "" : "s"}, jump to latest`
+                : "Jump to latest caption"
+            }
             className="btn-ghost absolute inset-x-0 bottom-2 mx-auto flex min-h-11 w-fit items-center gap-2 rounded-full px-4 text-sm text-ink shadow-glass"
           >
             {unread > 0 && (
@@ -481,38 +521,13 @@ function LiveCaptionsInner(props: {
         )}
       </div>
 
-      {correcting && (
-        <div
-          role="dialog"
-          aria-label={`Who is ${correcting}?`}
-          className="glass-card glass-strong flex flex-wrap items-center gap-2 rounded-2xl p-4"
-        >
-          <p className="mr-1 text-sm font-medium text-ink">Who is {correcting}?</p>
-          {profileOptions.map((option) => (
-            <button
-              key={option.id}
-              type="button"
-              onClick={() => applyCorrection(option.id)}
-              className="pill-active rounded-full px-4 py-1.5 text-sm font-medium text-ink shadow-glass"
-            >
-              {option.display_name}
-            </button>
-          ))}
-          <button
-            type="button"
-            onClick={() => applyCorrection(null)}
-            className="pill-inactive rounded-full px-4 py-1.5 text-sm text-ink-soft hover:text-ink"
-          >
-            Not sure / unknown
-          </button>
-          <button
-            type="button"
-            onClick={() => setCorrecting(null)}
-            className="ml-auto rounded-full px-3 py-1.5 text-sm text-ink-soft hover:text-ink"
-          >
-            Cancel
-          </button>
-        </div>
+      {correction.correcting && (
+        <SpeakerCorrectionDialog
+          label={correction.correcting}
+          options={correction.options}
+          onApply={correction.apply}
+          onCancel={correction.cancel}
+        />
       )}
 
       {status === "stopped" && finalsCount > 0 && (
