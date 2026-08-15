@@ -16,6 +16,8 @@ export type BubbleTranslation = {
   // drifted once, and a note field the bubble doesn't declare is a field the
   // bubble silently cannot render.
   notes: SlangNote[];
+  /** How the line was pitched: casual, formal, slang-heavy. */
+  register?: string | null;
 };
 
 export type Caption = {
@@ -107,6 +109,18 @@ export default function SpeakerBubble({
         </p>
       )}
 
+      {/* How the line was pitched. Optional, so a caller with no cultural pass
+          renders nothing; in practice both transcripts run that pass, and both
+          show it. It is one word and it is half of what "understood the slang"
+          means, because the same sentence can be a joke or an insult depending
+          on register — and it was being fetched and thrown away. */}
+      {caption.translated?.register && (
+        <p className="mt-1.5 text-[11px] uppercase tracking-wide text-ink-faint">
+          <span className="sr-only">Register: </span>
+          {caption.translated.register}
+        </p>
+      )}
+
       {caption.translated && caption.translated.notes.length > 0 && (
         <details className="group mt-2 rounded-xl border border-white/60 bg-white/55 px-3 py-2">
           <summary className="flex cursor-pointer list-none items-center gap-1.5 text-[12px] font-semibold text-ink">
@@ -127,6 +141,14 @@ export default function SpeakerBubble({
                   {note.confidence === "low" && <UnverifiedTag />}
                 </span>
                 <span>{note.meaning}</span>
+                {/* Where the phrase comes from and what it signals — the part
+                    that makes this an explanation rather than a glossary. The
+                    model writes it in the reader's language, so it is the
+                    difference between knowing the words and knowing what was
+                    meant, which is the whole reason the LLM lane exists. */}
+                {note.cultural_context && (
+                  <span className="text-ink-soft">{note.cultural_context}</span>
+                )}
                 {note.equivalent && (
                   <span className="text-ink-soft">Closest equivalent: {note.equivalent}</span>
                 )}
