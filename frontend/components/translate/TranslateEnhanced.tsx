@@ -276,7 +276,7 @@ function TranslateEnhancedInner(props: { target: string; setTarget: (v: string) 
           </div>
         </>
       ) : (
-        <VoiceConversation target={target} languages={languages} />
+        <VoiceConversation target={target} setTarget={setTarget} languages={languages} />
       )}
     </TranslateShell>
   );

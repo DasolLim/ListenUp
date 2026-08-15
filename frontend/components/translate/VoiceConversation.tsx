@@ -39,9 +39,12 @@ import { useTranscription } from "@/lib/useTranscription";
  */
 export default function VoiceConversation({
   target,
+  setTarget,
   languages,
 }: {
   target: string;
+  /** So the same-language dead end can be fixed from where it is noticed. */
+  setTarget: (code: string) => void;
   /** Code → display name, for the "translated from" label. */
   languages: Record<string, string>;
 }) {
@@ -89,6 +92,10 @@ export default function VoiceConversation({
   const echoing = Object.values(translations).some(
     (t) => t.sourceLang && t.sourceLang === target
   );
+
+  // The first supported language that isn't the current target — with en/ko
+  // that is simply "the other one", and it stays correct if the list grows.
+  const otherLanguage = Object.keys(languages).find((code) => code !== target) ?? null;
 
   const live = status === "listening" || status === "connecting";
   const paused = status === "paused";
@@ -208,18 +215,35 @@ export default function VoiceConversation({
           both ways out, because the silent version of this looks like a
           translator that has stopped working. */}
       {echoing && !failure && (
-        <p
+        <div
           role="status"
-          className="rounded-xl border border-warning bg-white/70 px-4 py-2.5 text-[13px] leading-relaxed text-ink"
+          className="flex flex-col gap-2 rounded-xl border border-warning bg-white/70 px-4 py-3 text-[13px] leading-relaxed text-ink"
         >
-          You&apos;re translating {languages[target] ?? target} into{" "}
-          {languages[target] ?? target}, so these lines come back unchanged. Pick a different
-          target language above, or{" "}
-          <Link href="/explain" className="underline underline-offset-2">
-            explain a term
-          </Link>{" "}
-          to unpack slang without translating.
-        </p>
+          <p>
+            You&apos;re translating {languages[target] ?? target} into{" "}
+            {languages[target] ?? target}, so these lines come back unchanged.
+          </p>
+          {/* The fix, where the problem is noticed. Offered rather than applied
+              silently: the target is the user's setting, and changing it under
+              them mid-conversation is its own surprise. */}
+          <div className="flex flex-wrap items-center gap-3">
+            {otherLanguage && (
+              <button
+                type="button"
+                onClick={() => setTarget(otherLanguage)}
+                className="btn-primary inline-flex min-h-11 w-fit items-center rounded-full px-5 text-sm font-semibold text-on-accent"
+              >
+                Translate to {languages[otherLanguage] ?? otherLanguage} instead
+              </button>
+            )}
+            <Link
+              href="/explain"
+              className="inline-flex min-h-11 items-center underline underline-offset-2"
+            >
+              Or explain a term without translating
+            </Link>
+          </div>
+        </div>
       )}
 
       {/* The literal lane is fine; the cultural one stopped. That distinction is
