@@ -51,7 +51,9 @@ def _install(monkeypatch, kb: _KB, notes: list[SlangNote], captured: dict | None
 
     monkeypatch.setattr(genz_pkg, "get_slang_kb", lambda: kb)
 
-    async def _complete(_self, text, target_lang, nudge, grounding=()):  # noqa: ARG001
+    async def _complete(  # noqa: ARG001
+        _self, text, target_lang, nudge, grounding=(), model=None, reasoning_effort=None
+    ):
         if captured is not None:
             captured["grounding"] = list(grounding)
         payload = {
@@ -137,7 +139,9 @@ def test_retrieval_failure_degrades_to_ungrounded_rather_than_failing(service, m
 
     monkeypatch.setattr(genz_pkg, "get_slang_kb", lambda: _Broken())
 
-    async def _complete(_self, text, target_lang, nudge, grounding=()):  # noqa: ARG001
+    async def _complete(  # noqa: ARG001
+        _self, text, target_lang, nudge, grounding=(), model=None, reasoning_effort=None
+    ):
         assert grounding == [] or grounding == (), "a broken KB must ground nothing"
         import json as _json
 

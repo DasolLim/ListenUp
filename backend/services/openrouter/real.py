@@ -215,8 +215,33 @@ class OpenRouterTranslationService(EnhancedTranslationService):
             raise RuntimeError("OPENROUTER_API_KEY is not set")
         self.model = os.environ.get("OPENROUTER_MODEL", DEFAULT_MODEL)
 
+    @staticmethod
+    def _body(text: str, system: str, model: str, reasoning_effort: str | None) -> dict:
+        body = {
+            "model": model,
+            "messages": [
+                {"role": "system", "content": system},
+                {"role": "user", "content": text},
+            ],
+            "response_format": {"type": "json_object"},
+            "temperature": 0.3,
+        }
+        if reasoning_effort:
+            # Several models bill thinking tokens at the completion rate and
+            # emit multiples of the answer in them — measured at 92% of output
+            # on one default. Capping it is the difference between a tier being
+            # cheap and merely looking cheap.
+            body["reasoning"] = {"effort": reasoning_effort}
+        return body
+
     async def _complete(
-        self, text: str, target_lang: str, strict_nudge: bool, grounding=()
+        self,
+        text: str,
+        target_lang: str,
+        strict_nudge: bool,
+        grounding=(),
+        model: str | None = None,
+        reasoning_effort: str | None = None,
     ) -> tuple[str, int]:
         target_name = SUPPORTED_LANGUAGES.get(target_lang, target_lang)
         system = SYSTEM_PROMPT.format(target_name=target_name)
@@ -233,15 +258,7 @@ class OpenRouterTranslationService(EnhancedTranslationService):
                     "HTTP-Referer": "https://listenup.app",
                     "X-Title": "ListenUp",
                 },
-                json={
-                    "model": self.model,
-                    "messages": [
-                        {"role": "system", "content": system},
-                        {"role": "user", "content": text},
-                    ],
-                    "response_format": {"type": "json_object"},
-                    "temperature": 0.3,
-                },
+                json=self._body(text, system, model or self.model, reasoning_effort),
             )
         if response.status_code >= 400:
             raise ProviderError(
@@ -258,8 +275,12 @@ class OpenRouterTranslationService(EnhancedTranslationService):
         tokens = int((body.get("usage") or {}).get("total_tokens") or 0)
         return content, tokens
 
-    async def translate(self, text: str, target_lang: str) -> EnhancedTranslation | None:
+    async def translate(
+        self, text: str, target_lang: str, tier=None
+    ) -> EnhancedTranslation | None:
         assert_supported(target_lang)
+        model = getattr(tier, "model", None) or self.model
+        effort = getattr(tier, "reasoning_effort", None)
         cache = get_cache()
         # Retrieval happens before the cache lookup because the retrieved terms
         # are part of the key: the same sentence grounded in a larger KB is a
@@ -267,8 +288,11 @@ class OpenRouterTranslationService(EnhancedTranslationService):
         # curation invisible until the TTL expired.
         grounding = _retrieve(text)
         fingerprint = ",".join(sorted(term.term for term in grounding))
+        # The model is in the key: the same sentence answered by a cheaper tier
+        # is a different answer, and serving one for the other would make the
+        # picker look broken in both directions.
         key = cache_key(
-            "llm", text, target_lang, f"{self.model}:{PROMPT_VERSION}:{fingerprint}"
+            "llm", text, target_lang, f"{model}:{PROMPT_VERSION}:{fingerprint}"
         )
         if (hit := await cache.get(key)) is not None:
             return EnhancedTranslation(
@@ -276,7 +300,7 @@ class OpenRouterTranslationService(EnhancedTranslationService):
                 register=hit["register"],
                 slang_notes=[SlangNote(**n) for n in hit["slang_notes"]],
                 cached=True,
-                model=self.model,
+                model=model,
             )
 
         # One retry with a strictness nudge — LLM JSON is never trusted blindly.
@@ -287,7 +311,7 @@ class OpenRouterTranslationService(EnhancedTranslationService):
         for attempt, nudge in enumerate((False, True)):
             try:
                 content, tokens = await self._complete(
-                    text, target_lang, nudge, grounding
+                    text, target_lang, nudge, grounding, model, effort
                 )
             except ProviderError as exc:
                 reason = exc.detail
@@ -307,7 +331,7 @@ class OpenRouterTranslationService(EnhancedTranslationService):
                 reason = "the model returned something that wasn't valid JSON"
                 logger.warning("openrouter_bad_json attempt=%d head=%r", attempt, content[:80])
                 continue
-            result = coerce_enhanced(parsed, self.model, tokens)
+            result = coerce_enhanced(parsed, model, tokens)
             if result is not None:
                 result = _mark_grounding(result, grounding)
                 await cache.set(
@@ -320,7 +344,7 @@ class OpenRouterTranslationService(EnhancedTranslationService):
                 )
                 logger.info(
                     "openrouter_ok model=%s tokens=%d notes=%d",
-                    self.model, tokens, len(result.slang_notes),
+                    model, tokens, len(result.slang_notes),
                 )
                 return result
         logger.warning("openrouter_gave_up text_len=%d reason=%s", len(text), reason)

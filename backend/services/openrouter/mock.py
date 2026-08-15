@@ -41,10 +41,15 @@ _KNOWN_SLANG: dict[str, SlangNote] = {
 
 
 class MockEnhancedTranslationService(EnhancedTranslationService):
-    async def translate(self, text: str, target_lang: str) -> EnhancedTranslation | None:
+    async def translate(
+        self, text: str, target_lang: str, tier=None
+    ) -> EnhancedTranslation | None:
         assert_supported(target_lang)
         cache = get_cache()
-        key = cache_key("llm", text, target_lang, "mock")
+        # The tier is in the key even though the mock ignores it otherwise:
+        # switching tiers must not serve the previous tier's answer, and a mock
+        # that hides that would let the bug ship.
+        key = cache_key("llm", text, target_lang, f"mock:{getattr(tier, 'key', 'none')}")
         if (hit := await cache.get(key)) is not None:
             return EnhancedTranslation(
                 translation=hit["translation"],

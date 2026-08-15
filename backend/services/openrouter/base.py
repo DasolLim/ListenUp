@@ -75,10 +75,14 @@ class CulturalUnavailable(Exception):
 class EnhancedTranslationService(ABC):
     @abstractmethod
     async def translate(
-        self, text: str, target_lang: str
+        self, text: str, target_lang: str, tier=None
     ) -> EnhancedTranslation | None:
         """None = LLM unavailable/unparseable after retry — callers must treat
         the fast Google translation as the final answer.
+
+        `tier` selects which model runs the pass (see `tiers.py`). It arrives
+        per call rather than per process because it is a user preference, and
+        two people using the tool at once may not have made the same one.
 
         May raise `CulturalUnavailable` when the reason is known and worth
         showing; the caller still keeps the fast translation.

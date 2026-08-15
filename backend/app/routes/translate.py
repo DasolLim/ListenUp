@@ -12,6 +12,7 @@ from app.routes.billing import Caller, requires
 from app.timing import span
 from services.openrouter import get_enhanced_translation_service
 from services.openrouter.base import CulturalUnavailable
+from services.openrouter.tiers import catalogue, resolve
 from services.translate import TranslationError, get_translation_service
 from services.translate.base import SUPPORTED_LANGUAGES
 from services.translate.cache import get_cache
@@ -25,11 +26,25 @@ class TranslateRequest(BaseModel):
     text: str = Field(min_length=1, max_length=5000)
     target_lang: str
     source_lang: str | None = None
+    #: Which cultural-pass model to use, by tier key. Deliberately a tier and
+    #: not a model id: a request that could name its own model could name a
+    #: $75/M one, and the bill would land here.
+    tier: str | None = None
 
 
 @router.get("/languages")
 def languages() -> dict[str, str]:
     return SUPPORTED_LANGUAGES
+
+
+@router.get("/models")
+def models() -> dict:
+    """The cultural-pass tiers a user may choose between.
+
+    Public and static: the picker needs it before any translation happens, and
+    it reveals nothing beyond what we would print on a pricing page.
+    """
+    return {"tiers": catalogue()}
 
 
 @router.post("")
@@ -86,9 +101,12 @@ async def translate_enhanced(
     """Cultural layer: register + slang notes. 502 (not a crash) when the LLM
     can't produce usable JSON — the client keeps the fast translation."""
     service = get_enhanced_translation_service()
+    tier = resolve(request.tier)
     try:
-        async with span("translate_rt", lane="enhanced", language=request.target_lang) as perf:
-            result = await service.translate(request.text, request.target_lang)
+        async with span(
+            "translate_rt", lane="enhanced", language=request.target_lang, tier=tier.key
+        ) as perf:
+            result = await service.translate(request.text, request.target_lang, tier)
             perf["cached"] = bool(result and result.cached)
             perf["notes"] = len(result.slang_notes) if result else 0
     except TranslationError as exc:
@@ -111,7 +129,14 @@ async def translate_enhanced(
     # value — see ENHANCED_COST_RATIO. Cached results cost nothing and meter
     # nothing.
     if not result.cached:
-        await who.record("translated", round(len(request.text) * ENHANCED_COST_RATIO))
+        # Weighted by tier as well as by the cultural pass's share of cost. A
+        # user who picks the expensive model spends more of their allowance for
+        # it, because otherwise the cheapest tier subsidises the dearest one and
+        # the advertised allowance stops meaning a fixed amount of anything.
+        await who.record(
+            "translated",
+            max(1, round(len(request.text) * ENHANCED_COST_RATIO * tier.cost_weight)),
+        )
     logger.info(
         "translate_enhanced model=%s tokens=%d cached=%s notes=%d",
         result.model, result.tokens, result.cached, len(result.slang_notes),
@@ -122,6 +147,7 @@ async def translate_enhanced(
         "slangNotes": [note.__dict__ for note in result.slang_notes],
         "cached": result.cached,
         "model": result.model,
+        "tier": tier.key,
         "tokens": result.tokens,
     }
 

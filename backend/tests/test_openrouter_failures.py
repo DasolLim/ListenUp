@@ -75,7 +75,9 @@ class _CountingService(OpenRouterTranslationService):
         self._status = status
         self._payload = payload
 
-    async def _complete(self, text, target_lang, strict_nudge, grounding=()):
+    async def _complete(
+        self, text, target_lang, strict_nudge, grounding=(), model=None, reasoning_effort=None
+    ):
         self.calls += 1
         response = _response(self._status, self._payload)
         raise ProviderError(
@@ -128,7 +130,9 @@ def test_unparseable_json_reports_that_specifically(monkeypatch):
     class _Garbage(OpenRouterTranslationService):
         calls = 0
 
-        async def _complete(self, text, target_lang, strict_nudge, grounding=()):
+        async def _complete(
+        self, text, target_lang, strict_nudge, grounding=(), model=None, reasoning_effort=None
+    ):
             type(self).calls += 1
             return "I'm afraid I can't do that", 10
 
@@ -143,7 +147,9 @@ def test_a_transport_failure_names_itself(monkeypatch):
     monkeypatch.setattr("services.openrouter.real._retrieve", lambda *a, **k: [])
 
     class _Offline(OpenRouterTranslationService):
-        async def _complete(self, text, target_lang, strict_nudge, grounding=()):
+        async def _complete(
+        self, text, target_lang, strict_nudge, grounding=(), model=None, reasoning_effort=None
+    ):
             raise httpx.ConnectError("no route to host")
 
     with pytest.raises(CulturalUnavailable) as caught:
@@ -165,7 +171,7 @@ def test_the_endpoint_returns_the_reason_in_its_502(monkeypatch):
     from tests.conftest import TEST_USER
 
     class _Refusing:
-        async def translate(self, text, target_lang):
+        async def translate(self, text, target_lang, tier=None):
             raise CulturalUnavailable("Insufficient credits")
 
     monkeypatch.setattr(
