@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { getAccessToken } from "@/lib/auth/token";
 
 export type CaptionSegment = {
@@ -13,7 +13,13 @@ export type CaptionSegment = {
   isFinal: boolean;
 };
 
-export type TranscriptionStatus = "idle" | "connecting" | "listening" | "stopped" | "error";
+export type TranscriptionStatus =
+  | "idle"
+  | "connecting"
+  | "listening"
+  | "paused"
+  | "stopped"
+  | "error";
 
 export type LatencyStats = { count: number; p50: number; p95: number } | null;
 
@@ -75,8 +81,7 @@ export type CaptionWarning = {
   resetsAt: string | null;
 };
 
-export function useTranscription(options?: { enhanced?: boolean; language?: string }) {
-  const enhanced = options?.enhanced ?? false;
+export function useTranscription(options?: { language?: string }) {
   const language = options?.language ?? "en";
   const [status, setStatus] = useState<TranscriptionStatus>("idle");
   const [error, setError] = useState<string | null>(null);
@@ -99,6 +104,23 @@ export function useTranscription(options?: { enhanced?: boolean; language?: stri
   const latenciesRef = useRef<number[]>([]);
   const counterRef = useRef(0);
   const sessionIdRef = useRef<string>("");
+
+  // Read inside the audio callback, which is installed once per session and
+  // must see the current value without being rebuilt.
+  const pausedRef = useRef(false);
+  // Wall-clock time spent paused. `segment.end` is a position in the *audio*
+  // timeline, which stops advancing while paused, so mapping an audio moment
+  // back to the wall clock has to add the pauses back on. Without this the
+  // first caption after a pause reports a latency inflated by its whole length.
+  const pausedMsRef = useRef(0);
+  const pausedAtRef = useRef<number | null>(null);
+
+  // Lets the pause/resume callbacks read the live status without depending on
+  // it, so they stay stable and don't re-create the audio wiring around them.
+  const statusRef = useRef<TranscriptionStatus>("idle");
+  useEffect(() => {
+    statusRef.current = status;
+  }, [status]);
 
   /**
    * Current speaking loudness, 0–1.
@@ -195,6 +217,9 @@ export function useTranscription(options?: { enhanced?: boolean; language?: stri
     setSegments([]);
     latenciesRef.current = [];
     setLatency(null);
+    pausedRef.current = false;
+    pausedMsRef.current = 0;
+    pausedAtRef.current = null;
     sessionIdRef.current = crypto.randomUUID();
     setStatus("connecting");
 
@@ -239,18 +264,16 @@ export function useTranscription(options?: { enhanced?: boolean; language?: stri
     wsRef.current = ws;
 
     ws.onopen = async () => {
-      // Sent on every session, not only enhanced ones. Enhanced mode needs an
-      // identity to load voice profiles, but *all* captions are metered against
-      // the plan's hours — and the enhanced toggle is off by default, so
-      // attaching the token only there would leave the ordinary path both
-      // unmetered and uncapped. A signed-out user still gets captions; they
-      // simply aren't counted, because there is nobody to count them against.
+      // Sent on every session. The token does two jobs: it identifies whose
+      // caption hours to meter, and it lets the backend load this user's voice
+      // profiles so speakers can be named. A signed-out user still gets
+      // captions — unmetered and unnamed, because there is nobody to attribute
+      // them to.
       const token = (await getAccessToken()) ?? undefined;
       ws.send(
         JSON.stringify({
           sampleRate: SAMPLE_RATE,
           encoding: "pcm_s16le",
-          enhanced,
           token,
           language,
         })
@@ -263,12 +286,22 @@ export function useTranscription(options?: { enhanced?: boolean; language?: stri
         if (message.mode === "batch" || message.mode === "streaming") setMode(message.mode);
         captureStartRef.current = performance.now();
         chunker.port.onmessage = (audioEvent) => {
+          // Paused means the audio never leaves the device. The track is muted
+          // as well, so this is the second of two locks rather than the only
+          // one — but it is the one that guarantees nothing is transmitted.
+          if (pausedRef.current) return;
           if (ws.readyState === WebSocket.OPEN) ws.send(audioEvent.data as ArrayBuffer);
         };
         setStatus("listening");
       } else if (message.type === "segment") {
         const segment: CaptionSegment = {
-          id: `turn-${message.turnId ?? counterRef.current++}`,
+          // Scoped to the session, because the provider's turn ids restart at
+          // zero every time one begins. Consumers cache per-segment work
+          // against this id — translations, "already spoken" — and those caches
+          // outlive a session, so a bare turn id meant the first line of a new
+          // conversation silently inherited the first line of the previous
+          // one's translation and was never re-requested.
+          id: `turn-${sessionIdRef.current}-${message.turnId ?? counterRef.current++}`,
           speaker: message.speaker,
           speakerName: message.speakerName ?? null,
           text: message.text,
@@ -278,7 +311,9 @@ export function useTranscription(options?: { enhanced?: boolean; language?: stri
         };
         if (segment.isFinal && captureStartRef.current) {
           // End-to-end: from when this audio moment was captured to render.
-          const captured = captureStartRef.current + segment.end * 1000;
+          // Paused time is added back because it advanced the wall clock
+          // without advancing the audio timeline `segment.end` counts in.
+          const captured = captureStartRef.current + pausedMsRef.current + segment.end * 1000;
           latenciesRef.current.push(Math.max(0, performance.now() - captured));
           const sorted = [...latenciesRef.current].sort((a, b) => a - b);
           setLatency({
@@ -341,7 +376,50 @@ export function useTranscription(options?: { enhanced?: boolean; language?: stri
       setError((current) => current ?? "Lost the connection to the caption service.");
       cleanup();
     };
-  }, [cleanup, enhanced, language]);
+  }, [cleanup, language]);
+
+  /**
+   * Hold the session open without capturing anything.
+   *
+   * Distinct from `stop()` in the one way that matters: the transcript survives.
+   * Stopping and starting again clears it, so someone who steps out of a
+   * conversation for a minute would come back to an empty pane and lose the
+   * part they were still reading.
+   *
+   * The microphone track is disabled rather than merely ignored. Both locks
+   * matter, and for different reasons: muting the track means the browser
+   * captures silence, which drops the level meter to zero so the interface
+   * cannot claim to be listening while it isn't; gating the send means nothing
+   * reaches the network even if a frame was already in flight.
+   */
+  const pause = useCallback(() => {
+    // Guarded on a ref rather than inside a `setStatus` updater: an updater
+    // must be pure, and React may call it twice. Muting a microphone twice is
+    // harmless, but a side effect in an updater is a bug waiting for the next
+    // person to add one that isn't.
+    if (statusRef.current !== "listening") return;
+    pausedRef.current = true;
+    pausedAtRef.current = performance.now();
+    audioRef.current?.stream.getTracks().forEach((track) => (track.enabled = false));
+    const ws = wsRef.current;
+    // The server stops the billing clock on this. Skipping it would charge the
+    // user for the pause, which would make the button worse than useless.
+    if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "pause" }));
+    setStatus("paused");
+  }, []);
+
+  const resume = useCallback(() => {
+    if (statusRef.current !== "paused") return;
+    if (pausedAtRef.current !== null) {
+      pausedMsRef.current += performance.now() - pausedAtRef.current;
+      pausedAtRef.current = null;
+    }
+    pausedRef.current = false;
+    audioRef.current?.stream.getTracks().forEach((track) => (track.enabled = true));
+    const ws = wsRef.current;
+    if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "resume" }));
+    setStatus("listening");
+  }, []);
 
   const correct = useCallback((speakerLabel: string, profileId: string | null) => {
     const ws = wsRef.current;
@@ -378,6 +456,8 @@ export function useTranscription(options?: { enhanced?: boolean; language?: stri
     mode,
     start,
     stop,
+    pause,
+    resume,
     correct,
     getAudioLevel,
     getVoiceSignal,

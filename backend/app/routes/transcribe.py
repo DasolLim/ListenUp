@@ -4,11 +4,15 @@ Client protocol:
   1. First message (text): {"sampleRate": 16000, "encoding": "pcm_s16le"}
      (optional "fixture" is honored only by the mock service, for tests)
   2. Then binary frames of s16le PCM audio, 100–250 ms each.
-  3. Optional {"type": "stop"} for a graceful end (flushes remaining segments).
+  3. Optional {"type": "pause"} / {"type": "resume"} to hold the session open
+     while no audio is being sent. Paused time is billed to nobody and excluded
+     from caption-lag telemetry (see SessionClock).
+  4. Optional {"type": "stop"} for a graceful end (flushes remaining segments).
 
 Server messages:
   {"type": "ready"}
   {"type": "segment", "speaker": "Speaker 1", "text": …, "start": s, "end": s, "isFinal": bool}
+  {"type": "paused"} / {"type": "resumed"}   (acknowledgements)
   {"type": "error", "message": …}
   {"type": "done"}
 """
@@ -17,11 +21,12 @@ import asyncio
 import json
 import logging
 import os
-import time
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from app.naming import SessionNamer, load_profiles
+from app.session_clock import SessionClock
+from app.timing import record
 from services.assemblyai import AudioFormatError, TranscriptSegment
 from services.assemblyai.base import (
     BATCH_LANGUAGES,
@@ -261,16 +266,25 @@ async def ws_transcribe(websocket: WebSocket) -> None:
                 )
             )
 
-    # Enhanced mode: authenticated sessions match diarized speakers to the
-    # user's saved voice profiles. Failure to authenticate degrades to generic
-    # labels — captions must never break because naming can't run.
-    if config.get("enhanced") and user_token:
+    # Speaker naming runs for every authenticated session, not behind a flag.
+    #
+    # It used to require `enhanced: true` from the client, which made naming a
+    # product choice. It never was one: nobody knowingly picks the version that
+    # calls their mother "Speaker 1". Whether names appear is a *condition* —
+    # have you enrolled anyone — so the only thing the flag could do was be
+    # wrong, and it was: the captions page stopped sending it during the tool
+    # consolidation and speaker recognition silently stopped working.
+    #
+    # With no enrolled profiles `SpeakerMatcher` simply never matches, which is
+    # the same generic-label outcome as before at the cost of one query.
+    if user_token:
         try:
             profiles = await load_profiles(user_token)
             namer = SessionNamer(SpeakerMatcher(profiles))
-            logger.info("transcribe_enhanced client=%s profiles=%d", client, len(profiles))
+            logger.info("transcribe_naming client=%s profiles=%d", client, len(profiles))
         except Exception:
-            logger.warning("transcribe_enhanced_load_failed client=%s", client)
+            # Captions must never break because naming can't run.
+            logger.warning("transcribe_profiles_load_failed client=%s", client)
 
     try:
         await service.start(
@@ -295,8 +309,9 @@ async def ws_transcribe(websocket: WebSocket) -> None:
 
     # The clock starts once captioning actually begins. A session rejected for a
     # bad audio format or an exhausted allowance never reaches here, so it costs
-    # the user nothing.
-    session_started = time.monotonic()
+    # the user nothing. It stops again whenever the user pauses, so holding the
+    # socket open between two halves of a conversation is free.
+    clock = SessionClock()
 
     send_queue: asyncio.Queue[str | None] = asyncio.Queue(maxsize=SEND_QUEUE_LIMIT)
     mapper = SpeakerMapper()
@@ -312,6 +327,31 @@ async def ws_transcribe(websocket: WebSocket) -> None:
             label = mapper.label(segment.speaker)
             payload = _segment_payload(segment, label, name)
             await _queue_put_with_backpressure(send_queue, payload, segment.is_final)
+
+            # Caption lag as the *user* experiences it: how far behind the spoken
+            # moment this caption landed. Measured here rather than inside each
+            # service because all three implementations converge on this queue —
+            # instrumenting them separately would be three chances to miss one,
+            # and the streaming path would have silently reported nothing.
+            #
+            # `stage` separates this from the batch API round trip, which is the
+            # same name but a different measurement; mixing them under one name
+            # would corrupt the aggregate.
+            if segment.is_final:
+                # `clock.elapsed()` rather than raw wall time: `segment.end` is a
+                # position in the audio timeline, which does not advance while
+                # paused. Subtracting one from the other without excluding the
+                # pause would report every caption after it as arriving late by
+                # the length of the pause.
+                lag_ms = (clock.elapsed() - segment.end) * 1000
+                record(
+                    "stt_window",
+                    max(0.0, lag_ms),
+                    language=language,
+                    mode=mode,
+                    stage="caption",
+                    named=name is not None,
+                )
             # Name resolved: fill in this speaker's earlier bubbles that were
             # still unnamed. `fillOnly` matters now that a label can carry
             # different people over a session — without it, naming the current
@@ -349,6 +389,13 @@ async def ws_transcribe(websocket: WebSocket) -> None:
             if message.get("type") == "websocket.disconnect":
                 raise WebSocketDisconnect(int(message.get("code") or 1005))
             if (data := message.get("bytes")) is not None:
+                # Audio arriving while paused is dropped rather than
+                # transcribed. The client stops sending on pause, so this only
+                # catches frames already in flight when the pause was sent —
+                # but "paused" has to mean nothing is transcribed, or the
+                # promise the button makes is not one the server keeps.
+                if clock.paused:
+                    continue
                 chunks += 1
                 if namer is not None:
                     namer.add_audio(data)
@@ -359,6 +406,29 @@ async def ws_transcribe(websocket: WebSocket) -> None:
                     await service.stop()
                     await asyncio.wait_for(send_task, timeout=10)
                     break
+                # Acknowledged rather than applied silently. The client shows
+                # "paused" to someone who is deciding whether it is safe to
+                # speak, so the claim has to be about the server's state, not
+                # about a frame having been sent.
+                if parsed.get("type") == "pause":
+                    clock.pause()
+                    # Close the current utterance before the audio stops. On a
+                    # buffering transport the half-finished window would
+                    # otherwise wait through the pause and be completed by
+                    # whatever is said after it — one caption spanning two
+                    # moments. No-op on the streaming transports.
+                    await service.flush()
+                    await send_queue.put(json.dumps({"type": "paused"}))
+                    logger.info("transcribe_pause client=%s chunks=%d", client, chunks)
+                    continue
+                if parsed.get("type") == "resume":
+                    clock.resume()
+                    await send_queue.put(json.dumps({"type": "resumed"}))
+                    logger.info(
+                        "transcribe_resume client=%s paused_s=%.1f",
+                        client, clock.paused_seconds(),
+                    )
+                    continue
                 if parsed.get("type") == "correct" and namer is not None:
                     await _apply_correction(parsed, namer, mapper, send_queue, user_token)
     except WebSocketDisconnect as exc:
@@ -380,5 +450,13 @@ async def ws_transcribe(websocket: WebSocket) -> None:
             # accumulate in one direction across a month. A session that reached
             # `ready` at all costs a real STT connection, so it bills at least
             # one second rather than being free.
-            await who.record("captions", max(1, round(time.monotonic() - session_started)))
-        logger.info("transcribe_end client=%s chunks=%d", client, chunks)
+            #
+            # `clock.elapsed()` excludes time the user spent paused: the socket
+            # stays open across a pause so the transcript survives, and billing
+            # a held-open session would make the pause button cost the same as
+            # not pausing.
+            await who.record("captions", max(1, round(clock.elapsed())))
+        logger.info(
+            "transcribe_end client=%s chunks=%d billed_s=%d paused_s=%.1f",
+            client, chunks, max(1, round(clock.elapsed())), clock.paused_seconds(),
+        )
