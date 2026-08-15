@@ -66,6 +66,7 @@ function LiveCaptionsInner(props: {
     stats: translationStats,
     costs,
     failure: translationFailure,
+    culturalFailure,
     reset: resetTranslations,
   } = useLiveTranslation(segments, targetLang, translateOn);
   const speech = useSharedSpeech();
@@ -357,6 +358,32 @@ function LiveCaptionsInner(props: {
               className="btn-primary inline-flex min-h-11 w-fit items-center rounded-full px-5 text-sm font-semibold text-on-accent"
             >
               {translationFailure.paywall.upgradeTo === "pro" ? "Upgrade to Pro" : "See plans"}
+            </Link>
+          )}
+        </div>
+      )}
+
+      {/* Captions and their translations are fine; the cultural layer is not.
+          Kept separate from the notice above because the user can see
+          translated text, so claiming translation stopped would be visibly
+          untrue — what they have lost is the explanation of the slang in it. */}
+      {translateOn && culturalFailure && !translationFailure && (
+        <div
+          role="status"
+          className="flex flex-col gap-2 rounded-xl border border-warning bg-white/70 px-4 py-3 text-sm text-ink"
+        >
+          <p className="leading-relaxed">
+            Captions are translated, but slang and register explanations aren&apos;t running.{" "}
+            {culturalFailure.message}
+            {culturalFailure.paywall?.resetsAt &&
+              ` It resets ${formatDate(culturalFailure.paywall.resetsAt)}.`}
+          </p>
+          {culturalFailure.paywall && (
+            <Link
+              href="/settings"
+              className="btn-primary inline-flex min-h-11 w-fit items-center rounded-full px-5 text-sm font-semibold text-on-accent"
+            >
+              {culturalFailure.paywall.upgradeTo === "pro" ? "Upgrade to Pro" : "See plans"}
             </Link>
           )}
         </div>

@@ -112,6 +112,7 @@ export function useLiveTranslation(
   const [translations, setTranslations] = useState<Record<string, LiveTranslation>>({});
   const [stats, setStats] = useState<TranslationStats>(null);
   const [failure, setFailure] = useState<TranslationFailure | null>(null);
+  const [culturalFailure, setCulturalFailure] = useState<TranslationFailure | null>(null);
   const [costs, setCosts] = useState<TranslationCosts>({
     googleChars: 0,
     llmTokens: 0,
@@ -169,8 +170,14 @@ export function useLiveTranslation(
         });
 
       // Slow lane: the LLM's culturally-adapted translation plus slang notes.
-      // Never blocks the fast line, and its failures stay quiet — the Google
-      // translation is already on screen, so there is nothing to explain.
+      //
+      // Never blocks the fast line, but its failures are no longer silent. They
+      // used to be, on the reasoning that the literal translation was already on
+      // screen so there was nothing to say — which is exactly backwards for this
+      // product. Explaining the slang IS the feature; a user who sees plain
+      // translations of "LARPing" and "spill the tea" with no notes cannot tell
+      // an outage, an exhausted allowance and a sentence with nothing to explain
+      // apart, and every one of those needs a different response from them.
       postJson<{
         translation?: string;
         register?: string;
@@ -185,7 +192,16 @@ export function useLiveTranslation(
             [segment.id]: mergeCulturalLane(map[segment.id], body),
           }));
         })
-        .catch(() => undefined);
+        .catch((err) => {
+          if (err instanceof ApiError) {
+            setCulturalFailure({ message: err.message, paywall: err.paywall });
+          } else {
+            setCulturalFailure({
+              message: "Couldn't reach the cultural translation service.",
+              paywall: null,
+            });
+          }
+        });
     }
   }, [segments, targetLang, enabled]);
 
@@ -195,8 +211,13 @@ export function useLiveTranslation(
     setTranslations({});
     setStats(null);
     setFailure(null);
+    setCulturalFailure(null);
     setCosts({ googleChars: 0, llmTokens: 0, requests: 0, cacheHits: 0 });
   };
 
-  return { translations, stats, costs, failure, reset };
+  // `failure` is the literal translation lane; `culturalFailure` is the slang
+  // and register lane. Kept apart because they fail independently and mean
+  // different things: one leaves the user with nothing, the other leaves them
+  // with words but no meaning.
+  return { translations, stats, costs, failure, culturalFailure, reset };
 }

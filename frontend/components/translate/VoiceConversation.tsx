@@ -59,7 +59,7 @@ export default function VoiceConversation({
   // each finalised line". The copy this replaced dropped every error on the
   // floor, so an exhausted allowance looked exactly like a tool that had
   // stopped working for no reason.
-  const { translations, failure } = useLiveTranslation(segments, target, true);
+  const { translations, failure, culturalFailure } = useLiveTranslation(segments, target, true);
   const speech = useSharedSpeech();
 
   // Only finalised captions count as "new": interim text is rewritten several
@@ -79,6 +79,15 @@ export default function VoiceConversation({
   useAutoSpeak(
     latestSpoken ? latestSpoken.id : "",
     latestSpoken ? (translations[latestSpoken.id]?.text ?? "") : ""
+  );
+
+  // Google echoes the input when the detected source already matches the
+  // target, so the line under "Original" is identical to the line above it and
+  // the tool reads as broken. Detected from what came back rather than from the
+  // spoken-language picker, because the picker says what the mic is set to and
+  // this says what was actually heard.
+  const echoing = Object.values(translations).some(
+    (t) => t.sourceLang && t.sourceLang === target
   );
 
   const live = status === "listening" || status === "connecting";
@@ -192,6 +201,51 @@ export default function VoiceConversation({
           {Math.round(allowanceWarning.remaining / 60)} minutes of captions left this billing period
           {allowanceWarning.resetsAt && `, resetting ${formatDate(allowanceWarning.resetsAt)}`}.
         </p>
+      )}
+
+      {/* The spoken language and the target are the same, so there is nothing to
+          translate and the pane is showing the input twice. Said plainly, with
+          both ways out, because the silent version of this looks like a
+          translator that has stopped working. */}
+      {echoing && !failure && (
+        <p
+          role="status"
+          className="rounded-xl border border-warning bg-white/70 px-4 py-2.5 text-[13px] leading-relaxed text-ink"
+        >
+          You&apos;re translating {languages[target] ?? target} into{" "}
+          {languages[target] ?? target}, so these lines come back unchanged. Pick a different
+          target language above, or{" "}
+          <Link href="/explain" className="underline underline-offset-2">
+            explain a term
+          </Link>{" "}
+          to unpack slang without translating.
+        </p>
+      )}
+
+      {/* The literal lane is fine; the cultural one stopped. That distinction is
+          the whole message: the user can see words on screen, so "translation
+          stopped" would be visibly untrue, and saying nothing leaves them
+          assuming the slang explanations were never a feature. */}
+      {culturalFailure && !failure && (
+        <div
+          role="status"
+          className="flex flex-col gap-2 rounded-xl border border-warning bg-white/70 px-4 py-3 text-sm text-ink"
+        >
+          <p className="leading-relaxed">
+            Lines are being translated, but slang and register explanations aren&apos;t running.{" "}
+            {culturalFailure.message}
+            {culturalFailure.paywall?.resetsAt &&
+              ` It resets ${formatDate(culturalFailure.paywall.resetsAt)}.`}
+          </p>
+          {culturalFailure.paywall && (
+            <Link
+              href="/settings"
+              className="btn-primary inline-flex min-h-11 w-fit items-center rounded-full px-5 text-sm font-semibold text-on-accent"
+            >
+              {culturalFailure.paywall.upgradeTo === "pro" ? "Upgrade to Pro" : "See plans"}
+            </Link>
+          )}
+        </div>
       )}
 
       {/* Transcription is still running; translation is what stopped. Saying
