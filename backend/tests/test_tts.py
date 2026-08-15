@@ -433,3 +433,57 @@ def _rest_on_plan(tier: str):
 
 _fake_rest_empty = _fake_rest
 _fake_rest_pro = _rest_on_plan("pro")
+
+
+# ── Read-aloud must survive a cloud provider being enabled ───────────────────
+#
+# Reported as "text to voice is malfunctioning and user cannot use it". Setting
+# TTS_SERVICE=elevenlabs *replaced* the catalogue instead of extending it, so
+# every voice became a paid cloud voice: Free and Basic had none at all, and the
+# browser tier — free, offline, and the documented default — disappeared.
+
+def test_browser_voices_are_offered_even_when_a_cloud_provider_is_configured(monkeypatch):
+    monkeypatch.setenv("TTS_SERVICE", "elevenlabs")
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "test-key")
+    from services.tts.factory import get_tts_service
+
+    get_tts_service.cache_clear()
+    try:
+        voices = client.get("/tts/voices").json()["voices"]
+    finally:
+        get_tts_service.cache_clear()
+    providers = {v["provider"] for v in voices}
+    assert "browser" in providers, "the free tier vanished when cloud was enabled"
+
+
+def test_a_browser_voice_never_requires_signing_in(monkeypatch):
+    """Browser voices cost nothing and run on the client. Gating them behind an
+    account is what made read-aloud unusable."""
+    monkeypatch.setenv("TTS_SERVICE", "elevenlabs")
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "test-key")
+    from services.tts.factory import get_tts_service
+
+    get_tts_service.cache_clear()
+    try:
+        voices = client.get("/tts/voices").json()["voices"]
+        browser_id = next(v["id"] for v in voices if v["provider"] == "browser")
+        response = client.post("/tts/speak", json={"text": "hello", "voice_id": browser_id})
+    finally:
+        get_tts_service.cache_clear()
+    assert response.status_code == 200, response.text
+    assert response.json()["speak_locally"] is True
+
+
+def test_an_unknown_voice_falls_back_to_free_rather_than_a_paywall(monkeypatch):
+    """A stale id in localStorage must not be answered with 'sign in' or a bill."""
+    monkeypatch.setenv("TTS_SERVICE", "elevenlabs")
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "test-key")
+    from services.tts.factory import get_tts_service
+
+    get_tts_service.cache_clear()
+    try:
+        response = client.post("/tts/speak", json={"text": "hi", "voice_id": "stale-id-123"})
+    finally:
+        get_tts_service.cache_clear()
+    assert response.status_code != 401
+    assert "unknown voice" in response.json()["detail"].lower()

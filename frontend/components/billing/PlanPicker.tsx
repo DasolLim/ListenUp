@@ -124,17 +124,23 @@ export default function PlanPicker({
                 ))}
               </ul>
 
+              {/* A button that cannot work is worse than no button: it invites
+                  a click and answers with an error the user can do nothing
+                  about. When a tier has no Stripe price on this deployment, say
+                  so where the button would be. */}
               <Button
                 variant={isPro ? "primary" : "ghost"}
                 onClick={() => choose(plan.tier)}
-                disabled={busy !== null || currentTier === plan.tier}
+                disabled={busy !== null || currentTier === plan.tier || !plan.purchasable}
                 className="mt-auto"
               >
                 {busy === plan.tier
                   ? "Opening…"
-                  : trialUsed
-                    ? `Choose ${plan.name}`
-                    : `Start ${catalogue.trialDays}-day trial`}
+                  : !plan.purchasable
+                    ? "Not available yet"
+                    : trialUsed
+                      ? `Choose ${plan.name}`
+                      : `Start ${catalogue.trialDays}-day trial`}
               </Button>
             </GlassCard>
           );
@@ -142,9 +148,11 @@ export default function PlanPicker({
       </div>
 
       <p className="text-[12px] leading-relaxed text-ink-faint">
-        {trialUsed
-          ? "Billing starts today. Cancel any time from Settings."
-          : `Free for ${catalogue.trialDays} days. We ask for a card so your plan continues without interruption — you can cancel any time, including during the trial, and you won't be charged.`}
+        {!catalogue.checkoutReady
+          ? "Paid plans aren't open for signup yet. Everything on your current plan keeps working."
+          : trialUsed
+            ? "Billing starts today. Cancel any time from Settings."
+            : `Free for ${catalogue.trialDays} days. We ask for a card so your plan continues without interruption — you can cancel any time, including during the trial, and you won't be charged.`}
       </p>
 
       {error && (

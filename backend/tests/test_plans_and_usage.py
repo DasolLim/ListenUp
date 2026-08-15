@@ -640,3 +640,43 @@ def test_a_failed_read_is_not_cached(monkeypatch):
 
     asyncio.run(run())
     assert calls == 2, "a failed read must not be served from cache"
+
+
+def test_a_tier_with_no_stripe_price_is_reported_as_not_purchasable(monkeypatch):
+    """Reported from the browser: clicking "Start 7-day trial" returned a bare
+    503 because STRIPE_PRICE_BASIC was unset. The button should never have been
+    offered — the catalogue now says which tiers this deployment can sell."""
+    monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_fake")
+    monkeypatch.delenv("STRIPE_PRICE_BASIC", raising=False)
+    monkeypatch.setenv("STRIPE_PRICE_PRO", "price_pro_456")
+
+    body = client.get("/billing/plans").json()
+    by_tier = {plan["tier"]: plan for plan in body["plans"]}
+
+    assert by_tier["basic"]["purchasable"] is False
+    assert by_tier["pro"]["purchasable"] is True
+    assert body["checkoutReady"] is True  # at least one tier is sellable
+
+
+def test_nothing_is_purchasable_without_a_stripe_key(monkeypatch):
+    monkeypatch.delenv("STRIPE_SECRET_KEY", raising=False)
+    monkeypatch.setenv("STRIPE_PRICE_BASIC", "price_basic_123")
+
+    body = client.get("/billing/plans").json()
+    assert body["checkoutReady"] is False
+    assert all(p["purchasable"] is False for p in body["plans"] if p["tier"] != "free")
+
+
+def test_an_unconfigured_checkout_blames_us_not_the_user(monkeypatch):
+    """The 503 reaches the user verbatim. "No Stripe price is configured for
+    basic" reads like they typed something wrong; it is our misconfiguration."""
+    monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_fake")
+    monkeypatch.delenv("STRIPE_PRICE_BASIC", raising=False)
+
+    with acting_as("free"):
+        response = client.post("/billing/checkout", json={"plan": "basic"})
+
+    assert response.status_code == 503
+    detail = response.json()["detail"].lower()
+    assert "our side" in detail
+    assert "stripe" not in detail and "env" not in detail  # no internals leaked

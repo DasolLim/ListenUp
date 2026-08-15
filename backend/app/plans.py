@@ -148,8 +148,16 @@ def as_hours(characters: int) -> float:
     return characters / CHARS_PER_HOUR
 
 
-def public_catalogue() -> list[dict]:
-    """The tier table, for pricing UI and the plan picker."""
+def public_catalogue(purchasable: dict[str, bool] | None = None) -> list[dict]:
+    """The tier table, for pricing UI and the plan picker.
+
+    `purchasable` says whether a tier can actually be bought right now — i.e.
+    whether this deployment has a Stripe price for it. The UI needs it so it can
+    disable a button it knows will fail: offering "Start free trial" and then
+    answering the click with a 503 is a worse experience than saying plainly
+    that checkout isn't set up yet.
+    """
+    purchasable = purchasable or {}
     return [
         {
             "tier": plan.tier,
@@ -158,6 +166,8 @@ def public_catalogue() -> list[dict]:
             "limits": plan.limits,
             "profiles": plan.profiles,
             "voiceCloning": plan.voice_cloning,
+            # Free is never "purchasable" — it is what you get without paying.
+            "purchasable": purchasable.get(plan.tier, plan.tier == "free"),
         }
         for plan in PLANS.values()
     ]

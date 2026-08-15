@@ -48,6 +48,30 @@ MAX_CUSTOM_VOICES = 4
 CHARS_PER_SECOND = 870 / 60
 
 
+def browser_service():
+    """The free tier, always available.
+
+    Constructed directly rather than through the factory: `TTS_SERVICE` picks
+    the *cloud* provider for a deployment, and reading it here is what broke
+    read-aloud. Turning ElevenLabs on replaced the catalogue instead of adding
+    to it, so a Free or Basic user — who cannot use cloud voices at all — was
+    left with no voices whatsoever, and Pro spent its 30-minute allowance on
+    lines a browser would have read for nothing.
+
+    Browser voices cost nothing, work offline and need no account, so they are
+    the floor for every tier and every deployment.
+    """
+    from services.tts.browser import BrowserTtsService
+
+    return BrowserTtsService()
+
+
+def cloud_service():
+    """The paid tier, or None when this deployment has no cloud provider."""
+    service = get_tts_service()
+    return service if getattr(service, "renders_audio", False) else None
+
+
 async def cloud_caller(
     credentials: HTTPAuthorizationCredentials | None,
 ):
@@ -100,9 +124,13 @@ async def list_voices(
     studio and deleted, yet never appear in a picker, so it could never actually
     be spoken with.
     """
-    service = get_tts_service()
+    # Browser voices first and always; cloud voices are *added* when the
+    # deployment has a provider, never substituted for them.
     try:
-        voices = await service.voices(language)
+        voices = list(await browser_service().voices(language))
+        cloud = cloud_service()
+        if cloud is not None:
+            voices.extend(await cloud.voices(language))
     except TtsError as exc:
         raise HTTPException(400, str(exc)) from exc
 
@@ -151,8 +179,23 @@ async def speak(
     audio (rather than reading TTS_SERVICE here) means a future provider can't
     be added past the paywall by accident.
     """
-    service = get_tts_service()
-    who = await cloud_caller(credentials) if service.renders_audio else None
+    # Route on the voice the user actually picked, not on a deployment-wide
+    # switch. A browser voice is free on every tier and needs no account even
+    # when a cloud provider is configured; only a cloud voice is gated.
+    browser = browser_service()
+    cloud = cloud_service()
+    browser_ids = {voice.id for voice in await browser.voices()}
+    cloud_ids = {voice.id for voice in await cloud.voices()} if cloud is not None else set()
+    # An id we don't recognise — a stale value in localStorage, a custom voice
+    # that was deleted — resolves to the *free* tier, never the paid one.
+    # Falling through to cloud would meet a stale preference with a paywall or a
+    # bill, which is the wrong way round for a guess.
+    use_cloud = request.voice_id in cloud_ids
+    if request.voice_id not in browser_ids and not use_cloud:
+        logger.info("tts_unknown_voice id=%r — falling back to a browser voice", request.voice_id)
+
+    service = cloud if use_cloud else browser
+    who = await cloud_caller(credentials) if use_cloud else None
     try:
         # Only pass expressiveness to services that render audio; the browser
         # tier's signature stays two-argument because it has nothing to apply it

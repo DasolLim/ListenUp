@@ -202,7 +202,13 @@ revoke all on function public.current_usage() from public;
 revoke execute on function public.usage_period_start(uuid) from anon;
 revoke execute on function public.record_usage(text, bigint) from anon;
 revoke execute on function public.current_usage() from anon;
-grant execute on function public.usage_period_start(uuid) to authenticated;
+
+-- Only the two entry points are granted. `usage_period_start` takes a user_id
+-- argument, so granting it would let any signed-in user ask when *someone
+-- else's* billing period starts — a small read, but a needless one. It is only
+-- ever called from inside the other two, which are SECURITY DEFINER and so run
+-- it with the owner's privileges regardless of who called them.
+revoke execute on function public.usage_period_start(uuid) from authenticated;
 grant execute on function public.record_usage(text, bigint) to authenticated;
 grant execute on function public.current_usage() to authenticated;
 

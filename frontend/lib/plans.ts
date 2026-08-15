@@ -45,10 +45,14 @@ export type PlanCatalogueEntry = {
   limits: Record<Metric, number | null>;
   profiles: number;
   voiceCloning: boolean;
+  /** Whether this deployment can actually take money for this tier. */
+  purchasable: boolean;
 };
 
 export type PlanCatalogue = {
   plans: PlanCatalogueEntry[];
+  /** False when no tier has a Stripe price configured. */
+  checkoutReady: boolean;
   trialDays: number;
   proFirstMonthDiscount: number;
 };

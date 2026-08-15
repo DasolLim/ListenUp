@@ -22,7 +22,7 @@ Three rules hold this together:
 import logging
 import os
 from datetime import UTC, datetime
-from typing import Annotated
+from typing import Annotated, Any
 
 import stripe
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -38,6 +38,7 @@ from app.plans import (
     public_catalogue,
 )
 from app.supa import rest, verify_user
+from app.timing import span
 from app.usage import Allowance, Usage, allowance
 
 logger = logging.getLogger("listenup.billing")
@@ -78,7 +79,16 @@ def _price_id(tier: str) -> str:
     env = PRICE_ENV.get(tier)
     price = os.environ.get(env, "") if env else ""
     if not price:
-        raise HTTPException(503, f"No Stripe price is configured for {tier}.")
+        # Two audiences, one message. The user gets a sentence that tells them
+        # this is our problem and not theirs — nothing they can do will make the
+        # checkout open — and the log line names the exact variable to set.
+        logger.error("checkout_unconfigured tier=%s missing_env=%s", tier, env)
+        raise HTTPException(
+            503,
+            "Checkout isn't available yet — this is a setup issue on our side, "
+            "not a problem with your account. Captions and everything on your "
+            "current plan keep working.",
+        )
     return price
 
 
@@ -204,10 +214,17 @@ async def caller_for_token(token: str, user_id: str | None = None) -> Caller:
     needs the plan alongside its own auth. Keeping one implementation means the
     plan a websocket sees and the plan an endpoint sees can never drift.
     """
-    if user_id is None:
-        user_id = await verify_user(token)
-    row = await _row(token, user_id)
-    return Caller(user_id, token, row, plan_for_row(row), await usage_module.read(token))
+    async with span("allowance") as perf:
+        if user_id is None:
+            user_id = await verify_user(token)
+        row = await _row(token, user_id)
+        plan = plan_for_row(row)
+        usage = await usage_module.read(token)
+        perf["tier"] = plan.tier
+        # `ok` false means the usage read failed and we are running on zeros —
+        # a blip that would otherwise be invisible in the aggregate.
+        perf["usage_ok"] = usage.ok
+        return Caller(user_id, token, row, plan, usage)
 
 
 async def caller(user: Annotated[tuple[str, str], Depends(auth)]) -> Caller:
@@ -278,8 +295,16 @@ def requires(metric: str):
 @router.get("/plans")
 def plans() -> dict:
     """The tier table. Public: the pricing page needs it before sign-in."""
+    # A tier is buyable only if this deployment has both a Stripe key and a
+    # price for it. Reporting that lets the UI disable the button instead of
+    # discovering the gap through a 503 on click.
+    configured = bool(os.environ.get("STRIPE_SECRET_KEY"))
+    purchasable = {
+        tier: configured and bool(os.environ.get(env)) for tier, env in PRICE_ENV.items()
+    }
     return {
-        "plans": public_catalogue(),
+        "plans": public_catalogue(purchasable),
+        "checkoutReady": any(purchasable.values()),
         "trialDays": TRIAL_DAYS,
         # Only advertise the launch discount when a coupon is actually
         # configured — promising 20% off and then not applying it at checkout is
@@ -489,11 +514,17 @@ def _tier_of(subscription) -> str:
     return "basic"
 
 
-async def _sync_subscription(subscription: dict) -> None:
+async def _sync_subscription(subscription: Any) -> None:
     """Write one Stripe subscription into our table.
 
     Uses the service role: this is the one place that must write a row the user
     is forbidden to write themselves, and it never touches any other table.
+
+    Typed `Any` rather than `dict` because both callers are legitimate and give
+    different types: the webhook hands over a `StripeObject` off the event, and
+    the checkout branch hands over a `stripe.Subscription`. Every read goes
+    through `_field`, which exists exactly to span that difference — so a `dict`
+    annotation was describing only one of the two real inputs.
     """
     user_id = _field(_field(subscription, "metadata", {}), "user_id")
     if not user_id:
