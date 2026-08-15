@@ -104,10 +104,18 @@ export function mergeCulturalLane(
  * fixed both lanes swallowed that into an empty result, so translation simply
  * never appeared and nothing on screen said why.
  */
+/** Which cultural-pass model to use. The server owns tier -> model. */
+export type CulturalOptions = {
+  /** Off skips `/translate/enhanced` entirely — no call, no spend, no notes. */
+  enabled: boolean;
+  tier: string;
+};
+
 export function useLiveTranslation(
   segments: CaptionSegment[],
   targetLang: string,
-  enabled: boolean
+  enabled: boolean,
+  cultural: CulturalOptions = { enabled: true, tier: "balanced" }
 ) {
   const [translations, setTranslations] = useState<Record<string, LiveTranslation>>({});
   const [stats, setStats] = useState<TranslationStats>(null);
@@ -125,6 +133,10 @@ export function useLiveTranslation(
   useEffect(() => {
     if (!enabled) return;
     for (const segment of segments) {
+      // One attempt per line, ever. That also settles what toggling the
+      // cultural pass mid-conversation does: it applies to what is said next,
+      // and does not go back and re-explain lines already on screen. Anything
+      // else would spend money on old lines the moment a switch is flipped.
       if (!segment.isFinal || requested.current.has(segment.id)) continue;
       requested.current.add(segment.id);
       const t0 = performance.now();
@@ -169,6 +181,12 @@ export function useLiveTranslation(
           }
         });
 
+      // Slow lane, and only if the user wants it. Skipping the request rather
+      // than discarding the answer is the point: this lane is metered, so a
+      // user who does not want slang notes should not be paying for them out
+      // of an allowance they would rather spend on captions.
+      if (!cultural.enabled) continue;
+
       // Slow lane: the LLM's culturally-adapted translation plus slang notes.
       //
       // Never blocks the fast line, but its failures are no longer silent. They
@@ -183,7 +201,11 @@ export function useLiveTranslation(
         register?: string;
         slangNotes?: SlangNote[];
         tokens?: number;
-      }>("/translate/enhanced", { text: segment.text, target_lang: targetLang })
+      }>("/translate/enhanced", {
+        text: segment.text,
+        target_lang: targetLang,
+        tier: cultural.tier,
+      })
         .then((body) => {
           setCosts((c) => ({ ...c, llmTokens: c.llmTokens + (body.tokens ?? 0) }));
           if (!body.translation && !body.slangNotes?.length) return;
@@ -203,7 +225,7 @@ export function useLiveTranslation(
           }
         });
     }
-  }, [segments, targetLang, enabled]);
+  }, [segments, targetLang, enabled, cultural.enabled, cultural.tier]);
 
   const reset = () => {
     requested.current = new Set();

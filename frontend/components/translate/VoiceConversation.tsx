@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import SpeakerBubble from "@/components/captions/SpeakerBubble";
 import SpeakerCorrectionDialog from "@/components/captions/SpeakerCorrectionDialog";
 import SpeakerName from "@/components/captions/SpeakerName";
@@ -14,8 +14,22 @@ import { useAutoSpeak, useSharedSpeech } from "@/lib/SpeechProvider";
 import { RAILS, identityColor, linePosition, stamp, turnGroups } from "@/lib/turnGroups";
 import { useChatScroll } from "@/lib/useChatScroll";
 import { useSpeakerCorrection } from "@/lib/useSpeakerCorrection";
+import { useStickyFlag } from "@/lib/useStickyFlag";
+import { useStickyLanguage } from "@/lib/useStickyLanguage";
 import { useLiveTranslation } from "@/lib/useLiveTranslation";
 import { useTranscription } from "@/lib/useTranscription";
+
+const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8000";
+
+/** A cultural-pass model the user may choose, as the server describes it. */
+type ModelTier = {
+  key: string;
+  label: string;
+  blurb: string;
+  usdPer1k: number;
+  p50Ms: number;
+  default: boolean;
+};
 
 /**
  * Spoken conversation, translated line by line.
@@ -62,7 +76,26 @@ export default function VoiceConversation({
   // each finalised line". The copy this replaced dropped every error on the
   // floor, so an exhausted allowance looked exactly like a tool that had
   // stopped working for no reason.
-  const { translations, failure, culturalFailure } = useLiveTranslation(segments, target, true);
+  // Slang explanations are metered, so they are a choice rather than a
+  // default the user discovers on their bill. The tier lives beside the switch
+  // because "is this on" and "how much does it cost" are one decision.
+  const [explain, setExplain] = useStickyFlag("listenup-voice-explain", true);
+  const [tier, setTier] = useStickyLanguage("listenup-voice-tier", "balanced");
+  const [tiers, setTiers] = useState<ModelTier[]>([]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch(`${BACKEND}/translate/models`, { signal: controller.signal })
+      .then((r) => r.json())
+      .then((body) => setTiers(body?.tiers ?? []))
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, []);
+
+  const { translations, failure, culturalFailure } = useLiveTranslation(segments, target, true, {
+    enabled: explain,
+    tier,
+  });
   const speech = useSharedSpeech();
 
   // Only finalised captions count as "new": interim text is rewritten several
@@ -154,6 +187,50 @@ export default function VoiceConversation({
 
       <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-y border-white/40 py-2">
         <SpokenLanguagePicker value={spoken} onChange={setSpoken} disabled={live || paused} />
+
+        {/* Explanations are the expensive half of this tool, so the switch says
+            what it spends rather than only what it does. Off means the request
+            is never sent — not sent and hidden. */}
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <button
+            type="button"
+            role="switch"
+            aria-checked={explain}
+            onClick={() => setExplain(!explain)}
+            className={`inline-flex min-h-11 items-center gap-2 rounded-full px-3.5 text-[13px] font-medium transition-colors ${
+              explain ? "bg-accent-strong text-on-accent" : "pill-inactive text-ink-soft hover:text-ink"
+            }`}
+          >
+            <span
+              aria-hidden="true"
+              className={`size-2 rounded-full ${explain ? "bg-on-accent" : "bg-ink-faint"}`}
+            />
+            Explain slang {explain ? "on" : "off"}
+          </button>
+
+          {explain && tiers.length > 0 && (
+            <>
+              <label htmlFor="voice-tier" className="sr-only">
+                Explanation model
+              </label>
+              <select
+                id="voice-tier"
+                value={tier}
+                onChange={(event) => setTier(event.target.value)}
+                // A select is as wide as its longest option, which overflowed
+                // a 390px viewport. Clamped rather than truncated in the copy,
+                // so the cost stays readable where there is room for it.
+                className="glass-strong min-h-11 min-w-0 max-w-full rounded-xl border border-white/60 px-3 text-sm text-ink shadow-glass outline-none"
+              >
+                {tiers.map((option) => (
+                  <option key={option.key} value={option.key}>
+                    {option.label} — {option.blurb}
+                  </option>
+                ))}
+              </select>
+            </>
+          )}
+        </div>
         {speech.voices.length > 0 && (
           <VoicePicker
             id="voice-conversation-voice"
@@ -310,8 +387,10 @@ export default function VoiceConversation({
       {/* Sized so the pane's *bottom* edge stays on screen on a laptop: the
           newest line is the one that matters live, and a pane whose foot falls
           below the fold recreates the page-chasing this replaced, only smaller.
-          Measured at 1280×900 with the chrome above it. */}
-      <div className="relative h-[clamp(15rem,42dvh,28rem)]">
+          Measured at 1280×900 with the chrome above it, and retrimmed when the
+          explanations switch and model picker were added — the fold guarantee
+          has to survive controls being added above it. */}
+      <div className="relative h-[clamp(15rem,40dvh,28rem)]">
         <div
           ref={containerRef}
           onScroll={onScroll}
