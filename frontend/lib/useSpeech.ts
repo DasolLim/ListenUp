@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { postJson } from "@/lib/api";
 import { authHeader } from "@/lib/auth/token";
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8000";
@@ -571,19 +572,20 @@ export function useSpeech(language: string) {
       // Cloud / custom tier: fetch audio and play it.
       setSpeaking(true);
       try {
-        const response = await fetch(`${BACKEND}/tts/speak`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+        // postJson attaches the caller's token. Cloud voices are Pro-only and
+        // metered, so an unauthenticated call is a 401 — which is exactly how
+        // read-aloud stopped working the moment a cloud provider was enabled.
+        const body = await postJson<{
+          speak_locally?: boolean;
+          audio_base64?: string;
+          mime_type?: string;
+        }>("/tts/speak", {
+          text: trimmed,
+          voice_id: id,
           // Expressiveness is rendered by the provider, so it has to travel with
           // the request rather than being applied on playback.
-          body: JSON.stringify({
-            text: trimmed,
-            voice_id: id,
-            expressiveness: shape.expressiveness,
-          }),
+          expressiveness: shape.expressiveness,
         });
-        const body = await response.json();
-        if (!response.ok) throw new Error(body.detail ?? "Couldn't speak that.");
         if (body.speak_locally || !body.audio_base64) {
           setSpeaking(false);
           return;

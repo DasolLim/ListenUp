@@ -4,11 +4,11 @@ import { useRef, useState } from "react";
 import Button from "@/components/ui/Button";
 import SpeakButton from "@/components/speech/SpeakButton";
 import { SpeechProvider, useSharedSpeech } from "@/lib/SpeechProvider";
+import { postJson } from "@/lib/api";
 import { networkError } from "@/lib/networkError";
 import GlassCard from "@/components/ui/GlassCard";
 import ShareCard from "@/components/translate/ShareCard";
 
-const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8000";
 
 export type Explanation = {
   term: string;
@@ -124,14 +124,10 @@ function TranslateGenzInner() {
     // have "not updated" — the symptom that reads as a caching bug.
     setResult(null);
     try {
-      const response = await fetch(`${BACKEND}/genz/explain`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: trimmed }),
-      });
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.detail ?? "Couldn’t explain that right now.");
-      if (seqRef.current === seq) setResult(body as Explanation);
+      // postJson attaches the caller's token — /genz/explain is metered per
+      // lookup, so an unauthenticated call is a 401 that reads as "broken".
+      const body = await postJson<Explanation>("/genz/explain", { text: trimmed });
+      if (seqRef.current === seq) setResult(body);
     } catch (err) {
       if (seqRef.current === seq) {
         setError(networkError(err, "Couldn’t explain that right now."));
