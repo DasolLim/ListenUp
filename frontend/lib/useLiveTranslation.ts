@@ -43,6 +43,58 @@ function percentile(sorted: number[], p: number): number {
   return sorted[Math.max(0, Math.min(sorted.length - 1, Math.ceil((p / 100) * sorted.length) - 1))];
 }
 
+const EMPTY_TRANSLATION: LiveTranslation = {
+  text: "",
+  sourceLang: null,
+  notes: [],
+  register: null,
+};
+
+/**
+ * The two lanes race, and either can land first.
+ *
+ * The expected order is Google then the LLM, and the merge used to assume it:
+ * the cultural result was dropped outright if the fast line had not arrived
+ * yet, and the fast line overwrote whatever was there when it did. Both are
+ * wrong under the order that actually happens often enough to notice — a cached
+ * LLM answer returns in a few milliseconds while Google is still on the wire —
+ * and the failure is silent and per-utterance, so one line keeps its slang
+ * explanation and the next one loses it for good.
+ *
+ * These are pure so the orderings can be tested without a browser
+ * (`npm run verify`). The invariant both directions share: **a cultural result
+ * is never replaced by a plain one.**
+ */
+export function mergeFastLane(
+  existing: LiveTranslation | undefined,
+  body: { translation: string; detectedSourceLang: string | null }
+): LiveTranslation {
+  return {
+    ...EMPTY_TRANSLATION,
+    ...existing,
+    // If something is already here, it can only have come from the cultural
+    // lane, which is the better answer. Keep it and take only the source
+    // language, which is the one thing the fast lane knows and it does not.
+    text: existing?.text || body.translation,
+    sourceLang: body.detectedSourceLang,
+  };
+}
+
+export function mergeCulturalLane(
+  existing: LiveTranslation | undefined,
+  body: { translation?: string; register?: string; slangNotes?: SlangNote[] }
+): LiveTranslation {
+  const base = existing ?? EMPTY_TRANSLATION;
+  return {
+    ...base,
+    // Progressive enhancement: the culturally-adapted line replaces the literal
+    // one when it arrives, and stands alone when it arrives first.
+    text: body.translation ?? base.text,
+    notes: body.slangNotes ?? base.notes,
+    register: body.register ?? base.register,
+  };
+}
+
 /**
  * Translates each finalized caption once (instant Google lane), then augments
  * with LLM slang notes asynchronously — captions never wait.
@@ -99,12 +151,10 @@ export function useLiveTranslation(
           });
           setTranslations((map) => ({
             ...map,
-            [segment.id]: {
-              text: body.translation,
-              sourceLang: body.detectedSourceLang,
-              notes: [],
-              register: null,
-            },
+            [segment.id]: mergeFastLane(map[segment.id], {
+              translation: body.translation,
+              detectedSourceLang: body.detectedSourceLang,
+            }),
           }));
         })
         .catch((err) => {
@@ -130,21 +180,10 @@ export function useLiveTranslation(
         .then((body) => {
           setCosts((c) => ({ ...c, llmTokens: c.llmTokens + (body.tokens ?? 0) }));
           if (!body.translation && !body.slangNotes?.length) return;
-          setTranslations((map) => {
-            const existing = map[segment.id];
-            if (!existing) return map;
-            return {
-              ...map,
-              [segment.id]: {
-                ...existing,
-                // Upgrade the fast Google line to the LLM's culturally-adapted
-                // translation once it arrives (progressive enhancement).
-                text: body.translation ?? existing.text,
-                notes: body.slangNotes ?? existing.notes,
-                register: body.register ?? existing.register,
-              },
-            };
-          });
+          setTranslations((map) => ({
+            ...map,
+            [segment.id]: mergeCulturalLane(map[segment.id], body),
+          }));
         })
         .catch(() => undefined);
     }

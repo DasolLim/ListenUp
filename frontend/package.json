@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "verify": "node scripts/verify-turngroups.mjs && node scripts/verify-pause.mjs"
+    "verify": "node scripts/verify-turngroups.mjs && node scripts/verify-pause.mjs && node scripts/verify-translation-merge.mjs"
   },
   "dependencies": {
     "@sentry/nextjs": "^10.66.0",
