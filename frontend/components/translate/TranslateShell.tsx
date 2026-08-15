@@ -42,7 +42,9 @@ export default function TranslateShell({
           <h2 className="font-display text-[22px] font-semibold text-ink">{title}</h2>
           <span className="rounded-full bg-white/70 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-ink-soft"></span>
         </div>
-        <p className="max-w-xl text-sm leading-relaxed text-ink-soft">{tagline}</p>
+        {/* Explanatory copy is the first thing to yield space on a phone: it is
+            read once, while the transcript below it is read continuously. */}
+        <p className="hidden max-w-xl text-sm leading-relaxed text-ink-soft sm:block">{tagline}</p>
       </header>
 
       {/* Setup row: how you input, and which language out. Quiet by design —
