@@ -2,6 +2,10 @@
 .env
 .env.local
 .env.*.local
+# Any .env variant — a timestamped backup or a .env.prod is still secrets, and
+# the default rules above don't cover them.
+.env.*
+!.env.example
 
 # Node / Next.js
 node_modules/
