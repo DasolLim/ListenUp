@@ -96,6 +96,25 @@ export function mergeCulturalLane(
 }
 
 /**
+ * The newest line that is ready to be read aloud.
+ *
+ * "Ready" is the whole point: a line whose cultural pass has not settled still
+ * shows the literal translation, and speaking it means the listener hears the
+ * version this product exists to improve on while the reader sees the adapted
+ * one. Interim lines are excluded because they are rewritten several times a
+ * second, and speaking one would stutter.
+ */
+export function newestSpeakableLine(
+  segments: CaptionSegment[],
+  translations: Record<string, LiveTranslation>,
+  isSettled: (id: string) => boolean
+): CaptionSegment | undefined {
+  return [...segments]
+    .reverse()
+    .find((s) => s.isFinal && translations[s.id] && isSettled(s.id));
+}
+
+/**
  * Translates each finalized caption once (instant Google lane), then augments
  * with LLM slang notes asynchronously — captions never wait.
  *
@@ -121,6 +140,13 @@ export function useLiveTranslation(
   const [stats, setStats] = useState<TranslationStats>(null);
   const [failure, setFailure] = useState<TranslationFailure | null>(null);
   const [culturalFailure, setCulturalFailure] = useState<TranslationFailure | null>(null);
+  // Segments whose cultural pass has finished — succeeded, failed, or was never
+  // going to run. Read-aloud waits for this rather than speaking the first
+  // answer to arrive: the two lanes race, so speaking on arrival meant the
+  // listener heard the literal machine translation while the reader saw the
+  // culturally adapted one. In the interpreter case the person opposite hears
+  // the version this product exists to improve on.
+  const [settled, setSettled] = useState<Record<string, true>>({});
   const [costs, setCosts] = useState<TranslationCosts>({
     googleChars: 0,
     llmTokens: 0,
@@ -208,6 +234,7 @@ export function useLiveTranslation(
       })
         .then((body) => {
           setCosts((c) => ({ ...c, llmTokens: c.llmTokens + (body.tokens ?? 0) }));
+          setSettled((done) => ({ ...done, [segment.id]: true }));
           if (!body.translation && !body.slangNotes?.length) return;
           setTranslations((map) => ({
             ...map,
@@ -215,6 +242,9 @@ export function useLiveTranslation(
           }));
         })
         .catch((err) => {
+          // Settle on failure too, or a line whose cultural pass 502s would
+          // never be read aloud at all.
+          setSettled((done) => ({ ...done, [segment.id]: true }));
           if (err instanceof ApiError) {
             setCulturalFailure({ message: err.message, paywall: err.paywall });
           } else {
@@ -234,6 +264,7 @@ export function useLiveTranslation(
     setStats(null);
     setFailure(null);
     setCulturalFailure(null);
+    setSettled({});
     setCosts({ googleChars: 0, llmTokens: 0, requests: 0, cacheHits: 0 });
   };
 
@@ -241,5 +272,10 @@ export function useLiveTranslation(
   // and register lane. Kept apart because they fail independently and mean
   // different things: one leaves the user with nothing, the other leaves them
   // with words but no meaning.
-  return { translations, stats, costs, failure, culturalFailure, reset };
+  // Derived rather than stored for the disabled case: with no cultural pass
+  // there is nothing to wait for, and writing that into state from inside the
+  // effect would be a synchronous setState on every render pass.
+  const isSettled = (id: string) => !cultural.enabled || Boolean(settled[id]);
+
+  return { translations, stats, costs, failure, culturalFailure, isSettled, reset };
 }

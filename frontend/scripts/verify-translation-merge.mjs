@@ -25,7 +25,7 @@ const js = ts.transpileModule(source, {
 
 const file = join(mkdtempSync(join(tmpdir(), "merge-")), "merge.mjs");
 writeFileSync(file, js);
-const { mergeFastLane, mergeCulturalLane } = await import(file);
+const { mergeFastLane, mergeCulturalLane, newestSpeakableLine } = await import(file);
 
 let pass = 0;
 let fail = 0;
@@ -102,6 +102,36 @@ console.log("\nshape");
     ["notes", "register", "sourceLang", "text"]
   );
   check("text is a string, never undefined", typeof fromNothing.text, "string");
+}
+
+
+// ── What may be read aloud ───────────────────────────────────────────────────
+// Reported as "read aloud says the wrong thing": the two lanes race, and
+// speaking on first arrival read out the literal translation while the screen
+// showed the culturally adapted one. Audible on the interpreter path, where the
+// person opposite only ever hears this version.
+console.log("\nspeakable line");
+{
+  const seg = (id, isFinal) => ({ id, isFinal, speaker: "A", speakerName: null, text: "x", start: 0, end: 1 });
+  const segments = [seg("a", true), seg("b", true), seg("c", false)];
+  const translated = { a: { text: "A" }, b: { text: "B" }, c: { text: "C" } };
+  const all = () => true;
+  const none = () => false;
+
+  check("picks the newest settled final", newestSpeakableLine(segments, translated, all)?.id, "b");
+  check("never an interim line", newestSpeakableLine([seg("c", false)], translated, all), undefined);
+  check("nothing while unsettled", newestSpeakableLine(segments, translated, none), undefined);
+  check(
+    "skips back to the newest line that has settled",
+    newestSpeakableLine(segments, translated, (id) => id === "a")?.id,
+    "a"
+  );
+  check(
+    "a line with no translation yet is not speakable",
+    newestSpeakableLine(segments, { a: { text: "A" } }, all)?.id,
+    "a"
+  );
+  check("nothing to say", newestSpeakableLine([], {}, all), undefined);
 }
 
 console.log(`\n${pass}/${pass + fail} checks passed`);

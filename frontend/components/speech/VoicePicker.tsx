@@ -84,12 +84,19 @@ export default function VoicePicker({
           ))}
       </select>
 
-      <SpeakButton
-        onSpeak={() => onPreview(PREVIEW[language] ?? PREVIEW.en, voiceId)}
-        onStop={onStop}
-        speaking={speaking}
-        label="a preview of this voice"
-      />
+      {/* Says "Preview" in words, not only in an aria-label. Unlabelled next
+          to the auto-speak switch it reads as "read this aloud", and pressing
+          it plays a fixed sample sentence — which looked like read-aloud
+          speaking the wrong text entirely. */}
+      <span className="inline-flex items-center gap-1.5">
+        <SpeakButton
+          onSpeak={() => onPreview(PREVIEW[language] ?? PREVIEW.en, voiceId)}
+          onStop={onStop}
+          speaking={speaking}
+          label="a sample sentence in this voice"
+        />
+        <span className="text-[12px] text-ink-soft">Preview</span>
+      </span>
 
       {/* Stated in words as well as pressed-state, never colour alone. */}
       <button

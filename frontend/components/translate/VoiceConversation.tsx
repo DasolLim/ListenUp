@@ -16,7 +16,7 @@ import { useChatScroll } from "@/lib/useChatScroll";
 import { useSpeakerCorrection } from "@/lib/useSpeakerCorrection";
 import { useStickyFlag } from "@/lib/useStickyFlag";
 import { useStickyLanguage } from "@/lib/useStickyLanguage";
-import { useLiveTranslation } from "@/lib/useLiveTranslation";
+import { newestSpeakableLine, useLiveTranslation } from "@/lib/useLiveTranslation";
 import { useTranscription } from "@/lib/useTranscription";
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8000";
@@ -92,10 +92,12 @@ export default function VoiceConversation({
     return () => controller.abort();
   }, []);
 
-  const { translations, failure, culturalFailure } = useLiveTranslation(segments, target, true, {
-    enabled: explain,
-    tier,
-  });
+  const { translations, failure, culturalFailure, isSettled } = useLiveTranslation(
+    segments,
+    target,
+    true,
+    { enabled: explain, tier }
+  );
   const speech = useSharedSpeech();
 
   // Only finalised captions count as "new": interim text is rewritten several
@@ -111,7 +113,12 @@ export default function VoiceConversation({
   // Auto-speak the newest finalised translation, keyed on segment id rather
   // than on the text: the same sentence can legitimately be said twice in a
   // conversation, and both times deserve to be read out.
-  const latestSpoken = [...segments].reverse().find((s) => s.isFinal && translations[s.id]);
+  //
+  // Waits for the cultural pass to settle. The two lanes race, and speaking on
+  // first arrival read out the literal translation while the screen showed the
+  // adapted one — audibly the wrong version of the sentence, and the only
+  // version the person opposite ever gets.
+  const latestSpoken = newestSpeakableLine(segments, translations, isSettled);
   useAutoSpeak(
     latestSpoken ? latestSpoken.id : "",
     latestSpoken ? (translations[latestSpoken.id]?.text ?? "") : ""

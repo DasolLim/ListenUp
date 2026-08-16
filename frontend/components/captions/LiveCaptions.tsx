@@ -19,7 +19,7 @@ import { useChatScroll } from "@/lib/useChatScroll";
 import { RAILS, identityColor, linePosition, stamp, turnGroups } from "@/lib/turnGroups";
 import { useSpeakerCorrection } from "@/lib/useSpeakerCorrection";
 import { useStickyLanguage } from "@/lib/useStickyLanguage";
-import { useLiveTranslation } from "@/lib/useLiveTranslation";
+import { newestSpeakableLine, useLiveTranslation } from "@/lib/useLiveTranslation";
 import { useTranscription } from "@/lib/useTranscription";
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8000";
@@ -67,6 +67,7 @@ function LiveCaptionsInner(props: {
     costs,
     failure: translationFailure,
     culturalFailure,
+    isSettled,
     reset: resetTranslations,
   } = useLiveTranslation(segments, targetLang, translateOn);
   const speech = useSharedSpeech();
@@ -84,7 +85,10 @@ function LiveCaptionsInner(props: {
   // than the text, because the same sentence can legitimately be said twice in a
   // conversation and both should be read out. Interims are skipped: they change
   // mid-sentence, so speaking one would stutter.
-  const latestSpoken = [...segments].reverse().find((s) => s.isFinal && translations[s.id]);
+  // Settled, not merely translated: the fast and cultural lanes race, and
+  // speaking whichever lands first reads out the literal version while the
+  // bubble shows the adapted one.
+  const latestSpoken = newestSpeakableLine(segments, translations, isSettled);
   useAutoSpeak(
     translateOn && latestSpoken ? latestSpoken.id : "",
     latestSpoken ? (translations[latestSpoken.id]?.text ?? "") : ""
