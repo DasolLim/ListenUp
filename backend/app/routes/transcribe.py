@@ -62,17 +62,49 @@ def spoken_languages() -> dict:
 
 
 class SpeakerMapper:
-    """Stable provider-label → display-label mapping, capped."""
+    """Stable provider-label → display-label mapping, capped.
+
+    Diarization labels are the key, but they are not the identity: one voice is
+    routinely split across several of them, which is how a single person came
+    out as Speaker 1, 2 and 3. `alias()` lets the voice clustering fold one
+    label onto another, so the display label follows the person.
+
+    Aliasing rather than re-keying on voice ids on purpose: the numbering, the
+    cap and the tap-to-correct lookup all key on the provider label already, and
+    a second namespace flowing through the same map would let interim turns
+    (labelled before any audio has been judged) and final turns consume separate
+    Speaker slots — which exhausts the cap and renumbers everyone.
+    """
 
     def __init__(self) -> None:
         self._order: dict[str, str] = {}
+        # provider label → the label whose display name it borrows.
+        self._alias: dict[str, str] = {}
+
+    def alias(self, raw: str, onto: str) -> None:
+        """Fold `raw` onto the speaker already displayed for `onto`."""
+        if raw == onto:
+            return
+        self._alias[raw] = self._alias.get(onto, onto)
+        # Release the slot this label held on its own. A label is usually
+        # displayed once (as an interim) before the audio is judged, and leaving
+        # that reservation behind spends the four-speaker cap on people who
+        # turned out not to exist — a two-person conversation reaching "Other".
+        self._order.pop(raw, None)
+
+    def _next_label(self) -> str:
+        """Lowest unused speaker number, so a released slot is reused rather
+        than skipped."""
+        taken = set(self._order.values())
+        for n in range(1, NAMED_SPEAKER_CAP + 1):
+            if f"Speaker {n}" not in taken:
+                return f"Speaker {n}"
+        return "Other"
 
     def label(self, raw: str) -> str:
+        raw = self._alias.get(raw, raw)
         if raw not in self._order:
-            if len(self._order) < NAMED_SPEAKER_CAP:
-                self._order[raw] = f"Speaker {len(self._order) + 1}"
-            else:
-                self._order[raw] = "Other"
+            self._order[raw] = self._next_label()
         return self._order[raw]
 
     def raw_for(self, label: str) -> str | None:
@@ -209,7 +241,6 @@ async def ws_transcribe(websocket: WebSocket) -> None:
     # A token is now resolved whenever one is sent, not only in enhanced mode:
     # caption *minutes* are metered on every tier, so the session needs to know
     # who it belongs to even when no speaker naming is requested.
-    namer: SessionNamer | None = None
     user_token: str | None = None
     who = None
     if config.get("token"):
@@ -277,14 +308,22 @@ async def ws_transcribe(websocket: WebSocket) -> None:
     #
     # With no enrolled profiles `SpeakerMatcher` simply never matches, which is
     # the same generic-label outcome as before at the cost of one query.
+    # Built for EVERY session, signed in or not. It answers two questions with
+    # one embedding, and only the second needs an account: "is this the same
+    # voice as before" (no enrolment required — this is what makes one person
+    # stay Speaker 1 instead of drifting to Speaker 2 and 3) and "which enrolled
+    # person is it". Running it unauthenticated costs one local CPU embedding
+    # per turn and no API spend; the audio it buffers is in memory for the life
+    # of the socket and is never written anywhere.
+    profiles: list = []
     if user_token:
         try:
             profiles = await load_profiles(user_token)
-            namer = SessionNamer(SpeakerMatcher(profiles))
             logger.info("transcribe_naming client=%s profiles=%d", client, len(profiles))
         except Exception:
             # Captions must never break because naming can't run.
             logger.warning("transcribe_profiles_load_failed client=%s", client)
+    namer = SessionNamer(SpeakerMatcher(profiles))
 
     try:
         await service.start(
@@ -321,9 +360,20 @@ async def ws_transcribe(websocket: WebSocket) -> None:
     async def pump_segments() -> None:
         async for segment in service.segments():
             name = None
-            if namer is not None:
-                match = await namer.observe(segment)
-                name = match.display_name if match else None
+            # The provider decides *when* the speaker changed, which is what
+            # diarization is good at. It does not decide *who*: it splits one
+            # voice across labels routinely, which is how a single person came
+            # out as Speaker 1, 2 and 3. The voice key does decide, so the label
+            # survives that churn — and falls back to the provider's label only
+            # when the turn was too short to judge from audio at all.
+            voice, match = await namer.identify(segment)
+            name = match.display_name if match else None
+            # The voice says which earlier label this turn really belongs to.
+            # Folding rather than relabelling keeps one namespace, so interim
+            # turns (judged before there is audio to judge) and final turns can
+            # never occupy two different Speaker slots for one person.
+            if voice is not None and voice != segment.speaker:
+                mapper.alias(segment.speaker, voice)
             label = mapper.label(segment.speaker)
             payload = _segment_payload(segment, label, name)
             await _queue_put_with_backpressure(send_queue, payload, segment.is_final)
@@ -397,8 +447,7 @@ async def ws_transcribe(websocket: WebSocket) -> None:
                 if clock.paused:
                     continue
                 chunks += 1
-                if namer is not None:
-                    namer.add_audio(data)
+                namer.add_audio(data)
                 await service.send_audio(data)
             elif (text := message.get("text")) is not None:
                 parsed = json.loads(text)
@@ -429,7 +478,7 @@ async def ws_transcribe(websocket: WebSocket) -> None:
                         client, clock.paused_seconds(),
                     )
                     continue
-                if parsed.get("type") == "correct" and namer is not None:
+                if parsed.get("type") == "correct":
                     await _apply_correction(parsed, namer, mapper, send_queue, user_token)
     except WebSocketDisconnect as exc:
         logger.info("transcribe_disconnect client=%s code=%s chunks=%d", client, exc.code, chunks)

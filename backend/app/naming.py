@@ -17,6 +17,7 @@ import logging
 import os
 from dataclasses import dataclass, field
 
+from app.session_speakers import SessionSpeakers
 from app.supa import rest
 from services.assemblyai.base import BYTES_PER_SECOND, TranscriptSegment
 from services.speaker_id import get_speaker_embedder
@@ -114,13 +115,20 @@ class _SpeakerState:
     turn_key: tuple[int, float] | None = None
     turn_embeds: int = 0
     last_embed_audio_s: float = 0.0
+    # The voice this label most recently resolved to. Distinct from `resolved`,
+    # which is an enrolled *name* and is usually None: this is the answer to
+    # "same person as before", and it is what the caption label is built from.
+    voice: str | None = None
 
 
 class SessionNamer:
     """One per enhanced WS session."""
 
-    def __init__(self, matcher: SpeakerMatcher) -> None:
+    def __init__(self, matcher: SpeakerMatcher, speakers: SessionSpeakers | None = None) -> None:
         self.matcher = matcher
+        # Who is talking, from the voice. Independent of enrolment: telling two
+        # turns apart needs no saved profile, only the ability to compare them.
+        self.speakers = speakers if speakers is not None else SessionSpeakers()
         self._audio = bytearray()
         self._dropped_s = 0.0  # seconds trimmed off the buffer's front
         self._speakers: dict[str, _SpeakerState] = {}
@@ -284,7 +292,17 @@ class SessionNamer:
         return state.resolved
 
     async def observe(self, segment: TranscriptSegment) -> Match | None:
-        """Feed a FINAL segment; identify the speaker of *this turn*.
+        """Feed a segment; return the enrolled name for this turn, if any."""
+        _, match = await self.identify(segment)
+        return match
+
+    async def identify(self, segment: TranscriptSegment) -> tuple[str | None, Match | None]:
+        """Feed a segment; return (voice key, enrolled name) for *this turn*.
+
+        The voice key is the answer to "is this the same person as before",
+        which is what the caption label needs and what diarization gets wrong.
+        The name is the answer to "which enrolled person is it", which needs a
+        profile and is frequently `None`.
 
         Every long-enough turn is re-identified from its own audio, so a speaker
         change is caught on the next turn instead of inheriting whoever the
@@ -292,16 +310,18 @@ class SessionNamer:
         """
         state = self._speakers.setdefault(segment.speaker, _SpeakerState())
 
-        # A human already said who this is; don't second-guess them.
-        if state.overridden or not self.matcher.profiles:
-            return state.resolved
+        # A human already said who this is; don't second-guess them. The voice
+        # key still comes from the last clustering decision for this label, so a
+        # corrected speaker keeps a stable colour and grouping.
+        if state.overridden:
+            return state.voice, state.resolved
 
         self._begin_turn(state, segment)
 
         # Interim: identify while the person is still talking, so the caption
         # shows the right name during the turn instead of after it.
         if not segment.is_final:
-            return await self._identify_interim(state, segment)
+            return state.voice, await self._identify_interim(state, segment)
 
         state.windows.append((segment.start, segment.end))
         state.window_owners.append(None)
@@ -313,7 +333,7 @@ class SessionNamer:
             # as a provisional name rather than guessing from a fragment; the
             # next judgeable turn re-decides it, and this window stays unowned so
             # it can help identify that turn.
-            return state.resolved
+            return state.voice, state.resolved
 
         state.attempts += 1
         self.embeds_computed += 1
@@ -321,7 +341,13 @@ class SessionNamer:
         try:
             embedding = await asyncio.to_thread(embedder.embed, pcm, 16000)
         except ValueError:
-            return state.resolved
+            return state.voice, state.resolved
+
+        # One embedding, two questions. Clustering runs first and unconditionally,
+        # because it is the one that works without enrolment — and it is the one
+        # that was missing when a single speaker came out as Speaker 1/2/3.
+        state.voice = self.speakers.assign(segment.speaker, embedding)
+
         match = self.matcher.match(embedding)  # matcher logs best/runner-up/score
         # Weak evidence needs a stronger result: a turn under the confident
         # window is only named when the match clears an extra margin, so a
@@ -359,4 +385,4 @@ class SessionNamer:
                 "speaker_unnamed raw=%s was=%s audio=%.1fs (below threshold — staying generic)",
                 segment.speaker, previous.display_name, audio_s,
             )
-        return state.resolved
+        return state.voice, state.resolved
