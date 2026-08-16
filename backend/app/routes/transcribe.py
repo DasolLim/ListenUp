@@ -13,6 +13,10 @@ Server messages:
   {"type": "ready"}
   {"type": "segment", "speaker": "Speaker 1", "text": …, "start": s, "end": s, "isFinal": bool}
   {"type": "paused"} / {"type": "resumed"}   (acknowledgements)
+  {"type": "speakerMerge", "from": "Speaker 2", "to": "Speaker 1"}
+      Later audio showed two speakers were one person; relabel what is already
+      on screen. Live diarization commits with no lookahead, so this is how a
+      decision made on the first second of a voice gets corrected.
   {"type": "error", "message": …}
   {"type": "done"}
 """
@@ -407,6 +411,22 @@ async def ws_transcribe(websocket: WebSocket) -> None:
             # different people over a session — without it, naming the current
             # turn would rewrite the previous speaker's history under the same
             # label. Bubbles already carry their own per-turn name.
+            # Offline diarization clusters the whole recording at the end,
+            # which is why its attribution beats anything decided live. This is
+            # that advantage taken incrementally: once two voices have enough
+            # audio to show they were one person, fold them and relabel the
+            # captions already drawn, rather than leaving the split on screen.
+            if segment.is_final:
+                for absorbed, kept in namer.speakers.reconcile():
+                    was = mapper.label(absorbed)
+                    mapper.alias(absorbed, kept)
+                    now = mapper.label(kept)
+                    if was != now:
+                        await send_queue.put(
+                            json.dumps({"type": "speakerMerge", "from": was, "to": now})
+                        )
+                        logger.info("speaker_merge_emitted from=%s to=%s", was, now)
+
             if name is not None and announced.get(label) != name:
                 announced[label] = name
                 await send_queue.put(

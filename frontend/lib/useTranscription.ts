@@ -339,6 +339,16 @@ export function useTranscription(options?: { language?: string }) {
               : s
           )
         );
+      } else if (message.type === "speakerMerge") {
+        // Later audio showed two speakers were one person. Live diarization
+        // decides with no lookahead, so its first call on a voice is made on
+        // almost no evidence; this is the correction arriving once there is
+        // enough. Rewriting the label rather than adding a name is deliberate —
+        // the bubbles regroup and recolour, because grouping and colour key on
+        // identity, so one person ends up as one thread instead of two.
+        setSegments((list) =>
+          list.map((s) => (s.speaker === message.from ? { ...s, speaker: message.to } : s))
+        );
       } else if (message.type === "done") {
         // Session over: anything still marked interim is as final as it gets.
         setSegments((list) => list.map((s) => (s.isFinal ? s : { ...s, isFinal: true })));

@@ -65,6 +65,26 @@ MAX_VOICES = int(os.environ.get("SESSION_MAX_VOICES", "8"))
 # leaves the bands well separated (same voice ~0.9, different ~0.09).
 SPLIT_FLOOR = float(os.environ.get("SPEAKER_SPLIT_FLOOR", "0.45"))
 
+# Retroactive merging is held to a stricter bar than joining, because it
+# rewrites captions the reader has already read. Joining decides where the next
+# line goes; this decides that a line they saw attributed to Speaker 2 was
+# always Speaker 1. Being wrong here is more expensive, so it needs more
+# evidence — and unlike the live decision, it can afford to wait for it.
+RECONCILE_MARGIN = float(os.environ.get("SPEAKER_RECONCILE_MARGIN", "0.10"))
+
+# Compared on centroids rather than best-pair similarity. Max-cosine merges two
+# voices on a single flattering pair of samples; the centroid asks whether the
+# two collections of audio are the same person on the whole, which is the
+# question a retroactive rewrite is actually answering.
+MIN_TURNS_TO_RECONCILE = int(os.environ.get("SPEAKER_MIN_TURNS_RECONCILE", "2"))
+
+
+def _centroid(embeddings: list[list[float]]) -> list[float]:
+    """Mean embedding. Cosine ignores magnitude, so the mean stands in for the
+    voice as a whole without needing renormalisation."""
+    width = len(embeddings[0])
+    return [sum(e[i] for e in embeddings) / len(embeddings) for i in range(width)]
+
 
 def cluster_threshold() -> float:
     return float(os.environ.get("SPEAKER_CLUSTER_THRESHOLD", DEFAULT_CLUSTER_THRESHOLD))
@@ -186,3 +206,59 @@ class SessionSpeakers:
         voice.remember(embedding)
         voice.turns += 1
         self._by_label[provider_label] = voice.key
+
+    def reconcile(self) -> list[tuple[str, str]]:
+        """Merge voices that later evidence shows were one person all along.
+
+        The live decision is greedy and online: it commits with whatever it has
+        heard so far, and it can never revisit. That is the structural reason a
+        single speaker fragments — the first turn of what is really one voice is
+        judged against almost nothing, and once a second voice exists the two
+        drift on separately.
+
+        Offline diarization avoids this by clustering the whole recording at the
+        end, with every segment in hand. This is that idea made incremental:
+        after each turn, ask whether any two voices have accumulated enough
+        evidence to show they are the same person, and if so fold them and tell
+        the client to relabel what it already drew.
+
+        Returns `(absorbed, kept)` key pairs, oldest voice kept so the display
+        number a reader has been watching does not move.
+        """
+        merges: list[tuple[str, str]] = []
+        changed = True
+        while changed:
+            changed = False
+            for i, keeper in enumerate(self.voices):
+                for other in self.voices[i + 1 :]:
+                    if not self._same_person(keeper, other):
+                        continue
+                    for sample in other.embeddings:
+                        keeper.remember(sample)
+                    keeper.turns += other.turns
+                    for label, key in list(self._by_label.items()):
+                        if key == other.key:
+                            self._by_label[label] = keeper.key
+                    self.voices.remove(other)
+                    merges.append((other.key, keeper.key))
+                    logger.info("voice_reconciled absorbed=%s into=%s", other.key, keeper.key)
+                    changed = True
+                    break
+                if changed:
+                    break
+        return merges
+
+    def _same_person(self, a: Voice, b: Voice) -> bool:
+        """Are these two collections of audio one person, on the whole?
+
+        Both need enough turns to have a stable centroid: one-turn voices are
+        exactly the weak evidence that produced the split, and merging on them
+        would just move the coin flip somewhere else.
+        """
+        if a.turns < MIN_TURNS_TO_RECONCILE or b.turns < MIN_TURNS_TO_RECONCILE:
+            return False
+        if not a.embeddings or not b.embeddings:
+            return False
+        return cosine_similarity(_centroid(a.embeddings), _centroid(b.embeddings)) >= (
+            self.threshold + RECONCILE_MARGIN
+        )

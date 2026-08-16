@@ -179,3 +179,120 @@ def test_the_first_sample_of_a_voice_is_never_evicted(voices):
         voice.remember(voices["dan1"])
     assert voice.embeddings[0] == first
     assert len(voice.embeddings) <= GALLERY_CAP
+
+
+# ── Retroactive reconciliation ───────────────────────────────────────────────
+# The live decision is greedy and cannot revisit: the first turn of a voice is
+# judged against almost nothing. Offline diarization avoids that by clustering
+# the whole recording at the end. These cover that advantage made incremental.
+
+
+def test_a_split_speaker_is_reunited_once_there_is_evidence(voices):
+    """The reported bug, arriving late: two voices that turn out to be one."""
+    # Each voice gets its own recording of the same person, so the live pass
+    # cannot match them (0.957 similarity, under the 0.99 bar) but the centroids
+    # plainly agree afterwards. Seeding both from the same samples would let the
+    # second turn match at 1.0 and never split at all.
+    speakers = SessionSpeakers(threshold=0.99)  # force the live split
+    speakers.assign("A", voices["sam1"])
+    speakers.assign("A", voices["sam1"])
+    speakers.assign("B", voices["sam2"])
+    speakers.assign("B", voices["sam2"])
+    assert len(speakers.voices) == 2, "expected the greedy pass to split them"
+
+    speakers.threshold = 0.55  # normal bar; the centroids now agree
+    merges = speakers.reconcile()
+
+    assert len(speakers.voices) == 1, "the same person was left split"
+    assert merges, "no merge was reported to the client"
+
+
+def test_reconciliation_never_fuses_two_different_people(voices):
+    """The dangerous direction, and the reason the bar is stricter than joining:
+    this rewrites captions the reader has already read."""
+    speakers = SessionSpeakers()
+    for _ in range(3):
+        speakers.assign("A", voices["sam1"])
+        speakers.assign("B", voices["dan1"])
+    before = len(speakers.voices)
+    assert speakers.reconcile() == []
+    assert len(speakers.voices) == before == 2
+
+
+def test_the_older_voice_is_the_one_kept(voices):
+    """The display number a reader has been watching must not move under them."""
+    speakers = SessionSpeakers(threshold=0.99)
+    speakers.assign("A", voices["sam1"])
+    speakers.assign("A", voices["sam1"])
+    speakers.assign("B", voices["sam2"])
+    speakers.assign("B", voices["sam2"])
+    speakers.threshold = 0.55
+    merges = speakers.reconcile()
+    assert merges == [("B", "A")], f"expected B folded into A, got {merges}"
+
+
+def test_one_turn_voices_are_left_alone(voices):
+    """A single turn is the weak evidence that caused the split; merging on it
+    would just move the coin flip somewhere else.
+
+    The threshold is deliberately low enough that the centroid check *would*
+    pass, so the only thing preventing the merge is the turn count. An earlier
+    version of this test left the threshold high and passed whether the guard
+    existed or not.
+    """
+    speakers = SessionSpeakers(threshold=0.55)
+    speakers.voices.append(Voice(key="A", embeddings=[voices["sam1"]], turns=1))
+    speakers.voices.append(Voice(key="B", embeddings=[voices["sam2"]], turns=1))
+    speakers._by_label.update({"A": "A", "B": "B"})
+    assert speakers.reconcile() == [], "merged on one turn of evidence each"
+
+
+def test_reconciliation_is_idempotent(voices):
+    """Called after every final turn, so it must go quiet once settled or the
+    client is told to relabel the same speakers forever."""
+    speakers = SessionSpeakers(threshold=0.99)
+    for _ in range(2):
+        speakers.assign("A", voices["sam1"])
+    for _ in range(2):
+        speakers.assign("B", voices["sam2"])
+    speakers.threshold = 0.55
+    assert speakers.reconcile(), "expected a first merge"
+    assert speakers.reconcile() == [], "kept merging after everything had settled"
+
+
+def test_labels_follow_the_voice_they_were_folded_into(voices):
+    """A provider label pointing at the absorbed voice must end up pointing at
+    the survivor, or the next turn under it would split all over again."""
+    speakers = SessionSpeakers(threshold=0.99)
+    for _ in range(2):
+        speakers.assign("A", voices["sam1"])
+    for _ in range(2):
+        speakers.assign("B", voices["sam2"])
+    speakers.threshold = 0.55
+    speakers.reconcile()
+    survivor = speakers.voices[0].key
+
+    # Asserted on the mapping itself, not on a later `assign`. The survivor
+    # absorbed the absorbed voice's samples, so a matching turn reaches it on
+    # the audio path whether or not the remap happened — two earlier versions of
+    # this test passed with the remap deleted. The mapping is the guarantee.
+    assert speakers._by_label["B"] == survivor
+    assert all(key == survivor for key in speakers._by_label.values())
+    assert {v.key for v in speakers.voices} == {survivor}
+
+
+def test_the_merge_reaches_the_display_label(voices):
+    """End to end through the mapper: what the caption actually shows."""
+    speakers = SessionSpeakers(threshold=0.99)
+    mapper = SpeakerMapper()
+    for label in ("A", "A", "B", "B"):
+        voice = speakers.assign(label, voices["sam1" if label == "A" else "sam2"])
+        if voice != label:
+            mapper.alias(label, voice)
+        mapper.label(label)
+    assert mapper.label("A") != mapper.label("B"), "expected a visible split first"
+
+    speakers.threshold = 0.55
+    for absorbed, kept in speakers.reconcile():
+        mapper.alias(absorbed, kept)
+    assert mapper.label("A") == mapper.label("B") == "Speaker 1"
