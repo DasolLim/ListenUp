@@ -167,9 +167,21 @@ class SessionNamer:
         return state.resolved if state else None
 
     def set_name(self, raw_speaker: str, match: Match | None) -> None:
-        """Manual override (tap-to-correct). Sticks for the rest of the session."""
+        """Manual override (tap-to-correct). Sticks for the rest of the session.
+
+        Pinned on the *voice* as well as the label, so the correction follows
+        the person through later diarization churn instead of applying only to
+        whichever label happened to be on screen when they were corrected.
+        """
         state = self._speakers.setdefault(raw_speaker, _SpeakerState())
         state.resolved = match
+        state.overridden = True
+        if state.voice is not None:
+            self.speakers.pin(
+                state.voice,
+                match.profile_id if match else None,
+                match.display_name if match else "",
+            )
         state.overridden = True
 
     def speaker_audio(self, raw_speaker: str, max_seconds: float = MAX_MATCH_AUDIO_S) -> bytes:
@@ -364,10 +376,24 @@ class SessionNamer:
             match = None
 
         previous = state.resolved
-        # The match decides this turn outright, including back to None: keeping a
-        # stale name because it was confident once is the bug this replaces.
-        state.resolved = match
-        state.window_owners[-1] = match.profile_id if match else None
+
+        # The turn contributes *evidence*; the voice holds the identity. Naming
+        # each turn from scratch is why an enrolled speaker flickered between
+        # "David" and "Speaker 2": one short or quiet turn scored under the
+        # threshold and wiped a name six turns of audio had established. A turn
+        # that matches nothing now simply adds nothing, and the voice keeps what
+        # it knows.
+        if match is not None:
+            self.speakers.record_match(
+                state.voice, match.profile_id, match.display_name, match.similarity
+            )
+        identity = self.speakers.identity(state.voice)
+        state.resolved = (
+            Match(identity[0], identity[1], match.similarity if match else 1.0)
+            if identity
+            else None
+        )
+        state.window_owners[-1] = state.resolved.profile_id if state.resolved else None
 
         if match is not None:
             # Session adaptation: remember confident matches so this person's

@@ -78,6 +78,19 @@ RECONCILE_MARGIN = float(os.environ.get("SPEAKER_RECONCILE_MARGIN", "0.10"))
 # question a retroactive rewrite is actually answering.
 MIN_TURNS_TO_RECONCILE = int(os.environ.get("SPEAKER_MIN_TURNS_RECONCILE", "2"))
 
+# Support a voice must accumulate before it is named, and how far ahead of the
+# runner-up. Evidence is summed similarity across the voice's turns, so one
+# confident turn (~0.9) names a voice immediately while several weak ones have
+# to agree with each other first.
+#
+# This is the difference between naming a *turn* and naming a *voice*. Matching
+# each turn from scratch means a short, quiet or atypical turn scores under the
+# threshold and the name disappears — the speaker becomes "Speaker 2" mid
+# conversation, which reads as a different person rather than as uncertainty.
+# A voice that has been David for six turns stays David through the seventh.
+NAME_EVIDENCE = float(os.environ.get("SPEAKER_NAME_EVIDENCE", "0.85"))
+NAME_EVIDENCE_MARGIN = float(os.environ.get("SPEAKER_NAME_MARGIN", "0.35"))
+
 
 def _centroid(embeddings: list[list[float]]) -> list[float]:
     """Mean embedding. Cosine ignores magnitude, so the mean stands in for the
@@ -103,6 +116,35 @@ class Voice:
     key: str
     embeddings: list[list[float]] = field(default_factory=list)
     turns: int = 0
+    #: profile_id -> summed match similarity across this voice's turns.
+    evidence: dict[str, float] = field(default_factory=dict)
+    #: profile_id -> display name, so a resolved identity can be reported.
+    names: dict[str, str] = field(default_factory=dict)
+    #: A human said who this is. Beats accumulated evidence outright.
+    pinned: str | None = None
+
+    def record(self, profile_id: str, display_name: str, similarity: float) -> None:
+        self.evidence[profile_id] = self.evidence.get(profile_id, 0.0) + similarity
+        self.names[profile_id] = display_name
+
+    def identity(self) -> tuple[str, str] | None:
+        """(profile_id, display_name) once the evidence is decisive, else None.
+
+        Requires a margin over the runner-up as well as a floor, because two
+        enrolled people who sound alike is exactly when a confident-looking sum
+        is least trustworthy — and a wrong name is worse than no name
+        (INTRODUCTION §5.7).
+        """
+        if self.pinned is not None:
+            return self.pinned, self.names.get(self.pinned, "")
+        if not self.evidence:
+            return None
+        ranked = sorted(self.evidence.items(), key=lambda kv: kv[1], reverse=True)
+        best_id, best = ranked[0]
+        runner_up = ranked[1][1] if len(ranked) > 1 else 0.0
+        if best < NAME_EVIDENCE or best - runner_up < NAME_EVIDENCE_MARGIN:
+            return None
+        return best_id, self.names[best_id]
 
     def similarity(self, embedding: list[float]) -> float:
         """Best cosine across everything heard from this voice so far.
@@ -202,6 +244,28 @@ class SessionSpeakers:
         )
         return voice.key
 
+    def find(self, key: str) -> Voice | None:
+        return next((v for v in self.voices if v.key == key), None)
+
+    def record_match(self, key: str, profile_id: str, display_name: str, similarity: float) -> None:
+        """Add this turn's evidence to the voice it belongs to."""
+        voice = self.find(key)
+        if voice is not None:
+            voice.record(profile_id, display_name, similarity)
+
+    def pin(self, key: str, profile_id: str | None, display_name: str = "") -> None:
+        """Tap-to-correct. A human outranks any amount of accumulated evidence."""
+        voice = self.find(key)
+        if voice is None:
+            return
+        voice.pinned = profile_id
+        if profile_id is not None:
+            voice.names[profile_id] = display_name
+
+    def identity(self, key: str) -> tuple[str, str] | None:
+        voice = self.find(key)
+        return voice.identity() if voice else None
+
     def _remember(self, voice: Voice, provider_label: str, embedding: list[float]) -> None:
         voice.remember(embedding)
         voice.turns += 1
@@ -236,6 +300,13 @@ class SessionSpeakers:
                     for sample in other.embeddings:
                         keeper.remember(sample)
                     keeper.turns += other.turns
+                    # Carry the evidence across, or folding two halves of one
+                    # person can leave the survivor knowing less about who they
+                    # are than either half did.
+                    for profile_id, score in other.evidence.items():
+                        keeper.record(profile_id, other.names[profile_id], score)
+                    if keeper.pinned is None:
+                        keeper.pinned = other.pinned
                     for label, key in list(self._by_label.items()):
                         if key == other.key:
                             self._by_label[label] = keeper.key

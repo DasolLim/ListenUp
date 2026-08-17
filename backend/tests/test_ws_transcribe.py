@@ -61,8 +61,8 @@ def test_mock_roundtrip_ordered_diarized_json() -> None:
     # `test_session_speakers.py` pins the identity rules on real voices.
     labels = [m["speaker"] for m in finals]
     assert all(labels), "every final turn needs a speaker label"
-    assert set(labels) <= {f"Speaker {n}" for n in range(1, 5)} | {"Other"}
-    assert len(set(labels)) <= len(labels)
+    named = {label for label in labels if label != "Other"}
+    assert len(named) <= 4, f"more than four named speakers on screen: {named}"
     ends = [m["end"] for m in messages]
     assert ends == sorted(ends)
 
@@ -80,8 +80,10 @@ def test_speaker_labels_stay_inside_the_cap() -> None:
     labels = [m["speaker"] for m in finals]
     assert len(labels) == 7, "every spoken turn should still be captioned"
     named = {label for label in labels if label != "Other"}
+    # At most four *displayed at once*. Numbers are never recycled, so a session
+    # with folds can legitimately show "Speaker 5" while only four are live —
+    # the invariant is the count, not the highest number.
     assert len(named) <= 4, f"more than four named speakers: {named}"
-    assert set(labels) <= {f"Speaker {n}" for n in range(1, 5)} | {"Other"}
 
 
 def test_bad_sample_rate_gets_clear_error() -> None:

@@ -84,6 +84,8 @@ class SpeakerMapper:
         self._order: dict[str, str] = {}
         # provider label → the label whose display name it borrows.
         self._alias: dict[str, str] = {}
+        # Numbers issued so far. Monotonic on purpose: see `_next_label`.
+        self._issued = 0
 
     def alias(self, raw: str, onto: str) -> None:
         """Fold `raw` onto the speaker already displayed for `onto`."""
@@ -92,18 +94,26 @@ class SpeakerMapper:
         self._alias[raw] = self._alias.get(onto, onto)
         # Release the slot this label held on its own. A label is usually
         # displayed once (as an interim) before the audio is judged, and leaving
-        # that reservation behind spends the four-speaker cap on people who
-        # turned out not to exist — a two-person conversation reaching "Other".
+        # that reservation behind spends the speaker cap on people who turned
+        # out not to exist — a two-person conversation reaching "Other".
         self._order.pop(raw, None)
 
     def _next_label(self) -> str:
-        """Lowest unused speaker number, so a released slot is reused rather
-        than skipped."""
-        taken = set(self._order.values())
-        for n in range(1, NAMED_SPEAKER_CAP + 1):
-            if f"Speaker {n}" not in taken:
-                return f"Speaker {n}"
-        return "Other"
+        """The next speaker number, never one already shown this session.
+
+        Monotonic rather than lowest-unused. Reusing a released number meant
+        "Speaker 2" could be Julie early in a conversation and Mom later, which
+        is worse than the gap it saves: a reader following a conversation by
+        label has no way to know the number changed hands. Numbers are cheap;
+        the identity behind one has to be stable for the whole session.
+
+        The cap counts speakers *currently* displayed, so folding a label frees
+        capacity without recycling its number.
+        """
+        if len(self._order) >= NAMED_SPEAKER_CAP:
+            return "Other"
+        self._issued += 1
+        return f"Speaker {self._issued}"
 
     def label(self, raw: str) -> str:
         raw = self._alias.get(raw, raw)

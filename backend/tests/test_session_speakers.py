@@ -120,17 +120,30 @@ def test_the_number_of_tracked_voices_is_bounded(voices):
 # ── The display mapper ───────────────────────────────────────────────────────
 
 
-def test_a_folded_label_releases_its_speaker_slot():
-    """A label is usually shown once as an interim before its audio is judged.
-    Leaving that reservation behind spends the four-speaker cap on people who
-    turned out not to exist."""
+def test_a_folded_label_frees_capacity_without_recycling_its_number():
+    """Two guarantees that pull against each other, and both matter.
+
+    Folding must free cap capacity, or a two-person conversation whose labels
+    churn reaches "Other". But the freed *number* must never be handed to
+    someone else: "Speaker 2" meaning Julie early and Mom later is worse than
+    the gap it saves, because a reader following by label cannot tell it changed
+    hands. That reuse was a real regression, and it is what produced "Mom as
+    speaker 2 but also David as speaker 2".
+    """
     mapper = SpeakerMapper()
     assert mapper.label("A") == "Speaker 1"
     assert mapper.label("B") == "Speaker 2"
     mapper.alias("B", "A")
-    assert mapper.label("B") == "Speaker 1"
-    # Speaker 2 is free again, so the next real person takes it.
-    assert mapper.label("C") == "Speaker 2"
+    assert mapper.label("B") == "Speaker 1", "the fold did not take effect"
+
+    third = mapper.label("C")
+    assert third != "Speaker 2", "a released number was handed to a different person"
+    assert third == "Speaker 3"
+
+    # Capacity really was freed: a fourth and fifth distinct voice still get
+    # numbers even though five labels have been seen.
+    assert mapper.label("D") == "Speaker 4"
+    assert mapper.label("E") == "Speaker 5"
 
 
 def test_folding_is_transitive():
@@ -296,3 +309,79 @@ def test_the_merge_reaches_the_display_label(voices):
     for absorbed, kept in speakers.reconcile():
         mapper.alias(absorbed, kept)
     assert mapper.label("A") == mapper.label("B") == "Speaker 1"
+
+
+# ── Enrolled identity is a property of the voice, not of one turn ─────────────
+# Reported with three enrolled people: David showing as "David", then
+# "Speaker 1", then "Speaker 2". The name was decided per turn, so one short or
+# quiet turn scored under the threshold and wiped what six turns had
+# established — and a generic label reads as a *different person*, not as
+# uncertainty.
+
+DAVID, MOM, JULIE = "p-david", "p-mom", "p-julie"
+
+
+def test_a_named_voice_survives_a_turn_that_matches_nothing():
+    """The exact flicker: David, David, (weak turn), David."""
+    speakers = SessionSpeakers()
+    speakers.voices.append(Voice(key="A", embeddings=[[1.0]], turns=1))
+    speakers.record_match("A", DAVID, "David", 0.91)
+    assert speakers.identity("A") == (DAVID, "David")
+
+    # A turn whose own audio matched nobody contributes no evidence...
+    assert speakers.identity("A") == (DAVID, "David"), "a weak turn un-named the speaker"
+
+
+def test_one_confident_turn_is_enough_to_name_a_voice():
+    speakers = SessionSpeakers()
+    speakers.voices.append(Voice(key="A", embeddings=[[1.0]], turns=1))
+    speakers.record_match("A", DAVID, "David", 0.90)
+    assert speakers.identity("A") == (DAVID, "David")
+
+
+def test_two_enrolled_people_too_close_to_call_stay_unnamed():
+    """A wrong name is worse than no name (INTRODUCTION §5.7). Sibling voices
+    scoring alike is exactly when a confident-looking sum is least trustworthy."""
+    speakers = SessionSpeakers()
+    speakers.voices.append(Voice(key="A", embeddings=[[1.0]], turns=1))
+    speakers.record_match("A", MOM, "Mom", 0.62)
+    speakers.record_match("A", JULIE, "Julie", 0.60)
+    assert speakers.identity("A") is None
+
+
+def test_evidence_accumulates_until_one_person_pulls_ahead():
+    speakers = SessionSpeakers()
+    speakers.voices.append(Voice(key="A", embeddings=[[1.0]], turns=1))
+    speakers.record_match("A", MOM, "Mom", 0.60)
+    speakers.record_match("A", JULIE, "Julie", 0.58)
+    assert speakers.identity("A") is None, "named on a coin flip"
+    speakers.record_match("A", MOM, "Mom", 0.60)
+    assert speakers.identity("A") == (MOM, "Mom")
+
+
+def test_a_correction_outranks_any_amount_of_evidence():
+    """Tap-to-correct is the user telling us directly; nothing outvotes it."""
+    speakers = SessionSpeakers()
+    speakers.voices.append(Voice(key="A", embeddings=[[1.0]], turns=1))
+    for _ in range(10):
+        speakers.record_match("A", JULIE, "Julie", 0.95)
+    speakers.pin("A", MOM, "Mom")
+    assert speakers.identity("A") == (MOM, "Mom")
+
+
+def test_folding_two_voices_keeps_what_each_knew(voices):
+    """Half of David's turns under one label and half under another must not
+    leave the survivor knowing less about who he is than either half did."""
+    speakers = SessionSpeakers(threshold=0.99)
+    for _ in range(2):
+        speakers.assign("A", voices["sam1"])
+    for _ in range(2):
+        speakers.assign("B", voices["sam2"])
+    speakers.record_match("A", DAVID, "David", 0.60)
+    speakers.record_match("B", DAVID, "David", 0.60)
+    assert speakers.identity("A") is None, "neither half should be decisive alone"
+
+    speakers.threshold = 0.55
+    speakers.reconcile()
+    survivor = speakers.voices[0].key
+    assert speakers.identity(survivor) == (DAVID, "David"), "evidence lost in the fold"
