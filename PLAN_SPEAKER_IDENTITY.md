@@ -81,7 +81,12 @@ naming channel "for latency"; it is not needed and would be scope.
 
 ---
 
-## Task 1 — Evaluation harness (BLOCKING)
+## Task 1 — Evaluation harness (BLOCKING) — ✅ DONE 2026-08-17
+
+Baseline in the decisions log. Two bugs found by building it: the display
+label keyed on the provider label (production, fixed), and four TTS voices
+rendering as the system default (harness, guarded). `trio-short-churn` is
+the row Task 2 must move: 0.167 confusion, 0.67 split, 0.58 naming, 5 churn.
 
 **Goal.** A single command that reports how good speaker identification actually
 is, on sessions with known ground truth, using real ECAPA.

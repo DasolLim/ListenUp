@@ -382,13 +382,24 @@ async def ws_transcribe(websocket: WebSocket) -> None:
             # when the turn was too short to judge from audio at all.
             voice, match = await namer.identify(segment)
             name = match.display_name if match else None
-            # The voice says which earlier label this turn really belongs to.
-            # Folding rather than relabelling keeps one namespace, so interim
-            # turns (judged before there is audio to judge) and final turns can
-            # never occupy two different Speaker slots for one person.
-            if voice is not None and voice != segment.speaker:
-                mapper.alias(segment.speaker, voice)
-            label = mapper.label(segment.speaker)
+            # The display follows the *voice*, not the provider label. Keying on
+            # the label collapsed a correct split back into one speaker: when
+            # diarization put two people under one label, the clustering
+            # separated them and the display handed both the same number.
+            #
+            # Folding is still needed for the other direction. A label shown
+            # once as an interim, before there was audio to judge, holds a
+            # speaker slot; when its turns turn out to belong to a voice first
+            # heard elsewhere, that slot has to be released or the cap is spent
+            # on people who do not exist.
+            folded = (
+                namer.speakers.folded_onto(segment.speaker, voice)
+                if voice is not None
+                else None
+            )
+            if folded is not None:
+                mapper.alias(segment.speaker, folded)
+            label = mapper.label(voice or segment.speaker)
             payload = _segment_payload(segment, label, name)
             await _queue_put_with_backpressure(send_queue, payload, segment.is_final)
 

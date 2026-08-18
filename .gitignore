@@ -30,3 +30,6 @@ venv/
 
 # Logs
 *.log
+
+# Generated evaluation audio — rebuild with scripts/build_speaker_corpus.py
+backend/services/speaker_id/fixtures/corpus/

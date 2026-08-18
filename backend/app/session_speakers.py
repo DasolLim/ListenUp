@@ -244,6 +244,19 @@ class SessionSpeakers:
         )
         return voice.key
 
+    def folded_onto(self, provider_label: str, voice_key: str) -> str | None:
+        """The label this turn should borrow its display slot from, or None.
+
+        `None` when the voice is this provider label's own — *including a voice
+        split off it*. A split means the label is carrying a second person, and
+        that person needs their own speaker slot; folding the label onto them
+        would hand both people one label and undo the split at the display
+        layer, which is the merge error arriving by the back door.
+        """
+        if voice_key == provider_label or voice_key.startswith(f"{provider_label}#"):
+            return None
+        return voice_key
+
     def find(self, key: str) -> Voice | None:
         return next((v for v in self.voices if v.key == key), None)
 
