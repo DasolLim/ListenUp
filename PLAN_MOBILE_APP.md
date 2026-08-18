@@ -171,7 +171,44 @@ no terms page. The product runs on `localhost` only.
 This is a larger gap than the app packaging, and every phase below depends on
 it. An app whose backend is your laptop cannot be reviewed, let alone shipped.
 
-### Task 0.1 — Deploy the backend
+### Task 0.1 — Deploy the backend — ❌ BLOCKED 2026-08-18
+
+**Container files written and committed; nothing about them is verified, because
+Docker is not installed on this machine and the deploy needs your accounts.**
+
+Delivered: `backend/Dockerfile` (CPU-only torch wheels — the default PyPI torch
+pulls the whole CUDA runtime, over a gigabyte this app can never use — with
+dependency layers before `app/` so a code push reuses them, and the ECAPA
+weights baked in at build), `backend/.dockerignore`, `backend/railway.json`,
+and `infra/README.md` as the deploy checklist.
+
+One thing was buildable here and was built test-first: **`app/preflight.py`
+refuses to start a production deploy that is missing configuration.** Every
+provider in this app falls back to a mock by constraint (§6), so a deploy
+without `ASSEMBLYAI_API_KEY` previously started cleanly, reported healthy, and
+served the first real user a fixture conversation — the one misconfiguration
+that looks perfectly well. 8 tests, three mutations confirmed to fail (mocks not
+reported, credentials not required, warnings promoted to errors). 520 backend
+tests.
+
+**Blocked on you, and none of it is code:**
+1. Railway project, root directory set to `backend/`, **≥2 GB memory** (torch +
+   model is 1–1.5 GB resident; 512 MB OOMs as a restart loop).
+2. Upstash Redis → `REDIS_URL`.
+3. The env vars in `infra/README.md` §3.
+4. **Google Translation auth.** Local dev uses `gcloud` ADC because the org
+   policy blocks service-account key files (decisions log 2026-07-17). ADC does
+   not exist in a container. This is the one credential that cannot be pasted
+   into Railway, and it should be resolved before the first deploy.
+
+**Unverified and worth knowing:** the image has never been built. Every path it
+copies exists, but layer caching, the CPU wheel index, the model-baking step and
+the healthcheck are all untested. First `railway up` is the first real test.
+
+**Gate remaining:** `wss://` session from a phone on cellular produces captions;
+`/health` green; a redeploy does not re-download the model.
+
+### Original specification
 
 **Do:**
 - **Dockerfile.** `requirements-ml.txt` (torch, torchaudio, speechbrain) is

@@ -8,6 +8,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.env import load_env
+from app.preflight import Severity, check_production_config, format_problems
 from app.routes.billing import router as billing_router
 from app.routes.feedback import router as feedback_router
 from app.routes.genz import router as genz_router
@@ -36,6 +37,22 @@ logger = logging.getLogger("listenup.ws")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    # Refuse to serve a misconfigured production deploy. Checked before the
+    # model loads, so the failure arrives in seconds rather than after an 80 MB
+    # download — and before any traffic, because the dangerous misconfiguration
+    # is the one that looks healthy: mocks left on serve fixture captions to
+    # real users without erroring once.
+    problems = check_production_config(os.environ)
+    for problem in problems:
+        logger.error("preflight %s: %s (fix: %s)", problem.severity.value,
+                     problem.message, problem.fix)
+    fatal = [p for p in problems if p.severity is Severity.ERROR]
+    if fatal:
+        raise RuntimeError(
+            f"Refusing to start: {len(fatal)} configuration problem(s).\n"
+            + format_problems(fatal)
+        )
+
     # Load the speaker-ID model once at startup (never per request).
     get_speaker_embedder().load()
     yield
