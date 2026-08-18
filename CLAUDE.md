@@ -61,8 +61,70 @@ AssemblyAI and ECAPA-TDNN run **together**, not as competitors.
 
 ## Commands
 
-- Frontend (`/frontend`): `npm run dev` · `npm run build` · `npm run lint` · `npm run typecheck`
-- Backend (`/backend`): `source .venv/bin/activate` · `uvicorn app.main:app --reload --port 8000` · `ruff check .` · `pytest`
+- **`make check`** — the fast loop: types, lint and unit tests across both stacks (~20s). Keep it green.
+- **`make e2e`** — the browser loop: boots backend (on mocks) + frontend, checks a11y, contrast, layout.
+- **`make all`** — both. `make help` lists the rest.
+- Frontend (`/frontend`): `npm run dev` · `build` · `lint` · `typecheck` · `verify` · `e2e` · `e2e:ui`
+- Backend (`/backend`): `source .venv/bin/activate` · `uvicorn app.main:app --reload --port 8000` · `ruff check .` · `mypy` · `pytest`
+
+> A script that imports test helpers does **not** inherit `tests/conftest.py`, which is the only thing pinning mocks. Running one by hand has already burned two billed AssemblyAI sessions. Go through the targets above.
+
+## Testing — work test-first, and decide these three things explicitly
+
+Write the failing test, make it pass, then improve the design. The point is not
+ceremony; it is that a test written afterwards tends to assert what the code
+already does. Three of this repo's tests were caught passing **vacuously** —
+named for a guard they never reached — and each was found by deleting the code
+and watching the test stay green. **Mutate anything you rely on.** A test that
+cannot fail is worse than no test, because it is counted.
+
+**1. What is a unit here?** Bigger than a function. The unit is a *decision the
+product makes*: "an ambiguous turn joins the nearest voice", "read-aloud speaks
+the text on screen", "the caption pane's newest line never moves". Those cross
+several functions on purpose — the bugs in this repo have lived in the seams
+(a display layer that undid a correct split, two translation lanes racing), and
+a test per function would have passed through every one of them. Test one
+function alone when it holds real logic worth pinning — the metrics in
+`speaker_metrics.py` are unit-tested against hand-built cases precisely because
+a wrong scorer is worse than no scorer.
+
+**2. What to mock.** Mock what costs money, what needs a key, and what is not
+deterministic — every external tool has a mock by constraint (§6). Mock
+**nothing else**. In particular do not mock our own layers to test our own
+layers: the speaker evaluation drives the real `assign → reconcile →
+SpeakerMapper` path and only the *provider's diarization labels* are scripted,
+because the labels are the input whose misbehaviour the whole subsystem exists
+to survive. Where a mock hides the thing under test, use the real one — a cache
+test that ran against the mock cache passed under mutation, because the mock's
+key is its own.
+
+**3. What behaviour to test.** What a user would notice, stated as an
+invariant, not as an implementation. `merge count must be 0` (two people never
+share a label) outlives any threshold; `SPEAKER_CLUSTER_THRESHOLD == 0.55` is
+a copy of the source. Prefer the properties that survive a rewrite: a cultural
+result is never replaced by a plain one; a display number never moves under a
+reader; a folded label releases its slot.
+
+**Which loop answers which question:**
+
+| loop | catches | cost |
+|---|---|---|
+| `mypy` / `tsc` | wrong shapes, unchecked `Any`, an untyped def opting its body out | instant |
+| `pytest` / `npm run verify` | decisions and invariants, on mocks | seconds |
+| `make e2e` | facts only a rendered page knows | minutes cold |
+
+The browser loop is not optional polish: every bug this project shipped and had
+reported back was invisible to the first two. And it earns its cost only for
+what a browser alone knows — computed contrast, real geometry, hit areas, and
+what actually went over the wire. Re-asserting a class name in a browser is a
+slower unit test.
+
+**Two harness rules, both learned the hard way.** *Verify the harness before
+trusting a bad number*: a Korean accuracy run read 22.6% from a corpus that was
+95% silence, and five reported speaker merges were two real voices wearing five
+names. *A green run needs a reason*: a contrast suite stayed green while the
+page rendered unstyled, so rendered assertions now refuse to run when the
+design tokens did not load.
 
 ## Repo layout
 
