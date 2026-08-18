@@ -1,0 +1,213 @@
+{
+ "embedder": "real",
+ "scenarios": {
+  "solo": {
+   "turns": 10,
+   "speakers": 1,
+   "labels": 1,
+   "confusion_rate": 0.0,
+   "split_rate": 0.0,
+   "merge_count": 0,
+   "count_error": 0,
+   "name_accuracy": 0.9,
+   "name_churn": 1,
+   "turns_to_first_name": {
+    "human-sam": 2,
+    "human-dan": null,
+    "tts-karen": null
+   }
+  },
+  "pair": {
+   "turns": 10,
+   "speakers": 2,
+   "labels": 2,
+   "confusion_rate": 0.0,
+   "split_rate": 0.0,
+   "merge_count": 0,
+   "count_error": 0,
+   "name_accuracy": 0.8,
+   "name_churn": 2,
+   "turns_to_first_name": {
+    "human-sam": 2,
+    "human-dan": 2,
+    "tts-karen": null
+   }
+  },
+  "pair-churn": {
+   "turns": 10,
+   "speakers": 2,
+   "labels": 2,
+   "confusion_rate": 0.0,
+   "split_rate": 0.0,
+   "merge_count": 0,
+   "count_error": 0,
+   "name_accuracy": 0.8,
+   "name_churn": 2,
+   "turns_to_first_name": {
+    "human-sam": 2,
+    "human-dan": 2,
+    "tts-karen": null
+   }
+  },
+  "pair-shared": {
+   "turns": 10,
+   "speakers": 2,
+   "labels": 2,
+   "confusion_rate": 0.0,
+   "split_rate": 0.0,
+   "merge_count": 0,
+   "count_error": 0,
+   "name_accuracy": 0.8,
+   "name_churn": 2,
+   "turns_to_first_name": {
+    "human-sam": 2,
+    "human-dan": 2,
+    "tts-karen": null
+   }
+  },
+  "trio": {
+   "turns": 12,
+   "speakers": 3,
+   "labels": 2,
+   "confusion_rate": 0.3333,
+   "split_rate": 0.0,
+   "merge_count": 1,
+   "count_error": 1,
+   "name_accuracy": 0.5,
+   "name_churn": 3,
+   "turns_to_first_name": {
+    "human-sam": 2,
+    "human-dan": 2,
+    "tts-karen": null
+   }
+  },
+  "trio-churn": {
+   "turns": 12,
+   "speakers": 3,
+   "labels": 3,
+   "confusion_rate": 0.1667,
+   "split_rate": 0.3333,
+   "merge_count": 1,
+   "count_error": 0,
+   "name_accuracy": 0.5,
+   "name_churn": 3,
+   "turns_to_first_name": {
+    "human-sam": 2,
+    "human-dan": 2,
+    "tts-karen": null
+   }
+  },
+  "five": {
+   "turns": 15,
+   "speakers": 5,
+   "labels": 5,
+   "confusion_rate": 0.0,
+   "split_rate": 0.0,
+   "merge_count": 0,
+   "count_error": 0,
+   "name_accuracy": 0.4444,
+   "name_churn": 2,
+   "turns_to_first_name": {
+    "human-sam": 2,
+    "human-dan": 2,
+    "tts-karen": null
+   }
+  },
+  "dominant": {
+   "turns": 15,
+   "speakers": 2,
+   "labels": 2,
+   "confusion_rate": 0.0,
+   "split_rate": 0.0,
+   "merge_count": 0,
+   "count_error": 0,
+   "name_accuracy": 0.8667,
+   "name_churn": 2,
+   "turns_to_first_name": {
+    "human-sam": 2,
+    "human-dan": 2,
+    "tts-karen": null
+   }
+  },
+  "pair-short": {
+   "turns": 10,
+   "speakers": 2,
+   "labels": 2,
+   "confusion_rate": 0.0,
+   "split_rate": 0.0,
+   "merge_count": 0,
+   "count_error": 0,
+   "name_accuracy": 0.0,
+   "name_churn": 0,
+   "turns_to_first_name": {
+    "human-sam": null,
+    "human-dan": null,
+    "tts-karen": null
+   }
+  },
+  "trio-short": {
+   "turns": 12,
+   "speakers": 3,
+   "labels": 3,
+   "confusion_rate": 0.0,
+   "split_rate": 0.0,
+   "merge_count": 0,
+   "count_error": 0,
+   "name_accuracy": 0.1667,
+   "name_churn": 1,
+   "turns_to_first_name": {
+    "human-sam": 3,
+    "human-dan": null,
+    "tts-karen": null
+   }
+  },
+  "trio-short-churn": {
+   "turns": 12,
+   "speakers": 3,
+   "labels": 5,
+   "confusion_rate": 0.25,
+   "split_rate": 0.6667,
+   "merge_count": 0,
+   "count_error": 2,
+   "name_accuracy": 0.0,
+   "name_churn": 4,
+   "turns_to_first_name": {
+    "human-sam": null,
+    "human-dan": null,
+    "tts-karen": null
+   }
+  },
+  "trio-runs-short": {
+   "turns": 12,
+   "speakers": 3,
+   "labels": 5,
+   "confusion_rate": 0.25,
+   "split_rate": 0.6667,
+   "merge_count": 0,
+   "count_error": 2,
+   "name_accuracy": 0.0,
+   "name_churn": 5,
+   "turns_to_first_name": {
+    "human-sam": null,
+    "human-dan": null,
+    "tts-karen": null
+   }
+  },
+  "late-joiner": {
+   "turns": 14,
+   "speakers": 3,
+   "labels": 3,
+   "confusion_rate": 0.0,
+   "split_rate": 0.0,
+   "merge_count": 0,
+   "count_error": 0,
+   "name_accuracy": 0.4286,
+   "name_churn": 2,
+   "turns_to_first_name": {
+    "human-sam": 2,
+    "human-dan": 2,
+    "tts-karen": null
+   }
+  }
+ }
+}

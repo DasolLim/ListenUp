@@ -25,6 +25,8 @@ splits one voice across labels routinely, and that is the reported bug.
 import argparse
 import json
 import os
+import random
+import struct
 import sys
 import wave
 from dataclasses import dataclass
@@ -62,6 +64,26 @@ class Utterance:
 def _clip(path: Path) -> bytes:
     with wave.open(str(path), "rb") as handle:
         return handle.readframes(handle.getnframes())
+
+
+def _add_noise(pcm: bytes, level: float, rng: random.Random) -> bytes:
+    """Mix in white noise at `level` x the clip's own RMS.
+
+    Clean fixtures leave real ECAPA a very wide gap — about 0.09 between people
+    and 0.9 within one — and a decision that wide is never close enough for a
+    tie-break to matter. A single microphone in a room is not that clean, and
+    the ambiguous band is exactly where the reported flicker lives, so a suite
+    with no noise in it cannot see anything that acts on ambiguity.
+    """
+    if level <= 0:
+        return pcm
+    samples = list(struct.unpack(f"<{len(pcm) // 2}h", pcm[: len(pcm) // 2 * 2]))
+    rms = (sum(s * s for s in samples) / max(1, len(samples))) ** 0.5
+    amplitude = rms * level
+    noisy = [
+        max(-32768, min(32767, int(s + rng.gauss(0, amplitude)))) for s in samples
+    ]
+    return struct.pack(f"<{len(noisy)}h", *noisy)
 
 
 def scenarios(speakers: list[str]) -> dict[str, list[Utterance]]:
@@ -103,6 +125,15 @@ def scenarios(speakers: list[str]) -> dict[str, list[Utterance]]:
         "trio-short-churn": [
             Utterance([a, b, c][i % 3], f"P{i}", seconds=1.0) for i in range(12)
         ],
+        # Real conversation comes in runs, not strict alternation: somebody
+        # holds the floor for a few turns, then hands over. Every scenario above
+        # alternates on every turn, which is the one shape where "who spoke
+        # last" carries no information at all — so a suite made only of those
+        # cannot see a transition penalty work or fail.
+        "trio-runs-short": [
+            Utterance([a, a, b, b, b, c, a, a, c, c, b, a][i], f"P{i}", seconds=1.0)
+            for i in range(12)
+        ],
         # A third voice arrives late.
         "late-joiner": [Utterance([a, b][i % 2] if i < 8 else c, f"P{i % 2 if i < 8 else 2}")
                         for i in range(14)],
@@ -114,9 +145,11 @@ def run_session(
     clips: dict[str, list[Path]],
     matcher: SpeakerMatcher,
     enrolled: dict[str, str],
+    noise: float = 0.0,
 ) -> list[Turn]:
     """Drive one session through the production decision path."""
     embedder = get_speaker_embedder()
+    rng = random.Random(1234)  # fixed, so a run is comparable to the last one
     speakers = SessionSpeakers()
     mapper = SpeakerMapper()
     seen: dict[str, int] = {}
@@ -140,6 +173,7 @@ def run_session(
                 start = (len(pcm) - want) // 2
                 pcm = pcm[start - start % 2 : start - start % 2 + want]
 
+        pcm = _add_noise(pcm, noise, rng)
         embedding = embedder.embed(pcm, 16000)
         voice = speakers.assign(utterance.provider_label, embedding)
 
@@ -179,6 +213,8 @@ def main() -> int:
     parser.add_argument("--speakers", type=int, default=5)
     parser.add_argument("--enrol", type=int, default=3,
                         help="how many speakers have voice profiles")
+    parser.add_argument("--noise", type=float, default=0.0,
+                        help="white noise at this multiple of each clip's RMS")
     parser.add_argument("--save", action="store_true")
     args = parser.parse_args()
 
@@ -203,7 +239,8 @@ def main() -> int:
     matcher = SpeakerMatcher(profiles)
 
     service = os.environ.get("SPEAKER_ID_SERVICE", "mock")
-    print(f"\nembedder={service}  speakers={len(speaker_ids)}  enrolled={len(enrolled)}")
+    print(f"\nembedder={service}  speakers={len(speaker_ids)}  "
+          f"enrolled={len(enrolled)}  noise={args.noise}")
     if any(sid.startswith("tts-") for sid in speaker_ids):
         print("NOTE: TTS voices are a proxy for real speakers — absolute numbers")
         print("      are an upper bound; comparisons between runs are what carry.\n")
@@ -215,7 +252,7 @@ def main() -> int:
 
     results = {}
     for name, utterances in scenarios(speaker_ids).items():
-        turns = run_session(utterances, clips, matcher, enrolled)
+        turns = run_session(utterances, clips, matcher, enrolled, args.noise)
         stats = summarise(turns, enrolled)
         results[name] = stats
         accuracy = "  -  " if stats["name_accuracy"] is None else f"{stats['name_accuracy']:.2f}"

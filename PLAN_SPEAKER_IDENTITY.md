@@ -357,7 +357,34 @@ screenshot inspection) at all three widths.
 
 ---
 
-## Task 4 — Transition-penalised smoothing
+## Task 4 — Transition-penalised smoothing — ❌ TRIED AND REVERTED 2026-08-18
+
+Built with 4 tests and three mutations caught, then reverted: **no change at
+any value (0.0 / 0.03 / 0.05 / 0.10 / 0.20), on clean audio or under noise.**
+
+**Why, and it is a design trap rather than a tuning miss.** A test showed the
+obvious implementation is unsafe: adding the bonus to the score that clears the
+merge threshold means a large enough nudge merges two different people. Making
+it safe means confining the bonus to *ranking* and thresholding on raw
+similarity — but which branch `assign` takes is decided by raw scores and by the
+label's own voice, so the ranking almost never changes the outcome. The safe
+version is inert and the unsafe version does harm. There is no useful middle.
+
+**What the attempt did leave behind**, both kept:
+
+- `trio-runs-short` — real conversation comes in runs, not strict alternation,
+  and every other scenario alternated on every turn. A suite made only of those
+  cannot see anything that acts on "who spoke last".
+- `--noise` — clean fixtures leave real ECAPA a ~0.09/0.9 gap, far too wide for
+  any tie-break to matter, and nothing like one microphone in a room.
+
+**The finding that matters more than the feature: under `--noise 0.5` the
+merge-free invariant fails (2 merges), and enrolled naming collapses to 0.00.**
+That is the first thing the harness has caught the system doing wrong, and it is
+much closer to the user's real conditions than the clean corpus. It should be
+the next task.
+
+### Original specification
 
 **Goal.** Stop one ambiguous turn from flipping a speaker, without preventing
 genuine speaker changes.
