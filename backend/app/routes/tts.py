@@ -16,7 +16,7 @@ and are enforced here rather than in the UI:
 
 import base64
 import logging
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated, Protocol, cast
 
 from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -27,10 +27,28 @@ from services.speaker_id.base import audio_seconds
 from services.tts import (
     VOICE_CLONE_CONSENT_TEXT,
     VOICE_CLONE_CONSENT_VERSION,
+    Speech,
     TtsError,
     Voice,
     get_tts_service,
 )
+from services.tts.base import TtsService
+
+if TYPE_CHECKING:  # imported lazily at runtime to avoid a route-module cycle
+    from app.routes.billing import Caller
+
+
+class ShapeableTts(Protocol):
+    """A service that can apply expressiveness while rendering.
+
+    The browser tier deliberately keeps a two-argument `speak` — it has nothing
+    to apply a shape to, since the client speaks locally — so "can this service
+    be shaped?" is a real distinction rather than an optional parameter every
+    implementation has to carry. Stating it as a protocol makes the duck-typing
+    checkable instead of invisible.
+    """
+
+    async def speak(self, text: str, voice_id: str, *, expressiveness: float) -> Speech: ...
 
 logger = logging.getLogger("listenup.tts")
 
@@ -48,7 +66,7 @@ MAX_CUSTOM_VOICES = 4
 CHARS_PER_SECOND = 870 / 60
 
 
-def browser_service():
+def browser_service() -> TtsService:
     """The free tier, always available.
 
     Constructed directly rather than through the factory: `TTS_SERVICE` picks
@@ -66,7 +84,7 @@ def browser_service():
     return BrowserTtsService()
 
 
-def cloud_service():
+def cloud_service() -> TtsService | None:
     """The paid tier, or None when this deployment has no cloud provider."""
     service = get_tts_service()
     return service if getattr(service, "renders_audio", False) else None
@@ -74,7 +92,7 @@ def cloud_service():
 
 async def cloud_caller(
     credentials: HTTPAuthorizationCredentials | None,
-):
+) -> "Caller":
     """Resolve a caller allowed to spend cloud read-aloud, or refuse.
 
     Only reached when the configured service actually renders audio. Browser
@@ -194,7 +212,9 @@ async def speak(
     if request.voice_id not in browser_ids and not use_cloud:
         logger.info("tts_unknown_voice id=%r — falling back to a browser voice", request.voice_id)
 
-    service = cloud if use_cloud else browser
+    # `use_cloud` is only true for an id in `cloud_ids`, which is empty when
+    # there is no cloud service — so this branch cannot hand back None.
+    service: TtsService = cloud if use_cloud and cloud is not None else browser
     who = await cloud_caller(credentials) if use_cloud else None
     try:
         # Only pass expressiveness to services that render audio; the browser
@@ -202,7 +222,7 @@ async def speak(
         # to (the client speaks locally).
         shapeable = getattr(service, "supports_expressiveness", False)
         if request.expressiveness is not None and shapeable:
-            result = await service.speak(
+            result = await cast(ShapeableTts, service).speak(
                 request.text, request.voice_id, expressiveness=request.expressiveness
             )
         else:
@@ -252,7 +272,8 @@ async def list_custom_voices(user: Annotated[tuple[str, str], Depends(auth)]) ->
                 "custom_voices table is missing. Preset voices still work.",
             )
         raise HTTPException(502, "Could not load your custom voices.")
-    return response.json()
+    rows: list[dict] = response.json()  # trusted boundary: PostgREST
+    return rows
 
 
 @router.post("/custom-voices", status_code=201)

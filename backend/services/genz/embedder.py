@@ -64,7 +64,7 @@ class MiniLMTextEmbedder(TextEmbedder):
     def load(self) -> None:
         if self._model is not None:
             return
-        from sentence_transformers import SentenceTransformer  # type: ignore[import-not-found]
+        from sentence_transformers import SentenceTransformer
 
         self._model = SentenceTransformer("all-MiniLM-L6-v2")
 

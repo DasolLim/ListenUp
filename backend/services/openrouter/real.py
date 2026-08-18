@@ -4,7 +4,9 @@ import json
 import logging
 import os
 import re
+from collections.abc import Sequence
 from dataclasses import replace
+from typing import TYPE_CHECKING
 
 import httpx
 
@@ -17,9 +19,12 @@ from services.openrouter.base import (
     coerce_enhanced,
     parse_llm_json,
 )
-from services.openrouter.tiers import DEFAULT_TIER, resolve
+from services.openrouter.tiers import DEFAULT_TIER, ModelTier, resolve
 from services.translate.base import SUPPORTED_LANGUAGES, assert_supported
 from services.translate.cache import cache_key, get_cache
+
+if TYPE_CHECKING:  # `services.genz` is imported lazily so the KB stays optional
+    from services.genz.kb import SlangTerm
 
 logger = logging.getLogger("listenup.openrouter")
 
@@ -111,7 +116,7 @@ Korean to English (note: every explanation is in English):
 "cultural_context":"Korean net slang combining 'god' and 'life'","equivalent":"best life / grind life"}}]}}"""
 
 
-def _retrieve(text: str, k: int = 4):
+def _retrieve(text: str, k: int = 4) -> list["SlangTerm"]:
     """KB terms matching this text, or an empty list.
 
     Fails open by design: retrieval is an *improvement* to the cultural pass, not
@@ -169,7 +174,9 @@ def _covers(term: str, phrase: str) -> bool:
     return any(token.startswith(term) for token in phrase.split())
 
 
-def _mark_grounding(result, grounding):
+def _mark_grounding(
+    result: EnhancedTranslation, grounding: Sequence["SlangTerm"]
+) -> EnhancedTranslation:
     """Flag each note as grounded or not, and log the gaps.
 
     A note whose phrase the KB supplied is trustworthy; one it did not is the
@@ -245,7 +252,7 @@ class OpenRouterTranslationService(EnhancedTranslationService):
         text: str,
         target_lang: str,
         strict_nudge: bool,
-        grounding=(),
+        grounding: Sequence["SlangTerm"] = (),
         model: str | None = None,
         reasoning_effort: str | None = None,
     ) -> tuple[str, int]:
@@ -282,7 +289,7 @@ class OpenRouterTranslationService(EnhancedTranslationService):
         return content, tokens
 
     async def translate(
-        self, text: str, target_lang: str, tier=None
+        self, text: str, target_lang: str, tier: ModelTier | None = None
     ) -> EnhancedTranslation | None:
         assert_supported(target_lang)
         model = getattr(tier, "model", None) or self.model

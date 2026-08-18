@@ -1,5 +1,6 @@
 import logging
 import os
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 import sentry_sdk
@@ -34,7 +35,7 @@ logging.basicConfig(
 logger = logging.getLogger("listenup.ws")
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Load the speaker-ID model once at startup (never per request).
     get_speaker_embedder().load()
     yield

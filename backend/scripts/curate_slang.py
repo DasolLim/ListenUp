@@ -28,6 +28,7 @@ import sys
 
 from services.genz.curation import (
     PENDING,
+    Candidate,
     PendingStore,
     promote,
     reject,
@@ -35,7 +36,7 @@ from services.genz.curation import (
 )
 
 
-def _print_candidate(c) -> None:
+def _print_candidate(c: Candidate) -> None:
     mark = {"pending": "?", "promoted": "+", "rejected": "-"}.get(c.status, " ")
     print(f" {mark} {c.term}   ({c.status}, hit {c.seen}×, via {c.resolver})")
     if c.meaning:

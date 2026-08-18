@@ -21,6 +21,7 @@ Three rules hold this together:
 
 import logging
 import os
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from typing import Annotated, Any
 
@@ -111,7 +112,7 @@ async def auth(
     return await verify_user(token), token
 
 
-def _field(obj, key: str, default=None):
+def _field(obj: Any, key: str, default: Any = None) -> Any:
     """Read a key from a Stripe object or a plain dict.
 
     `StripeObject` does not implement `.get()` — it raises rather than returning
@@ -264,7 +265,7 @@ def _refusal(who: Caller, spent: Allowance) -> HTTPException:
     )
 
 
-def requires(metric: str):
+def requires(metric: str) -> Callable[..., Awaitable[Caller]]:
     """Dependency factory: the caller must be able to spend `metric`.
 
     402 rather than 403 on purpose — the client can distinguish "you need to
@@ -485,7 +486,7 @@ async def webhook(request: Request) -> dict:
     return {"received": True}
 
 
-def _tier_of(subscription) -> str:
+def _tier_of(subscription: Any) -> str:
     """Which plan a Stripe subscription is on.
 
     Read from the price id on the subscription's line item, because that is what

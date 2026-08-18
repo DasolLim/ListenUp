@@ -183,6 +183,10 @@ def summarise(turns: Iterable[Turn], enrolled: dict[str, str] | None = None) -> 
     """Every metric for one session, ready to print or serialise."""
     turns = list(turns)
     enrolled = enrolled or {}
+    # Bound once rather than called twice: the second call recomputed an
+    # optimal assignment over every turn, and a type checker cannot narrow
+    # `float | None` across two separate calls anyway.
+    accuracy = name_accuracy(turns, enrolled)
     return {
         "turns": len(turns),
         "speakers": len({t.speaker for t in turns}),
@@ -191,10 +195,7 @@ def summarise(turns: Iterable[Turn], enrolled: dict[str, str] | None = None) -> 
         "split_rate": round(split_rate(turns), 4),
         "merge_count": merge_count(turns),
         "count_error": count_error(turns),
-        "name_accuracy": (
-            None if name_accuracy(turns, enrolled) is None
-            else round(name_accuracy(turns, enrolled), 4)
-        ),
+        "name_accuracy": None if accuracy is None else round(accuracy, 4),
         "name_churn": name_churn(turns),
         "turns_to_first_name": turns_to_first_name(turns, enrolled),
     }

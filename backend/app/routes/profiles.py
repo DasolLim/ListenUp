@@ -203,4 +203,5 @@ async def export_profile(
     rows = response.json() if response.status_code == 200 else []
     if not rows:
         raise HTTPException(404, "Profile not found.")
-    return rows[0]
+    profile: dict = rows[0]  # trusted boundary: PostgREST
+    return profile

@@ -9,6 +9,8 @@ import re
 from abc import ABC, abstractmethod
 from dataclasses import asdict, dataclass, field
 
+from services.openrouter.tiers import ModelTier
+
 
 @dataclass(frozen=True)
 class SlangNote:
@@ -75,7 +77,7 @@ class CulturalUnavailable(Exception):
 class EnhancedTranslationService(ABC):
     @abstractmethod
     async def translate(
-        self, text: str, target_lang: str, tier=None
+        self, text: str, target_lang: str, tier: ModelTier | None = None
     ) -> EnhancedTranslation | None:
         """None = LLM unavailable/unparseable after retry — callers must treat
         the fast Google translation as the final answer.

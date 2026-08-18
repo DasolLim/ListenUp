@@ -5,6 +5,7 @@ from services.openrouter.base import (
     EnhancedTranslationService,
     SlangNote,
 )
+from services.openrouter.tiers import ModelTier
 from services.translate.base import assert_supported
 from services.translate.cache import cache_key, get_cache
 
@@ -42,7 +43,7 @@ _KNOWN_SLANG: dict[str, SlangNote] = {
 
 class MockEnhancedTranslationService(EnhancedTranslationService):
     async def translate(
-        self, text: str, target_lang: str, tier=None
+        self, text: str, target_lang: str, tier: ModelTier | None = None
     ) -> EnhancedTranslation | None:
         assert_supported(target_lang)
         cache = get_cache()
