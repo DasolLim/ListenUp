@@ -3,43 +3,24 @@
  *
  * Run: `node scripts/verify-translation-merge.mjs` from /frontend.
  *
+ * The merges live in `lib/translationMerge.ts` — no React import — so this
+ * loads the real module rather than cutting the hook out of a hook's file with
+ * a regex, which is what it used to do.
+ *
  * This is worth pinning because the failure is silent and per-utterance: when
  * the cultural lane won the race its whole result was discarded, so one line
  * kept its slang explanation and the next one lost it permanently, with nothing
  * on screen to say so. A reader who cannot hear the original has no way to tell
  * an unexplained line from one with nothing to explain.
  */
-import { readFileSync, writeFileSync, mkdtempSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import ts from "typescript";
+import { harness, loadTs } from "./lib/harness.mjs";
 
-const source = readFileSync(new URL("../lib/useLiveTranslation.ts", import.meta.url), "utf8")
-  // Strip the React hook and its imports; only the pure merges are under test.
-  .replace(/^import .*$/gm, "")
-  .replace(/^export function useLiveTranslation[\s\S]*$/m, "");
+const { mergeFastLane, mergeCulturalLane, newestSpeakableLine } = await loadTs(
+  new URL("../lib/translationMerge.ts", import.meta.url)
+);
 
-const js = ts.transpileModule(source, {
-  compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ESNext },
-}).outputText;
-
-const file = join(mkdtempSync(join(tmpdir(), "merge-")), "merge.mjs");
-writeFileSync(file, js);
-const { mergeFastLane, mergeCulturalLane, newestSpeakableLine } = await import(file);
-
-let pass = 0;
-let fail = 0;
-function check(name, actual, expected) {
-  if (JSON.stringify(actual) === JSON.stringify(expected)) {
-    pass += 1;
-    console.log(`  ok   ${name}`);
-  } else {
-    fail += 1;
-    console.log(
-      `  FAIL ${name}\n    expected ${JSON.stringify(expected)}\n    actual   ${JSON.stringify(actual)}`
-    );
-  }
-}
+const h = harness();
+const check = h.check;
 
 const NOTE = {
   phrase: "no cap",
@@ -134,5 +115,4 @@ console.log("\nspeakable line");
   check("nothing to say", newestSpeakableLine([], {}, all), undefined);
 }
 
-console.log(`\n${pass}/${pass + fail} checks passed`);
-process.exit(fail === 0 ? 0 : 1);
+h.done();

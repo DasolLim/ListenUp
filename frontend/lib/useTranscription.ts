@@ -2,16 +2,13 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getAccessToken } from "@/lib/auth/token";
+import { applyCaptionMessage } from "@/lib/captionStream";
+import type { CaptionSegment } from "@/lib/captionStream";
+import { SessionTimeline } from "@/lib/sessionTimeline";
+import type { LatencyStats } from "@/lib/sessionTimeline";
 
-export type CaptionSegment = {
-  id: string;
-  speaker: string;
-  speakerName: string | null;
-  text: string;
-  start: number;
-  end: number;
-  isFinal: boolean;
-};
+export type { CaptionSegment } from "@/lib/captionStream";
+export type { LatencyStats } from "@/lib/sessionTimeline";
 
 export type TranscriptionStatus =
   | "idle"
@@ -21,50 +18,7 @@ export type TranscriptionStatus =
   | "stopped"
   | "error";
 
-export type LatencyStats = { count: number; p50: number; p95: number } | null;
-
 const SAMPLE_RATE = 16000;
-// Diarization smoothing: a final segment shorter than this that flips to a new
-// speaker and flips back is treated as noise and merged into the neighbor.
-const SMOOTHING_WINDOW_S = 1.0;
-
-function percentile(sorted: number[], p: number): number {
-  if (!sorted.length) return 0;
-  const index = Math.min(sorted.length - 1, Math.ceil((p / 100) * sorted.length) - 1);
-  return sorted[Math.max(0, index)];
-}
-
-/** Merge an incoming segment into the list, keyed on the provider's stable
- * turn id. Interim and final versions of one utterance share the id even when
- * diarization revises the speaker label or timestamps mid-turn — matching on
- * anything else (speaker/start) orphans interims as duplicate bubbles. */
-function mergeSegment(list: CaptionSegment[], incoming: CaptionSegment): CaptionSegment[] {
-  const index = list.findIndex((s) => s.id === incoming.id);
-  if (index >= 0) {
-    const next = [...list];
-    // Never let a late interim overwrite an already-final turn.
-    next[index] = list[index].isFinal && !incoming.isFinal ? list[index] : incoming;
-    return next;
-  }
-  return [...list, incoming];
-}
-
-/** Merge speaker flips shorter than ~1s between same-speaker neighbors. */
-function smooth(list: CaptionSegment[]): CaptionSegment[] {
-  const finals = list.filter((s) => s.isFinal);
-  if (finals.length < 3) return list;
-  const flip = finals[finals.length - 2];
-  const before = finals[finals.length - 3];
-  const after = finals[finals.length - 1];
-  if (
-    flip.end - flip.start < SMOOTHING_WINDOW_S &&
-    flip.speaker !== before.speaker &&
-    before.speaker === after.speaker
-  ) {
-    return list.map((s) => (s.id === flip.id ? { ...s, speaker: before.speaker } : s));
-  }
-  return list;
-}
 
 /** Caption hours are gone for this billing period. */
 export type CaptionLimit = {
@@ -100,20 +54,17 @@ export function useTranscription(options?: { language?: string }) {
   const audioRef = useRef<{ context: AudioContext; stream: MediaStream } | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const levelBufferRef = useRef<Uint8Array | null>(null);
-  const captureStartRef = useRef<number>(0);
-  const latenciesRef = useRef<number[]>([]);
   const counterRef = useRef(0);
   const sessionIdRef = useRef<string>("");
 
-  // Read inside the audio callback, which is installed once per session and
-  // must see the current value without being rebuilt.
-  const pausedRef = useRef(false);
-  // Wall-clock time spent paused. `segment.end` is a position in the *audio*
-  // timeline, which stops advancing while paused, so mapping an audio moment
-  // back to the wall clock has to add the pauses back on. Without this the
-  // first caption after a pause reports a latency inflated by its whole length.
-  const pausedMsRef = useRef(0);
-  const pausedAtRef = useRef<number | null>(null);
+  // When the session started, how long it has been paused, and how late each
+  // caption was. One object rather than four refs, and deliberately the *only*
+  // record of whether we are paused: the audio callback, the billing clock and
+  // the latency arithmetic all read it, so "the mic gate and the billing clock
+  // disagree" is not a state this code can be in.
+  const timelineRef = useRef<SessionTimeline>(null as unknown as SessionTimeline);
+  if (timelineRef.current === null) timelineRef.current = new SessionTimeline();
+  const timeline = timelineRef.current;
 
   // Lets the pause/resume callbacks read the live status without depending on
   // it, so they stay stable and don't re-create the audio wiring around them.
@@ -215,11 +166,7 @@ export function useTranscription(options?: { language?: string }) {
     setLimit(null);
     setAllowanceWarning(null);
     setSegments([]);
-    latenciesRef.current = [];
     setLatency(null);
-    pausedRef.current = false;
-    pausedMsRef.current = 0;
-    pausedAtRef.current = null;
     sessionIdRef.current = crypto.randomUUID();
     setStatus("connecting");
 
@@ -282,76 +229,38 @@ export function useTranscription(options?: { language?: string }) {
 
     ws.onmessage = (event) => {
       const message = JSON.parse(event.data as string);
+      // A number for a provider that sends no turn id, taken *outside* the
+      // state updater: an updater must be pure, and React may call it twice —
+      // which would hand the two calls different ids for one utterance and draw
+      // it as two bubbles.
+      const fallbackIndex =
+        message.type === "segment" && message.turnId === undefined
+          ? counterRef.current++
+          : counterRef.current;
+      // Every message goes through one reducer, which returns the transcript
+      // untouched for the ones that say nothing about it. Deciding here which
+      // messages matter would put that decision in the transport, where it was
+      // reachable only by opening a socket in a browser.
+      setSegments((list) =>
+        applyCaptionMessage(list, message, sessionIdRef.current, fallbackIndex)
+      );
       if (message.type === "ready") {
         if (message.mode === "batch" || message.mode === "streaming") setMode(message.mode);
-        captureStartRef.current = performance.now();
+        timeline.start();
         chunker.port.onmessage = (audioEvent) => {
           // Paused means the audio never leaves the device. The track is muted
           // as well, so this is the second of two locks rather than the only
           // one — but it is the one that guarantees nothing is transmitted.
-          if (pausedRef.current) return;
+          if (!timeline.accepts()) return;
           if (ws.readyState === WebSocket.OPEN) ws.send(audioEvent.data as ArrayBuffer);
         };
         setStatus("listening");
       } else if (message.type === "segment") {
-        const segment: CaptionSegment = {
-          // Scoped to the session, because the provider's turn ids restart at
-          // zero every time one begins. Consumers cache per-segment work
-          // against this id — translations, "already spoken" — and those caches
-          // outlive a session, so a bare turn id meant the first line of a new
-          // conversation silently inherited the first line of the previous
-          // one's translation and was never re-requested.
-          id: `turn-${sessionIdRef.current}-${message.turnId ?? counterRef.current++}`,
-          speaker: message.speaker,
-          speakerName: message.speakerName ?? null,
-          text: message.text,
-          start: message.start,
-          end: message.end,
-          isFinal: message.isFinal,
-        };
-        if (segment.isFinal && captureStartRef.current) {
-          // End-to-end: from when this audio moment was captured to render.
-          // Paused time is added back because it advanced the wall clock
-          // without advancing the audio timeline `segment.end` counts in.
-          const captured = captureStartRef.current + pausedMsRef.current + segment.end * 1000;
-          latenciesRef.current.push(Math.max(0, performance.now() - captured));
-          const sorted = [...latenciesRef.current].sort((a, b) => a - b);
-          setLatency({
-            count: sorted.length,
-            p50: percentile(sorted, 50),
-            p95: percentile(sorted, 95),
-          });
+        if (message.isFinal) {
+          // End to end: from when this audio moment was captured to render.
+          timeline.observe(message.end);
+          setLatency(timeline.stats);
         }
-        setSegments((list) => smooth(mergeSegment(list, segment)));
-      } else if (message.type === "speakerUpdate") {
-        // A speaker was identified (or corrected) — relabel their past bubbles.
-        //
-        // `fillOnly` marks an automatic identification, which may only name
-        // bubbles that are still unnamed: one diarization label can carry
-        // different people across a session, so overwriting every bubble would
-        // rewrite the earlier speaker's lines with the current speaker's name.
-        // A manual correction arrives without the flag and overwrites, because
-        // the user is explicitly fixing that label.
-        setSegments((list) =>
-          list.map((s) =>
-            s.speaker === message.speaker && !(message.fillOnly && s.speakerName)
-              ? { ...s, speakerName: message.speakerName }
-              : s
-          )
-        );
-      } else if (message.type === "speakerMerge") {
-        // Later audio showed two speakers were one person. Live diarization
-        // decides with no lookahead, so its first call on a voice is made on
-        // almost no evidence; this is the correction arriving once there is
-        // enough. Rewriting the label rather than adding a name is deliberate —
-        // the bubbles regroup and recolour, because grouping and colour key on
-        // identity, so one person ends up as one thread instead of two.
-        setSegments((list) =>
-          list.map((s) => (s.speaker === message.from ? { ...s, speaker: message.to } : s))
-        );
-      } else if (message.type === "done") {
-        // Session over: anything still marked interim is as final as it gets.
-        setSegments((list) => list.map((s) => (s.isFinal ? s : { ...s, isFinal: true })));
       } else if (message.type === "usage") {
         // The 80% notice. Advisory only — the session is starting regardless,
         // which is the whole point of warning early rather than at the wall.
@@ -386,7 +295,7 @@ export function useTranscription(options?: { language?: string }) {
       setError((current) => current ?? "Lost the connection to the caption service.");
       cleanup();
     };
-  }, [cleanup, language]);
+  }, [cleanup, language, timeline]);
 
   /**
    * Hold the session open without capturing anything.
@@ -408,28 +317,23 @@ export function useTranscription(options?: { language?: string }) {
     // harmless, but a side effect in an updater is a bug waiting for the next
     // person to add one that isn't.
     if (statusRef.current !== "listening") return;
-    pausedRef.current = true;
-    pausedAtRef.current = performance.now();
+    if (!timeline.pause()) return;
     audioRef.current?.stream.getTracks().forEach((track) => (track.enabled = false));
     const ws = wsRef.current;
     // The server stops the billing clock on this. Skipping it would charge the
     // user for the pause, which would make the button worse than useless.
     if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "pause" }));
     setStatus("paused");
-  }, []);
+  }, [timeline]);
 
   const resume = useCallback(() => {
     if (statusRef.current !== "paused") return;
-    if (pausedAtRef.current !== null) {
-      pausedMsRef.current += performance.now() - pausedAtRef.current;
-      pausedAtRef.current = null;
-    }
-    pausedRef.current = false;
+    if (!timeline.resume()) return;
     audioRef.current?.stream.getTracks().forEach((track) => (track.enabled = true));
     const ws = wsRef.current;
     if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "resume" }));
     setStatus("listening");
-  }, []);
+  }, [timeline]);
 
   const correct = useCallback((speakerLabel: string, profileId: string | null) => {
     const ws = wsRef.current;

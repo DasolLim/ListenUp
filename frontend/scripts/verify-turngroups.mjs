@@ -8,41 +8,17 @@
  * one turn when the diarization label churns, and whether two people sharing a
  * label are kept apart. Both are answers a reader cannot check by ear.
  *
- * `lib/turnGroups.ts` is TypeScript with one type-only import, so it is
- * transpiled in-process with the project's own compiler rather than bundled.
+ * Loaded through the shared harness, which transpiles the module in-process
+ * with the project's own compiler rather than bundling it.
  */
-import { readFileSync } from "node:fs";
-import { writeFileSync, mkdtempSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { harness, loadTs } from "./lib/harness.mjs";
 
-import ts from "typescript";
+const { turnGroups, identityColor, linePosition, stamp, gapLabel } = await loadTs(
+  new URL("../lib/turnGroups.ts", import.meta.url)
+);
 
-const src = ts.transpileModule(
-  readFileSync(new URL("../lib/turnGroups.ts", import.meta.url), "utf8").replace(
-    /^import type .*$/m,
-    ""
-  ),
-  { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ESNext } }
-).outputText;
-
-const dir = mkdtempSync(join(tmpdir(), "tg-"));
-const file = join(dir, "turnGroups.mjs");
-writeFileSync(file, src);
-const { turnGroups, identityColor, linePosition, stamp, gapLabel } = await import(file);
-
-let pass = 0;
-let fail = 0;
-function check(name, actual, expected) {
-  const ok = JSON.stringify(actual) === JSON.stringify(expected);
-  if (ok) pass += 1;
-  else {
-    fail += 1;
-    console.log(`  FAIL ${name}\n    expected ${JSON.stringify(expected)}\n    actual   ${JSON.stringify(actual)}`);
-    return;
-  }
-  console.log(`  ok   ${name}`);
-}
+const h = harness();
+const check = h.check;
 
 let n = 0;
 const seg = (speaker, speakerName, start, end, isFinal = true) => ({
@@ -169,5 +145,4 @@ check("gap in seconds", gapLabel(45), "45 sec later");
 check("gap in minutes", gapLabel(120), "2 min later");
 check("gap in hours", gapLabel(7200), "2 hr later");
 
-console.log(`\n${pass}/${pass + fail} checks passed`);
-process.exit(fail === 0 ? 0 : 1);
+h.done();
