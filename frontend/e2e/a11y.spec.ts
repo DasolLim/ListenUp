@@ -20,7 +20,16 @@ import { gotoSettled } from "./support";
  * the control stopped writing it.
  */
 
-/** Public routes. The five tool pages are auth-gated and covered in `app.spec.ts`. */
+/**
+ * Public routes.
+ *
+ * The five tool pages are auth-gated, so nothing they render reaches this loop
+ * — a comment here used to claim they were "covered in `app.spec.ts`", which
+ * does not exist. `/design` is the gallery that closes the worst of that gap:
+ * the conversation pane, shared by live captions and Translate's voice mode, is
+ * rendered there, and measuring it found two pieces of text that had been below
+ * AA since they were written.
+ */
 const PAGES = ["/", "/about", "/product", "/design", "/login"];
 
 // Reduced motion is set suite-wide in `playwright.config.ts`; see the note there.
