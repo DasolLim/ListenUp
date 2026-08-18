@@ -54,6 +54,9 @@ class ElevenLabsTtsService(TtsService):
     # Billed per character: gated to Pro and metered against its allowance.
     renders_audio = True
 
+    # Verified consent + a cloning API is why this provider was chosen.
+    supports_cloning = True
+
     def __init__(self, api_key: str | None = None) -> None:
         self._api_key = api_key or os.environ.get("ELEVENLABS_API_KEY", "")
         if not self._api_key:

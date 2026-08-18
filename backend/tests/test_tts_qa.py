@@ -137,7 +137,7 @@ def test_missing_table_says_so_instead_of_a_generic_502(monkeypatch):
         return _Missing()
 
     monkeypatch.setattr("app.routes.tts.verify_user", _fake_verify)
-    monkeypatch.setattr("app.routes.tts.rest", _fake_rest)
+    monkeypatch.setattr("app.custom_voices.rest", _fake_rest)
 
     response = client.get("/tts/custom-voices", headers={"Authorization": "Bearer t"})
     assert response.status_code == 503

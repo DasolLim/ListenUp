@@ -90,6 +90,18 @@ def test_each_language_keeps_a_system_default():
         assert neutral[0]["browser_hint"] == ""
 
 
+def _patch_rest(patcher, double) -> None:
+    """Install a PostgREST double on both seams that use one.
+
+    The route reads `subscriptions` to resolve the plan; `app.custom_voices`
+    reads and writes `custom_voices`. One table-dispatching double serves both,
+    and patching both is what keeps a test from passing because it happened to
+    stub the only call the code still made.
+    """
+    patcher.setattr("app.routes.tts.rest", double)
+    patcher.setattr("app.custom_voices.rest", double)
+
+
 def test_recorded_voices_reach_the_picker():
     """Regression: cloning used to be a dead end.
 
@@ -98,7 +110,7 @@ def test_recorded_voices_reach_the_picker():
     never actually be spoken with. The whole feature was unreachable.
     """
     monkey = pytest.MonkeyPatch()
-    monkey.setattr("app.routes.tts.rest", _fake_rest_one_voice)
+    _patch_rest(monkey, _fake_rest_one_voice)
     try:
         body = client.get("/tts/voices", headers={"Authorization": "Bearer test-token"}).json()
     finally:
@@ -121,7 +133,7 @@ def test_a_failed_custom_voice_lookup_does_not_break_the_preset_list():
     """Captions and translation both depend on this endpoint. A missing table or
     an expired token must cost you your own voices, not the ability to speak."""
     monkey = pytest.MonkeyPatch()
-    monkey.setattr("app.routes.tts.rest", _fake_rest_exploding)
+    _patch_rest(monkey, _fake_rest_exploding)
     try:
         response = client.get("/tts/voices", headers={"Authorization": "Bearer test-token"})
     finally:
@@ -132,7 +144,7 @@ def test_a_failed_custom_voice_lookup_does_not_break_the_preset_list():
 
 def test_recorded_voices_respect_the_language_filter():
     monkey = pytest.MonkeyPatch()
-    monkey.setattr("app.routes.tts.rest", _fake_rest_one_voice)
+    _patch_rest(monkey, _fake_rest_one_voice)
     try:
         body = client.get(
             "/tts/voices", params={"language": "ko"}, headers={"Authorization": "Bearer t"}
@@ -339,7 +351,7 @@ def test_cloning_is_refused_on_a_plan_that_does_not_include_it(monkeypatch):
     a malfunction."""
     monkeypatch.setattr("app.routes.tts.verify_user", _fake_verify)
     for tier in ("free", "basic"):
-        monkeypatch.setattr("app.routes.tts.rest", _rest_on_plan(tier))
+        _patch_rest(monkeypatch, _rest_on_plan(tier))
         response = client.post(
             "/tts/custom-voices",
             headers={"Authorization": "Bearer test-token"},
@@ -356,7 +368,7 @@ def test_cloning_on_pro_without_a_cloud_provider_explains_itself(monkeypatch):
     """The plan allows it but the deployment has no ElevenLabs key. The error
     must say what to do, and must not pretend the voice was created."""
     monkeypatch.setattr("app.routes.tts.verify_user", _fake_verify)
-    monkeypatch.setattr("app.routes.tts.rest", _fake_rest_pro)
+    _patch_rest(monkeypatch, _fake_rest_pro)
     response = client.post(
         "/tts/custom-voices",
         headers={"Authorization": "Bearer test-token"},

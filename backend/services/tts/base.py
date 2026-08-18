@@ -21,6 +21,7 @@ is impersonation, not a feature.
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from typing import Protocol
 
 from services.translate.base import SUPPORTED_LANGUAGES
 
@@ -88,6 +89,20 @@ class Speech:
     speak_locally: bool = False
 
 
+class ShapeableTts(Protocol):
+    """A service that can apply expressiveness while rendering.
+
+    The browser tier deliberately keeps a two-argument `speak` — it has nothing
+    to apply a shape to, since the client speaks locally — so "can this service
+    be shaped?" is a real distinction rather than an optional parameter every
+    implementation has to carry. Stating it as a protocol makes the duck-typing
+    checkable instead of invisible, and it lives beside the interface it
+    describes rather than in whichever caller needed it first.
+    """
+
+    async def speak(self, text: str, voice_id: str, *, expressiveness: float) -> Speech: ...
+
+
 def assert_speakable(language: str) -> None:
     """TTS follows the same launch scope as translation (en/ko)."""
     if language not in SUPPORTED_LANGUAGES:
@@ -113,6 +128,14 @@ class TtsService(ABC):
     async def voices(self, language: str | None = None) -> list[Voice]:
         """Selectable voices, optionally filtered to one language."""
 
+    # Whether this provider can build a voice from a recording. Declared here
+    # rather than discovered with `getattr(service, "clone_voice", None)` at
+    # three separate call sites: a capability the interface does not state is a
+    # capability every caller has to rediscover, and one of those callers will
+    # eventually forget that a missing method is a normal deployment rather
+    # than a bug.
+    supports_cloning: bool = False
+
     @abstractmethod
     async def speak(self, text: str, voice_id: str) -> Speech:
         """Render `text` in `voice_id`.
@@ -121,3 +144,19 @@ class TtsService(ABC):
         `expressiveness: float` keyword (0–1) controlling how much the delivery
         varies.
         """
+
+    async def clone_voice(self, name: str, sample: bytes, seconds: float) -> str:
+        """Create a provider-side voice from a consented recording; returns its id.
+
+        Only meaningful where `supports_cloning` is set. The default refusal is
+        a sentence a user can act on, because "this deployment has no cloud
+        provider" is a configuration state, not a failure.
+        """
+        raise TtsError(
+            "This voice provider cannot build custom voices. "
+            "Preset voices keep working."
+        )
+
+    async def delete_voice(self, voice_id: str) -> None:
+        """Remove a cloned voice from the provider (GDPR/BIPA deletion path)."""
+        raise TtsError("This voice provider cannot delete custom voices.")
