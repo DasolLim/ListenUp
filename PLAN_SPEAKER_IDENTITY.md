@@ -197,7 +197,39 @@ Output: one row per scenario, plus a total. Write results to
 
 ---
 
-## Task 2 — Multi-scale embedding windows
+## Task 2 — Multi-scale embedding windows — ❌ TRIED AND REVERTED 2026-08-18
+
+**Built, measured, reverted under this task's own gate.** Implemented exactly as
+specified below (full + 1.5 s + 0.75 s centred views, scored max-over-views,
+only the full window remembered), with 8 window tests and 3 scoring tests, all
+three mutations caught.
+
+**Result: zero change on all 12 scenarios**, for +11 ms (1 s turn) to +25 ms
+(3 s+ turn) per final turn on the caption path.
+
+**Why it cannot work as specified, and this is the part worth keeping.** Every
+scale here is a *subset* of the turn's own audio, and for a fixed turn the full
+window is always the most informative view. Taking the max over subsets
+therefore returns the full window's score essentially always. The short-turn
+weakness is *too little audio*, and sub-windows have strictly less of it — a
+1.0 s turn yields a 0.75 s view, which measures 0.478 against a 0.55 threshold.
+
+Multi-scale works in NeMo's MSDD because it drives **segmentation**: short
+windows locate speaker boundaries at fine temporal resolution while long ones
+identify, and the scales are fused with learned weights across a whole
+recording. It is not a way to get more out of one already-bounded turn.
+
+**Where the evidence actually points.** Sub-windows can only help when the full
+window is *contaminated* — two speakers inside one turn. The useful version of
+this idea is therefore not multi-scale scoring but **contamination detection**:
+embed the first and second halves, and when they disagree strongly, treat the
+turn as untrustworthy rather than as evidence for anybody. That is a different
+feature, it needs a scenario the eval does not yet model (mid-turn speaker
+change), and it should be specified on its own before anyone builds it.
+
+Original specification retained below for the record.
+
+### Original specification
 
 **Goal.** Cut the confusion and split rates on short turns by embedding each turn
 at several window lengths instead of one.
