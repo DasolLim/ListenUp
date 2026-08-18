@@ -4,6 +4,11 @@
 # the ECAPA weights ~80 MB; both change almost never, while `app/` changes every
 # push. Installing them before the source is copied means a code deploy reuses
 # the cached layers instead of re-downloading a machine-learning stack.
+# Build for amd64. PyTorch's CPU wheel index carries torch 2.13 for
+# manylinux x86_64 but nothing newer than 2.9.1 for aarch64, so a native build
+# on Apple silicon cannot satisfy these pins at all. Railway builds amd64
+# anyway; locally you need `docker build --platform linux/amd64 .`, which is
+# emulated and slow but is the only build that matches production.
 FROM python:3.12-slim
 
 # libgomp1 is torch's OpenMP runtime; curl is only for the container healthcheck.

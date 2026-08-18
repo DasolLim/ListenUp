@@ -356,48 +356,94 @@ model weights. A build failure costs a full push-wait-fail cycle on Railway,
 and the four things listed in *Unverified* above have never been run. Building
 once locally converts them from unknowns into facts.
 
-### Pick one (macOS, Homebrew already installed)
+### What we installed, and why not the obvious one
 
-| option | why | command |
-|---|---|---|
-| **OrbStack** *(recommended)* | fastest and lightest on Apple silicon, low idle drain, free for personal use | `brew install --cask orbstack` |
-| Docker Desktop | the official one; free for personal use and small businesses | `brew install --cask docker` |
-| Colima | free and open source, CLI only, no GUI | `brew install colima docker && colima start --memory 6` |
+**`brew install --cask orbstack` fails on this machine.** Homebrew 6.0.11 does
+not recognise a `run` install step the OrbStack cask uses:
 
-Whichever you choose, open it once so it can start its background VM. Then:
-
-```bash
-docker --version        # expect a version string
-docker info             # expect no "Cannot connect to the Docker daemon"
+```
+Error: unknown install step: run
 ```
 
-**Give it at least 6 GB of memory** in the app's settings. Installing torch in a
-4 GB VM is where these builds usually die, and the error does not say so.
+Brew rolled the whole thing back correctly — the app was moved to
+`/Applications`, then removed again — so nothing was left half-installed. This
+is a **cask-format incompatibility**, not a problem with OrbStack or with the
+machine, and `brew install --cask docker` would risk the same class of failure.
 
-### Then verify our image — four commands, four unknowns closed
+**Colima works, because it is a *formula* rather than a cask** and takes an
+entirely different install path. It is CLI-only, free, open source, and more
+than adequate for building one image.
+
+```bash
+brew install colima docker
+colima start --memory 6 --cpu 4 --disk 60
+docker info          # expect a Server Version, not "Cannot connect"
+```
+
+Installed here: Docker CLI 29.7.2 against Colima's daemon 29.5.2, 4 CPUs,
+5.77 GiB. **6 GB is not padding** — installing torch in a 4 GB VM is where these
+builds die, and the error does not say so.
+
+If you later want a GUI, download OrbStack directly from
+[orbstack.dev](https://orbstack.dev/) rather than through brew; the `.dmg`
+avoids the cask machinery entirely.
+
+**Stopping and starting:** `colima stop` frees the memory when you are not
+building; `colima start` brings it back with the same settings. Nothing runs at
+login unless you ask for it with `brew services start colima`.
+
+### One caveat about what a local build proves
+
+This machine is **arm64**; Railway builds **amd64**. A native build here
+verifies the Dockerfile's logic — layer order, the CPU wheel index, the model
+bake, the healthcheck — but not architecture-specific packaging. Building
+`--platform linux/amd64` gives exact parity at the cost of qemu emulation, which
+turns a 15-minute torch install into something much longer. Worth doing once
+before the first real deploy; not worth doing on every change.
+
+### Then verify our image — and it found a real bug on the first run
 
 ```bash
 cd backend
+docker build --platform linux/amd64 -t listenup-backend .
+```
 
-# 1. Does it build at all? First run ~10–20 min; the image is ~2–3 GB.
-docker build -t listenup-backend .
+**The first build failed**, which is the whole reason to do this locally:
 
-# 2. Does it run, and is the model actually baked in?
-#    Watch for "ECAPA weights cached" during the build, and for a fast start here.
+```
+ERROR: Could not find a version that satisfies the requirement torchaudio>=2.13
+       (from versions: ... 2.10.0, 2.11.0)
+```
+
+`requirements-ml.txt` asked for a version of torchaudio **that does not
+exist**. torchaudio's numbering lags torch's — torch 2.13 pairs with torchaudio
+**2.11**, which is the newest published. The pin was unsatisfiable on every
+platform and **would have failed the first Railway deploy identically.**
+
+It went unnoticed for two reasons, both worth knowing: the local virtualenv was
+built before the pin drifted and already had 2.11.0 sitting in it, and **CI
+never installs `requirements-ml.txt`** — the file says so in its own first line.
+So nothing in the project had ever tried to resolve it.
+
+`tests/test_requirements.py` now checks every pin against what is actually
+installed, which catches an aspirational pin offline, with no network and no
+container, and skips cleanly where the ML extras are absent.
+
+### The remaining verification commands
+
+```bash
+# Does it run, with the model already baked in?
 docker run --rm -p 8000:8000 listenup-backend
 curl localhost:8000/health          # {"status":"ok"}
 
-# 3. Does preflight refuse a broken production config?
+# Does preflight refuse a broken production config?
 docker run --rm -e APP_ENV=production listenup-backend
-#    Expect: refuses to start, lists every missing variable with its remedy.
+#   Expect: refuses to start, lists every missing variable with its remedy.
 
-# 4. Does a code change reuse the torch layer?
-touch app/main.py && docker build -t listenup-backend .
-#    Expect: "CACHED" on the pip layers, only the last steps re-run.
+# Does a code change reuse the torch layer?
+touch app/main.py && docker build --platform linux/amd64 -t listenup-backend .
+#   Expect: "CACHED" on the pip layers.
 ```
-
-If any of those four fail, that is the Dockerfile being wrong rather than your
-setup — tell me the output and I will fix it.
 
 ---
 
@@ -415,6 +461,8 @@ Where the bugs came from, which is worth watching over time.
 | 6 | 0.4 | **product — OPEN** | an anonymous caption session is unmetered: `open()` treats the token as optional, so no allowance is checked and a real provider connection is made. The ledger sees the spend; the hole itself is not closed |
 | 7 | 0.4 | **my own tests** | the mid-session test never sent audio after crossing the ceiling, so an injected cut was never reached and mutation M2 passed |
 | 8 | 0.4 | **my own tests** | `assert "your" not in message` was a crude proxy that tripped on the reassurance the copy exists to give |
+| 9 | tooling | **product** | `requirements-ml.txt` pinned `torchaudio>=2.13`, a version that does not exist. Unsatisfiable on every platform; would have failed the first Railway deploy. Found by the first local Docker build |
+| 10 | tooling | **my own process** | the first background build reported "exit code 0" because I ended the command with `tail`, so the shell's status masked the build's. The log said `EXIT=1` |
 
 ---
 
