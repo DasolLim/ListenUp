@@ -17,14 +17,23 @@
      interactive coral (buttons, rings, icons) uses the deeper burnt-coral
      range so white button text ≥4.5:1 and accent graphics ≥3:1 (§7 AA). */
   --accent: #e8804f;
-  --accent-strong: #b84a22;
+  /* Measured against the peach gradient it sits on: #b84a22 reads 4.29:1 at
+     13px, just under the 4.5 AA needs. Darkened the minimum that clears it on
+     the lightest point of the gradient (4.53:1) with the hue held. */
+  --accent-strong: #b14721;
   --accent-soft: #f4a87e;
   --accent-gradient: linear-gradient(145deg, #c4502a 0%, #b84a22 55%, #a63f19 100%);
 
   /* Text */
   --text-primary: #2b2622;
   --text-secondary: #6b6259;
-  --text-tertiary: #9a9089;
+  /* Was #9a9089, which measured 2.56:1 on the glass — well under AA, and used
+     for 28 real pieces of text (labels, timestamps, placeholders), not just
+     decoration. This is the lightest value that clears 4.5:1 everywhere it
+     appears. Note it now sits close to --text-secondary, so the soft/faint
+     step is much weaker than it was; recovering that hierarchy means darkening
+     the glass behind faint text rather than lightening the text again. */
+  --text-tertiary: #6d6661;
   --text-on-accent: #ffffff;
 
   /* Speaker bubble tints (live captions) */
