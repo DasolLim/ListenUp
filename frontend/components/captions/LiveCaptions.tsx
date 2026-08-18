@@ -4,10 +4,8 @@ import posthog from "posthog-js";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import SpeakerBubble from "@/components/captions/SpeakerBubble";
+import ConversationPane from "@/components/captions/ConversationPane";
 import SpeakerCorrectionDialog from "@/components/captions/SpeakerCorrectionDialog";
-import SpeakerNamingNudge from "@/components/captions/SpeakerNamingNudge";
-import SpeakerName from "@/components/captions/SpeakerName";
 import VoiceOrb from "@/components/captions/VoiceOrb";
 import SpokenLanguagePicker from "@/components/SpokenLanguagePicker";
 import { MicIcon, PauseIcon } from "@/components/shell/icons";
@@ -16,8 +14,6 @@ import GlassCard from "@/components/ui/GlassCard";
 import VoicePicker from "@/components/speech/VoicePicker";
 import { SpeechProvider, useAutoSpeak, useSharedSpeech } from "@/lib/SpeechProvider";
 import { formatDate } from "@/lib/plans";
-import { useChatScroll } from "@/lib/useChatScroll";
-import { RAILS, identityColor, linePosition, stamp, turnGroups } from "@/lib/turnGroups";
 import { useSpeakerCorrection } from "@/lib/useSpeakerCorrection";
 import { useStickyLanguage } from "@/lib/useStickyLanguage";
 import { newestSpeakableLine, useLiveTranslation } from "@/lib/useLiveTranslation";
@@ -77,11 +73,6 @@ function LiveCaptionsInner(props: {
   // times a second, so counting it would run the unread badge up while one
   // sentence is still being spoken.
   const finalsCount = segments.filter((s) => s.isFinal).length;
-  const { containerRef, watchContent, pinned, unread, onScroll, jumpToLatest } = useChatScroll({
-    finalCount: finalsCount,
-  });
-  const latestFinal = [...segments].reverse().find((s) => s.isFinal) ?? null;
-
   // Auto-speak the newest FINAL translated line. Keyed on the segment id rather
   // than the text, because the same sentence can legitimately be said twice in a
   // conversation and both should be read out. Interims are skipped: they change
@@ -194,24 +185,6 @@ function LiveCaptionsInner(props: {
       setSilent(false);
     };
   }, [status, getAudioLevel]);
-
-  // Nudge toward naming only when it would actually help: someone is speaking,
-  // they're unnamed, and there is a name to give them. Enrolment used to be a
-  // separate destination in the nav, which is the wrong moment — you discover
-  // you want it while looking at "Speaker 1", not while browsing tools.
-  const hasUnnamedSpeaker = segments.some((segment) => segment.isFinal && !segment.speakerName);
-  const [nudgeDismissed, setNudgeDismissed] = useState(false);
-  // Held back until a couple of turns have settled: offering to name people
-  // before anyone has finished speaking is advice about nothing, and it would
-  // flash on screen in the first second of every session.
-  const showNamingNudge =
-    hasUnnamedSpeaker &&
-    !nudgeDismissed &&
-    finalsCount >= 2 &&
-    (status === "listening" || paused) &&
-    !correction.correcting;
-
-  const colorOf = identityColor(segments);
 
   return (
     <GlassCard strong className="flex flex-col gap-4 p-6">
@@ -404,32 +377,18 @@ function LiveCaptionsInner(props: {
         </div>
       )}
 
-      {/* Announcements for screen readers.
-          `aria-live` deliberately does NOT sit on the transcript itself: that
-          region holds the in-progress caption, which is rewritten several times
-          a second, so a screen reader would talk over itself continuously. This
-          carries only the most recent finalised line — each caption announced
-          once, when it settles. */}
-      <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
-        {latestFinal
-          ? `${latestFinal.speakerName ?? latestFinal.speaker}: ${latestFinal.text}`
-          : ""}
-      </p>
-
-      {/* The transcript is a fixed pane, not a growing list: captions scroll
-          inside it while the controls above and below stay where the user left
-          them. Sizing to content instead made the page grow with every line, so
-          the newest caption — the only one that matters live — kept sliding
-          below the fold. */}
-      <div className="relative h-[clamp(18rem,55vh,34rem)]">
-        <div
-          ref={containerRef}
-          onScroll={onScroll}
-          role="log"
-          aria-label="Live captions"
-          className="flex h-full flex-col overflow-y-auto overscroll-contain px-0.5"
-        >
-          {silent && (
+      <ConversationPane
+        segments={segments}
+        // Empty when translation is off, so the bubbles show the original only.
+        translations={translateOn ? translations : undefined}
+        label="Live captions"
+        height="h-[clamp(18rem,55vh,34rem)]"
+        noun="caption"
+        active={status === "listening" || paused}
+        correcting={Boolean(correction.correcting)}
+        onCorrect={(speaker) => void correction.open(speaker)}
+        banner={
+          silent ? (
             <p
               role="status"
               className="rounded-2xl border border-warning bg-white/70 px-4 py-2.5 text-[13px] leading-relaxed text-ink"
@@ -438,13 +397,10 @@ function LiveCaptionsInner(props: {
               are running, but nothing has been picked up for a few seconds — check the right
               microphone is selected and unmuted.
             </p>
-          )}
-
-          {showNamingNudge && (
-            <SpeakerNamingNudge onDismiss={() => setNudgeDismissed(true)} />
-          )}
-
-          {segments.length === 0 && !error ? (
+          ) : null
+        }
+        empty={
+          error ? null : (
             <div className="m-auto flex max-w-sm flex-col items-center gap-5 text-center">
               <VoiceOrb
                 getSignal={getVoiceSignal}
@@ -457,108 +413,9 @@ function LiveCaptionsInner(props: {
                   : "Start captions and speak. Each person gets their own colour and label, up to 4 speakers plus “Other”."}
               </p>
             </div>
-          ) : (
-            // `mt-auto` sits a short transcript at the bottom, so the first
-            // caption appears where the next one will, rather than at the top of
-            // an empty pane with the conversation drifting downward.
-            <div ref={watchContent} className="mt-auto flex flex-col gap-2.5">
-              {turnGroups(segments).map((group) => {
-                const index = colorOf(group.speakerName ?? group.speaker);
-                const label = group.speakerName ?? group.speaker;
-                const source = translateOn
-                  ? (translations[group.lines[0].id]?.sourceLang ?? null)
-                  : null;
-                return (
-                  <div key={group.key} className="flex flex-col gap-2.5">
-                    {group.gapBefore && (
-                      <p className="turn-divider my-1" aria-hidden="true">
-                        {group.gapLabel}
-                      </p>
-                    )}
-                    <div
-                      className="group/turn turn-group flex flex-col gap-0.5"
-                      style={{ ["--turn-rail" as string]: RAILS[index] ?? "var(--speaker-other-rail)" }}
-                    >
-                      {/* The name is said once per run, not once per line. */}
-                      <div className="mb-0.5 flex items-baseline gap-2">
-                        <SpeakerName
-                          label={label}
-                          onCorrect={
-                            status === "listening" || paused
-                              ? () => void correction.open(group.speaker)
-                              : undefined
-                          }
-                        />
-                        {source && (
-                          <span className="text-[11px] uppercase tracking-wide text-ink-faint">
-                            {source}
-                          </span>
-                        )}
-                        {/* Shown on hover or focus rather than always: a stamp
-                            on every turn is noise in a live feed, but "when was
-                            that said" matters when scrolling back. */}
-                        <time
-                          className="numeric text-[11px] text-ink-faint opacity-0 transition-opacity group-hover/turn:opacity-100 group-focus-within/turn:opacity-100 motion-reduce:transition-none"
-                          dateTime={`PT${Math.round(group.lines[0].start)}S`}
-                        >
-                          {stamp(group.lines[0].start)}
-                        </time>
-                      </div>
-                      {group.lines.map((segment, i) => (
-                        <SpeakerBubble
-                          key={segment.id}
-                          position={linePosition(i, group.lines.length)}
-                          caption={{
-                            id: segment.id,
-                            speaker: segment.speaker,
-                            speakerName: segment.speakerName,
-                            // Color by identity (name when known), so one person keeps
-                            // one color even when diarization churns the label.
-                            speakerIndex: index,
-                            text: segment.text,
-                            interim: !segment.isFinal,
-                            translated: translateOn ? (translations[segment.id] ?? null) : null,
-                          }}
-                          onSpeak={
-                            translateOn && translations[segment.id]
-                              ? () => speech.speak(translations[segment.id].text)
-                              : undefined
-                          }
-                          onStopSpeaking={speech.stop}
-                          speaking={speech.speaking}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* Floats over the transcript instead of sitting below it, so showing or
-            hiding it never resizes the pane the user is reading. */}
-        {!pinned && (
-          <button
-            type="button"
-            onClick={jumpToLatest}
-            // The visible text says how many; the label also says what tapping
-            // does, which the count alone leaves to inference.
-            aria-label={
-              unread > 0
-                ? `${unread} new caption${unread === 1 ? "" : "s"}, jump to latest`
-                : "Jump to latest caption"
-            }
-            className="btn-ghost absolute inset-x-0 bottom-2 mx-auto flex min-h-11 w-fit items-center gap-2 rounded-full px-4 text-sm text-ink shadow-glass"
-          >
-            {unread > 0 && (
-              // Paired with the count in words — never colour alone (§7).
-              <span aria-hidden="true" className="size-2 rounded-full bg-accent-strong" />
-            )}
-            {unread > 0 ? `${unread} new caption${unread === 1 ? "" : "s"}` : "Jump to latest"}
-          </button>
-        )}
-      </div>
+          )
+        }
+      />
 
       {correction.correcting && (
         <SpeakerCorrectionDialog

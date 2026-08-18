@@ -276,6 +276,21 @@ h3 {
   border: 1px solid rgba(255, 255, 255, 0.5);
   backdrop-filter: var(--glass-blur);
   animation: bubble-in 0.25s ease-out;
+  /* An opaque base under the speaker tint, which is painted as a
+     `background-image` by `SpeakerBubble` so it layers on top of this.
+     
+     Without it the bubble ground composited to rgb(226,221,218) — a mid tone,
+     which is the worst case for mid-tone ink — and the two quietest pieces of
+     text in the bubble measured 4.43:1 and 4.19:1 against a 4.5 bar. Both had
+     always been below AA; nothing could see it, because the pane is only
+     rendered on auth-gated pages and the browser loop never reached one.
+     
+     The move is the design system's rule in the direction this case needs
+     (§7): change the surface, not the ink. `--text-secondary` and
+     `--text-tertiary` are already the lightest values that clear AA elsewhere,
+     and lightening the ground under dark ink is the same act as darkening the
+     glass under light ink. */
+  background-color: rgba(255, 255, 255, 0.62);
 }
 
 @keyframes bubble-in {

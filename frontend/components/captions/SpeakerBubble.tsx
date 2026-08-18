@@ -71,7 +71,10 @@ export default function SpeakerBubble({
         leads ? "bubble-lead" : ""
       }`}
       data-interim={caption.interim || undefined}
-      style={{ backgroundColor: tint }}
+      // The tint is a background *image* so it layers over the opaque base
+      // `.bubble-glass` sets. As a background-color it would replace that base,
+      // and the ground under the quietest text would fall back below AA.
+      style={{ backgroundImage: `linear-gradient(${tint}, ${tint})` }}
     >
       <div className="flex items-start justify-between gap-2">
         {/* An in-progress line is marked by italics, a dashed bubble edge and a

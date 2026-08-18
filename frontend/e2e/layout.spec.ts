@@ -82,8 +82,28 @@ test.describe("touch targets", () => {
           // `getBoundingClientRect`, which is why an earlier bounding-box
           // version of this check was wrong in both directions.
           const reach = (dx: number, dy: number) => {
-            const hit = document.elementFromPoint(cx + dx, cy + dy);
-            return !!hit && (el.contains(hit) || hit.contains(el) || hit === el);
+            const [px, py] = [cx + dx, cy + dy];
+            // A probe point past the viewport edge is not a verdict about the
+            // control. `elementFromPoint` returns null out there, and reading
+            // that as "too small" fails any correctly-sized control that
+            // happens to straddle the fold — which is where a control in a
+            // scrolling transcript spends much of its life. The centre is
+            // already required to be on screen and to hit the element; that is
+            // what makes this a size check rather than a scroll-position one.
+            if (px < 0 || py < 0 || px > innerWidth || py > innerHeight) return true;
+            const hit = document.elementFromPoint(px, py);
+            if (!hit) return false;
+            if (el.contains(hit) || hit.contains(el) || hit === el) return true;
+            // A `position: fixed` overlay — the A11y bar is pinned to the foot
+            // of every page — covers whatever happens to be scrolled under it,
+            // on every page, at this scroll position only. That is a fact about
+            // the overlay, not about the control's size, and this check is a
+            // size check: the centre is already required to be on screen and to
+            // hit the element.
+            for (let node: Element | null = hit; node; node = node.parentElement) {
+              if (getComputedStyle(node).position === "fixed") return true;
+            }
+            return false;
           };
           // Two bars, because a control's width is not always its own choice.
           // An icon-only button picks both dimensions, so it owes 44x44 — that
@@ -93,6 +113,24 @@ test.describe("touch targets", () => {
           // Height is the dimension a thumb misses on a phone, and both kinds
           // owe the full 44 there.
           const labelled = (el.textContent ?? "").trim().length > 0;
+
+          // WCAG 2.5.8 exempts a target "in a sentence or its size is
+          // otherwise constrained by the line-height of non-target text". A
+          // link inside a paragraph is sized by the prose around it, and
+          // padding it to 44px would either break the line box or move the
+          // words either side of it.
+          //
+          // Deliberately narrow: `display: inline` alone is not enough, since a
+          // footer link is inline too and those were correctly fixed from 17px
+          // to 44px. The parent must carry real prose of its own — that is what
+          // "in a sentence" means, and it is what makes the constraint genuine
+          // rather than an excuse.
+          const own = (el.textContent ?? "").trim();
+          const around = ((el.parentElement?.textContent ?? "").trim().length - own.length);
+          const inSentence =
+            getComputedStyle(el).display === "inline" && around >= 20;
+          if (inSentence) continue;
+
           const rx = (labelled ? 24 : MIN) / 2 - 1;
           const ry = MIN / 2 - 1;
           const wide = reach(-rx, 0) && reach(rx, 0);

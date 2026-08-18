@@ -2,18 +2,14 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import SpeakerBubble from "@/components/captions/SpeakerBubble";
 import SpeakerCorrectionDialog from "@/components/captions/SpeakerCorrectionDialog";
-import SpeakerNamingNudge from "@/components/captions/SpeakerNamingNudge";
-import SpeakerName from "@/components/captions/SpeakerName";
 import SpokenLanguagePicker from "@/components/SpokenLanguagePicker";
 import VoicePicker from "@/components/speech/VoicePicker";
 import { MicIcon, PauseIcon } from "@/components/shell/icons";
 import Button from "@/components/ui/Button";
 import { formatDate } from "@/lib/plans";
+import ConversationPane from "@/components/captions/ConversationPane";
 import { useAutoSpeak, useSharedSpeech } from "@/lib/SpeechProvider";
-import { RAILS, identityColor, linePosition, stamp, turnGroups } from "@/lib/turnGroups";
-import { useChatScroll } from "@/lib/useChatScroll";
 import { useSpeakerCorrection } from "@/lib/useSpeakerCorrection";
 import { useStickyFlag } from "@/lib/useStickyFlag";
 import { useStickyLanguage } from "@/lib/useStickyLanguage";
@@ -101,16 +97,6 @@ export default function VoiceConversation({
   );
   const speech = useSharedSpeech();
 
-  // Only finalised captions count as "new": interim text is rewritten several
-  // times a second, and counting it would run the unread badge up while one
-  // sentence is still being spoken.
-  const finalCount = segments.filter((s) => s.isFinal).length;
-  const { containerRef, watchContent, pinned, unread, onScroll, jumpToLatest } = useChatScroll({
-    finalCount,
-  });
-
-  const latestFinal = [...segments].reverse().find((s) => s.isFinal) ?? null;
-
   // Auto-speak the newest finalised translation, keyed on segment id rather
   // than on the text: the same sentence can legitimately be said twice in a
   // conversation, and both times deserve to be read out.
@@ -140,17 +126,6 @@ export default function VoiceConversation({
 
   const live = status === "listening" || status === "connecting";
   const paused = status === "paused";
-
-  // Same prompt as live captions, because it is the same conversation and the
-  // same moat: this pane could name Mom and, until now, never said so.
-  const [nudgeDismissed, setNudgeDismissed] = useState(false);
-  const showNamingNudge =
-    !nudgeDismissed &&
-    finalCount >= 2 &&
-    (live || paused) &&
-    !correction.correcting &&
-    segments.some((s) => s.isFinal && !s.speakerName);
-  const colorOf = identityColor(segments);
 
   const statusLine = paused
     ? "Paused. Nothing is being captured."
@@ -390,164 +365,55 @@ export default function VoiceConversation({
         </div>
       )}
 
-      {/* `aria-live` deliberately does NOT sit on the transcript: that region
-          holds the in-progress line, rewritten several times a second, so a
-          screen reader would talk over itself continuously. This carries only
-          the newest settled line, announced once. */}
-      <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
-        {latestFinal
-          ? `${latestFinal.speakerName ?? latestFinal.speaker}: ${
-              translations[latestFinal.id]?.text ?? latestFinal.text
-            }`
-          : ""}
-      </p>
-
-      {/* Sized so the pane's *bottom* edge stays on screen on a laptop: the
-          newest line is the one that matters live, and a pane whose foot falls
-          below the fold recreates the page-chasing this replaced, only smaller.
-          Measured at 1280×900 with the chrome above it, and retrimmed when the
-          explanations switch and model picker were added — the fold guarantee
-          has to survive controls being added above it. */}
-      <div className="relative h-[clamp(15rem,40dvh,28rem)]">
-        <div
-          ref={containerRef}
-          onScroll={onScroll}
-          role="log"
-          aria-label="Spoken conversation and translations"
-          className="flex h-full flex-col overflow-y-auto overscroll-contain px-0.5"
-        >
-          {showNamingNudge && (
-            <SpeakerNamingNudge onDismiss={() => setNudgeDismissed(true)} />
-          )}
-
-          {segments.length === 0 ? (
-            <div className="m-auto flex max-w-sm flex-col items-center gap-2 px-4 text-center">
-              <p className="text-sm font-medium text-ink">
-                {live ? "Go ahead — say something." : "Nothing spoken yet."}
-              </p>
-              <p className="text-[13px] leading-relaxed text-ink-soft">
-                Each sentence you finish appears here in {languages[target] ?? target}, with the
-                original underneath and a note on any slang. The newest one stays at the bottom, so
-                you never have to chase it.
-              </p>
-            </div>
-          ) : (
-            // `mt-auto` sits a short conversation at the bottom, so the first
-            // line appears where the next one will rather than at the top of an
-            // empty pane with everything drifting downward.
-            <div ref={watchContent} className="mt-auto flex flex-col gap-2.5">
-              {turnGroups(segments).map((group) => {
-                const index = colorOf(group.speakerName ?? group.speaker);
-                const label = group.speakerName ?? group.speaker;
-                const source = translations[group.lines[0].id]?.sourceLang ?? null;
-                return (
-                  <div key={group.key} className="flex flex-col gap-2.5">
-                    {group.gapBefore && (
-                      <p className="turn-divider my-1" aria-hidden="true">
-                        {group.gapLabel}
-                      </p>
-                    )}
-                    <div
-                      className="group/turn turn-group flex flex-col gap-0.5"
-                      style={{
-                        ["--turn-rail" as string]: RAILS[index] ?? "var(--speaker-other-rail)",
-                      }}
-                    >
-                      {/* The name is said once per run, not once per line. */}
-                      <div className="mb-0.5 flex items-baseline gap-2">
-                        <SpeakerName
-                          label={label}
-                          onCorrect={
-                            live || paused
-                              ? () => void correction.open(group.speaker)
-                              : undefined
-                          }
-                        />
-                        {source && (
-                          <span className="text-[11px] uppercase tracking-wide text-ink-faint">
-                            {languages[source] ?? source}
-                          </span>
-                        )}
-                        {/* On hover or focus rather than always: a stamp on
-                            every turn is noise live, but "when was that said"
-                            matters when scrolling back. */}
-                        <time
-                          className="numeric text-[11px] text-ink-faint opacity-0 transition-opacity group-hover/turn:opacity-100 group-focus-within/turn:opacity-100 motion-reduce:transition-none"
-                          dateTime={`PT${Math.round(group.lines[0].start)}S`}
-                        >
-                          {stamp(group.lines[0].start)}
-                        </time>
-                      </div>
-                      {group.lines.map((segment, i) => (
-                        <SpeakerBubble
-                          key={segment.id}
-                          position={linePosition(i, group.lines.length)}
-                          caption={{
-                            id: segment.id,
-                            speaker: segment.speaker,
-                            speakerName: segment.speakerName,
-                            speakerIndex: index,
-                            text: segment.text,
-                            interim: !segment.isFinal,
-                            translated: translations[segment.id] ?? null,
-                          }}
-                          onSpeak={
-                            translations[segment.id]
-                              ? () => speech.speak(translations[segment.id].text)
-                              : undefined
-                          }
-                          onStopSpeaking={speech.stop}
-                          speaking={speech.speaking}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
-
-              {/* Sits in the flow at the end of the transcript rather than
-                  floating over it: while paused the last thing said is the
-                  thing being looked at, and a state this consequential should
-                  not cover it. Never colour alone — it says "Paused". */}
-              {paused && (
-                <p className="mt-1 flex items-center gap-2 rounded-xl border border-white/60 bg-white/55 px-3.5 py-2 text-[13px] text-ink">
-                  <span aria-hidden="true" className="size-2 rounded-full bg-ink-faint" />
-                  <span>
-                    <span className="font-semibold">Paused.</span>
-                    {/* A string expression, not JSX text: JSX trims the leading
-                        space off a text node that opens after an element, and
-                        this rendered as "Paused.The microphone". Writing `{" "}`
-                        fixes it until Prettier reflows the line and removes it
-                        again, so the space lives inside the literal. */}
-                    {" The microphone is off and nothing is being sent. Resume when you're ready."}
-                  </span>
-                </p>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Floats over the transcript instead of sitting below it, so showing or
-            hiding it never resizes the pane being read. */}
-        {!pinned && (
-          <button
-            type="button"
-            onClick={jumpToLatest}
-            aria-label={
-              unread > 0
-                ? `${unread} new line${unread === 1 ? "" : "s"}, jump to latest`
-                : "Jump to latest line"
-            }
-            className="btn-ghost absolute inset-x-0 bottom-2 mx-auto flex min-h-11 w-fit items-center gap-2 rounded-full px-4 text-sm text-ink shadow-glass"
-          >
-            {unread > 0 && (
-              // Paired with the count in words — never colour alone (§7).
-              <span aria-hidden="true" className="size-2 rounded-full bg-accent-strong" />
-            )}
-            {unread > 0 ? `${unread} new line${unread === 1 ? "" : "s"}` : "Jump to latest"}
-          </button>
-        )}
-      </div>
+      <ConversationPane
+        segments={segments}
+        translations={translations}
+        languages={languages}
+        label="Spoken conversation and translations"
+        // Sized so the pane's *bottom* edge stays on screen on a laptop: the
+        // newest line is the one that matters live, and a pane whose foot falls
+        // below the fold recreates the page-chasing this replaced, only
+        // smaller. Measured at 1280×900 with the chrome above it, and
+        // retrimmed when the explanations switch and model picker were added —
+        // the fold guarantee has to survive controls being added above it.
+        height="h-[clamp(15rem,40dvh,28rem)]"
+        noun="line"
+        active={live || paused}
+        correcting={Boolean(correction.correcting)}
+        onCorrect={(speaker) => void correction.open(speaker)}
+        empty={
+          <div className="m-auto flex max-w-sm flex-col items-center gap-2 px-4 text-center">
+            <p className="text-sm font-medium text-ink">
+              {live ? "Go ahead — say something." : "Nothing spoken yet."}
+            </p>
+            <p className="text-[13px] leading-relaxed text-ink-soft">
+              Each sentence you finish appears here in {languages[target] ?? target}, with the
+              original underneath and a note on any slang. The newest one stays at the bottom, so
+              you never have to chase it.
+            </p>
+          </div>
+        }
+        footer={
+          // Sits in the flow at the end of the transcript rather than floating
+          // over it: while paused the last thing said is the thing being looked
+          // at, and a state this consequential should not cover it. Never
+          // colour alone — it says "Paused".
+          paused ? (
+            <p className="mt-1 flex items-center gap-2 rounded-xl border border-white/60 bg-white/55 px-3.5 py-2 text-[13px] text-ink">
+              <span aria-hidden="true" className="size-2 rounded-full bg-ink-faint" />
+              <span>
+                <span className="font-semibold">Paused.</span>
+                {/* A string expression, not JSX text: JSX trims the leading
+                    space off a text node that opens after an element, and this
+                    rendered as "Paused.The microphone". Writing `{" "}` fixes it
+                    until Prettier reflows the line and removes it again, so the
+                    space lives inside the literal. */}
+                {" The microphone is off and nothing is being sent. Resume when you're ready."}
+              </span>
+            </p>
+          ) : null
+        }
+      />
 
       {correction.correcting && (
         <SpeakerCorrectionDialog

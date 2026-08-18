@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import ConversationPaneSample from "@/components/design/ConversationPaneSample";
 import Button from "@/components/ui/Button";
 import GlassCard from "@/components/ui/GlassCard";
 import IconButton from "@/components/ui/IconButton";
@@ -27,6 +28,15 @@ export default function DesignPage() {
             More opaque — use behind dense body text to protect contrast.
           </p>
         </GlassCard>
+      </section>
+
+      {/* The transcript pane, shared by live captions and Translate's voice
+          mode. Both of those pages are auth-gated, so this gallery is where the
+          browser loop can measure the pane's contrast, geometry and hit areas
+          at all. */}
+      <section aria-label="Conversation pane" className="max-w-2xl">
+        <h2 className="mb-3 font-display text-[18px] font-semibold">Conversation pane</h2>
+        <ConversationPaneSample />
       </section>
 
       <section aria-label="Orbs" className="flex items-end gap-6">
