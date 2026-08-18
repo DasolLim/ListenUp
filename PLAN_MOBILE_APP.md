@@ -161,6 +161,101 @@ replaced or the app will render tool pages to signed-out users.
 
 ---
 
+## Phase 0 — Production infrastructure (this does not exist yet)
+
+**Verified on 2026-08-18: the backend has never been deployed.** There is no
+`infra/` directory (CLAUDE.md's repo layout claims one), no `Dockerfile`, no
+`Procfile`, no Railway/Render/Fly config. There is no privacy policy page and
+no terms page. The product runs on `localhost` only.
+
+This is a larger gap than the app packaging, and every phase below depends on
+it. An app whose backend is your laptop cannot be reviewed, let alone shipped.
+
+### Task 0.1 — Deploy the backend
+
+**Do:**
+- **Dockerfile.** `requirements-ml.txt` (torch, torchaudio, speechbrain) is
+  already split from the base requirements — keep that split and install ML
+  deps in their own layer so a code change does not re-download torch.
+- **Bake the ECAPA weights into the image.** If the model downloads from
+  HuggingFace on first use, your first user after every deploy waits for it,
+  and an upstream outage becomes your outage.
+- **Size the instance for torch.** Expect roughly 1–1.5 GB RSS with the model
+  loaded. This does not fit a hobby tier. Budget accordingly — this is a real
+  monthly cost that belongs in the unit economics.
+- **Host must support long-lived WebSockets** (Railway, Render, Fly all do).
+  Serverless platforms do not; do not put this on Vercel functions.
+- **Redis** for the translation and TTS caches — the cache is what makes
+  repeated phrases free, so without it your COGS goes *up*.
+- Health check already exists at `/health`.
+
+**Gate:** `wss://` transcription session from a phone on cellular produces
+captions; `/health` green; a redeploy does not re-download the model.
+
+### Task 0.2 — CORS will break the app on day one
+
+`app/main.py:57` sets `allow_origins=[FRONTEND_ORIGIN]` — one web origin.
+
+**A Capacitor WebView does not use your web origin.** It is
+`capacitor://localhost` on iOS and `https://localhost` on Android. Every single
+API call from the app will fail CORS preflight until those are allowed.
+
+**Do:** allow the two Capacitor origins alongside the web origin, from config
+rather than hard-coded. Do **not** reach for `allow_origins=["*"]` — this API
+carries bearer tokens and biometric data.
+
+**Gate:** an authenticated request and a WebSocket upgrade both succeed from a
+real device build, not just from the simulator.
+
+### Task 0.3 — Legal pages (an App Store requirement, and a real one here)
+
+Apple requires a privacy policy URL. Neither a privacy policy nor terms exists.
+
+For most apps this is boilerplate. **It is not boilerplate for you.** You
+process voiceprints, which are biometric identifiers under Illinois BIPA, GDPR
+Article 9, and Quebec Law 25, and you collect them from **third parties** — the
+user's mother, not the account holder. The policy has to state what is
+collected, the legal basis, retention, deletion, and that consent comes from
+the enrolled person.
+
+The good news is the product already behaves correctly: consent is gated on the
+enrolled person, `consent_text_version` is recorded, and export and delete
+exist. The document has to describe what the code already does.
+
+**Do:** privacy policy and terms as real pages on the web build, linked from
+Settings and the store listing. **Have a lawyer read the biometric section.**
+BIPA statutory damages are per-violation and this is exactly the fact pattern
+plaintiffs' firms look for.
+
+**Gate:** both pages live at stable URLs, linked in-app and in App Store
+Connect; Apple's Privacy Nutrition Labels declare biometric collection.
+
+### Task 0.4 — Monitoring and a spend circuit-breaker
+
+Sentry is wired as an env-guarded no-op in both stacks — it needs real DSNs.
+
+More importantly: **per-user metering exists, global spend control does not.**
+Every user is capped by `requires(metric)`, but nothing stops 500 signups on a
+good day from running an AssemblyAI bill you did not agree to. You cannot cap
+this at the provider for streaming sessions.
+
+**Do:** Sentry DSNs in both stacks. A daily global spend ceiling that degrades
+to refusing *new* sessions (never cutting an active one — the soft-landing rule
+already in `CaptionSession`) and alerts you. Watch the `perf span=` lines you
+already emit.
+
+**Gate:** a forced error appears in Sentry from both stacks; the global ceiling
+is provably reachable in a test and refuses new sessions without killing live
+ones.
+
+### Task 0.5 — Accounts (start today; it is pure waiting)
+
+Apple Developer Program ($99/yr, ~24–48h). Google Play Console ($25 once).
+Bundle id reserved. **Back up the Android keystore somewhere you will still
+have it in five years** — losing it means never updating that listing again.
+
+---
+
 ## Phase 1 — Make the phone experience correct (before any packaging)
 
 ### Task 1.1 — Fix the phone layout
@@ -435,14 +530,14 @@ Maestro is the right size for a solo project.
 
 | phase | work | calendar (solo, part-time) |
 |---|---|---|
-| 0 | Apple Developer enrolment (start today, it just waits) | 1–2 days elapsed |
+| 0 | **Deploy the backend, CORS, legal pages, monitoring, accounts** | **1–2 weeks** |
 | 1 | Phone layout, **audio path**, mic constraints, touch | **1–2 weeks** |
 | 2 | Static export, client auth guard, deep links | 3–5 days |
 | 3 | Capacitor shell, permissions, plugins, voices | 1 week |
 | 4 | Background audio, keep-awake, (transcripts) | 3–5 days |
 | 5 | Listing, privacy, submission, one rejection | **2 weeks elapsed** |
 
-**Realistic: 5–7 weeks to a live listing**, of which ~2 weeks is waiting on
+**Realistic: 7–9 weeks to a live listing**, of which ~2 weeks is waiting on
 Apple. The single variable that could double it is Task 1.2 — if the WebView
 cannot deliver clean 16 kHz audio, a native capture plugin adds 1–2 weeks and
 your first Swift/Kotlin.
