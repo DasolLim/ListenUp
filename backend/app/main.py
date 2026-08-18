@@ -7,6 +7,7 @@ import sentry_sdk
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.cors import allowed_origins
 from app.env import load_env
 from app.preflight import Severity, check_production_config, format_problems
 from app.routes.billing import router as billing_router
@@ -67,11 +68,15 @@ app.include_router(genz_router)
 app.include_router(tts_router)
 app.include_router(billing_router)
 
-FRONTEND_ORIGIN = os.environ.get("FRONTEND_ORIGIN", "http://localhost:3000")
+# Includes the two Capacitor WebView origins — see app/cors.py. Resolved at
+# import so a `*` in the environment fails at startup rather than widening the
+# API silently.
+CORS_ORIGINS = allowed_origins(os.environ)
+logger.info("cors_origins %s", ", ".join(CORS_ORIGINS))
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[FRONTEND_ORIGIN],
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

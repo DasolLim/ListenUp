@@ -60,6 +60,7 @@ report healthy, and serve the first real user a fixture conversation.
 | variable | why |
 |---|---|
 | `REDIS_URL` | without it, cached phrases are billed again (§1) |
+| `EXTRA_CORS_ORIGINS` | comma-separated extra origins, e.g. Vercel preview hostnames. The two Capacitor WebView origins are always allowed and need no configuration (`app/cors.py`) |
 | `SENTRY_DSN` | without it, backend errors exist only in logs nobody reads |
 
 ### Optional

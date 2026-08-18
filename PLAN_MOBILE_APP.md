@@ -229,7 +229,39 @@ the healthcheck are all untested. First `railway up` is the first real test.
 **Gate:** `wss://` transcription session from a phone on cellular produces
 captions; `/health` green; a redeploy does not re-download the model.
 
-### Task 0.2 — CORS will break the app on day one
+### Task 0.2 — CORS will break the app on day one — ✅ DONE 2026-08-18
+
+`app/cors.py` adds both Capacitor WebView origins to the allow-list; 13 tests,
+five mutations confirmed to fail. **533 backend tests.**
+
+The two origins are written as constants, not expected in an environment
+variable: nobody chooses `capacitor://localhost` and no deploy changes it, so
+requiring an operator to know it would just be a way to get it wrong.
+`EXTRA_CORS_ORIGINS` covers what *is* a deployment choice — preview hostnames.
+A `*` anywhere raises at startup rather than being passed through: it is the
+obvious way to make a stubborn CORS error go away, this API carries bearer
+tokens and biometric data, and Starlette silently drops credentials for a
+wildcard, so the "fix" would appear to work while breaking authentication in a
+way nobody would connect back to CORS.
+
+**Two findings.** The WebSocket needed no change and could not have: CORS
+middleware does not apply to WebSockets — browsers send no preflight for them —
+so `/ws/transcribe` already accepted any origin. That is not an exposure here,
+because the socket authenticates on a token in its **first message** rather than
+on a cookie, so a hostile page cannot open a session it has no token for. It is
+pinned by a test that says so.
+
+*And a defect in my own tests, found by mutation:* the integration checks
+parametrised over `CAPACITOR_ORIGINS`, so emptying that constant produced zero
+cases and they **skipped instead of failing** ("1 failed, 7 passed, 2 skipped").
+The origins are now written out literally, with one test asserting the literals
+still match the constant — the same mutation now fails six tests and skips none.
+
+**Deferred, not blocked:** the gate's "from a real device build" clause needs a
+build, which Phase 3 creates. Carried into Task 3.1's gate rather than left
+here.
+
+### Original specification
 
 `app/main.py:57` sets `allow_origins=[FRONTEND_ORIGIN]` — one web origin.
 
@@ -436,6 +468,9 @@ webview: offline breaks, updates become invisible to review, and it invites a
 Guideline 4.2 rejection.
 
 **Gate:** the app launches on both simulators and renders the marketing page.
+**Plus, carried from Task 0.2:** on a real device build, an authenticated API
+call and a WebSocket upgrade both succeed. The allow-list is unit-tested, but
+only a device proves the WebView sends the origin we think it does.
 
 ### Task 3.2 — Point the app at the production backend
 
