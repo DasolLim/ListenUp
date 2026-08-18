@@ -9,10 +9,10 @@
    "split_rate": 0.0,
    "merge_count": 0,
    "count_error": 0,
-   "name_accuracy": 0.9,
-   "name_churn": 1,
+   "name_accuracy": 1.0,
+   "name_churn": 0,
    "turns_to_first_name": {
-    "human-sam": 2,
+    "human-sam": 1,
     "human-dan": null,
     "tts-karen": null
    }
@@ -25,11 +25,11 @@
    "split_rate": 0.0,
    "merge_count": 0,
    "count_error": 0,
-   "name_accuracy": 0.8,
-   "name_churn": 2,
+   "name_accuracy": 1.0,
+   "name_churn": 0,
    "turns_to_first_name": {
-    "human-sam": 2,
-    "human-dan": 2,
+    "human-sam": 1,
+    "human-dan": 1,
     "tts-karen": null
    }
   },
@@ -41,11 +41,11 @@
    "split_rate": 0.0,
    "merge_count": 0,
    "count_error": 0,
-   "name_accuracy": 0.8,
-   "name_churn": 2,
+   "name_accuracy": 1.0,
+   "name_churn": 0,
    "turns_to_first_name": {
-    "human-sam": 2,
-    "human-dan": 2,
+    "human-sam": 1,
+    "human-dan": 1,
     "tts-karen": null
    }
   },
@@ -57,44 +57,44 @@
    "split_rate": 0.0,
    "merge_count": 0,
    "count_error": 0,
-   "name_accuracy": 0.8,
-   "name_churn": 2,
+   "name_accuracy": 1.0,
+   "name_churn": 0,
    "turns_to_first_name": {
-    "human-sam": 2,
-    "human-dan": 2,
+    "human-sam": 1,
+    "human-dan": 1,
     "tts-karen": null
    }
   },
   "trio": {
    "turns": 12,
    "speakers": 3,
-   "labels": 2,
-   "confusion_rate": 0.3333,
+   "labels": 3,
+   "confusion_rate": 0.0,
    "split_rate": 0.0,
-   "merge_count": 1,
-   "count_error": 1,
-   "name_accuracy": 0.5,
-   "name_churn": 3,
+   "merge_count": 0,
+   "count_error": 0,
+   "name_accuracy": 1.0,
+   "name_churn": 0,
    "turns_to_first_name": {
-    "human-sam": 2,
-    "human-dan": 2,
-    "tts-karen": null
+    "human-sam": 1,
+    "human-dan": 1,
+    "tts-karen": 1
    }
   },
   "trio-churn": {
    "turns": 12,
    "speakers": 3,
    "labels": 3,
-   "confusion_rate": 0.1667,
-   "split_rate": 0.3333,
-   "merge_count": 1,
+   "confusion_rate": 0.0,
+   "split_rate": 0.0,
+   "merge_count": 0,
    "count_error": 0,
-   "name_accuracy": 0.5,
-   "name_churn": 3,
+   "name_accuracy": 1.0,
+   "name_churn": 0,
    "turns_to_first_name": {
-    "human-sam": 2,
-    "human-dan": 2,
-    "tts-karen": null
+    "human-sam": 1,
+    "human-dan": 1,
+    "tts-karen": 1
    }
   },
   "five": {
@@ -105,12 +105,12 @@
    "split_rate": 0.0,
    "merge_count": 0,
    "count_error": 0,
-   "name_accuracy": 0.4444,
-   "name_churn": 2,
+   "name_accuracy": 1.0,
+   "name_churn": 0,
    "turns_to_first_name": {
-    "human-sam": 2,
-    "human-dan": 2,
-    "tts-karen": null
+    "human-sam": 1,
+    "human-dan": 1,
+    "tts-karen": 1
    }
   },
   "dominant": {
@@ -121,11 +121,11 @@
    "split_rate": 0.0,
    "merge_count": 0,
    "count_error": 0,
-   "name_accuracy": 0.8667,
-   "name_churn": 2,
+   "name_accuracy": 1.0,
+   "name_churn": 0,
    "turns_to_first_name": {
-    "human-sam": 2,
-    "human-dan": 2,
+    "human-sam": 1,
+    "human-dan": 1,
     "tts-karen": null
    }
   },
@@ -137,11 +137,11 @@
    "split_rate": 0.0,
    "merge_count": 0,
    "count_error": 0,
-   "name_accuracy": 0.0,
-   "name_churn": 0,
+   "name_accuracy": 0.8,
+   "name_churn": 2,
    "turns_to_first_name": {
-    "human-sam": null,
-    "human-dan": null,
+    "human-sam": 2,
+    "human-dan": 2,
     "tts-karen": null
    }
   },
@@ -153,44 +153,44 @@
    "split_rate": 0.0,
    "merge_count": 0,
    "count_error": 0,
-   "name_accuracy": 0.1667,
-   "name_churn": 1,
+   "name_accuracy": 0.8333,
+   "name_churn": 2,
    "turns_to_first_name": {
-    "human-sam": 3,
-    "human-dan": null,
-    "tts-karen": null
+    "human-sam": 2,
+    "human-dan": 2,
+    "tts-karen": 1
    }
   },
   "trio-short-churn": {
    "turns": 12,
    "speakers": 3,
-   "labels": 5,
-   "confusion_rate": 0.25,
-   "split_rate": 0.6667,
+   "labels": 3,
+   "confusion_rate": 0.0,
+   "split_rate": 0.0,
    "merge_count": 0,
-   "count_error": 2,
-   "name_accuracy": 0.0,
-   "name_churn": 4,
+   "count_error": 0,
+   "name_accuracy": 0.75,
+   "name_churn": 3,
    "turns_to_first_name": {
-    "human-sam": null,
-    "human-dan": null,
-    "tts-karen": null
+    "human-sam": 2,
+    "human-dan": 2,
+    "tts-karen": 2
    }
   },
   "trio-runs-short": {
    "turns": 12,
    "speakers": 3,
-   "labels": 5,
-   "confusion_rate": 0.25,
-   "split_rate": 0.6667,
+   "labels": 3,
+   "confusion_rate": 0.0,
+   "split_rate": 0.0,
    "merge_count": 0,
-   "count_error": 2,
-   "name_accuracy": 0.0,
-   "name_churn": 5,
+   "count_error": 0,
+   "name_accuracy": 0.75,
+   "name_churn": 3,
    "turns_to_first_name": {
-    "human-sam": null,
-    "human-dan": null,
-    "tts-karen": null
+    "human-sam": 2,
+    "human-dan": 2,
+    "tts-karen": 2
    }
   },
   "late-joiner": {
@@ -201,12 +201,12 @@
    "split_rate": 0.0,
    "merge_count": 0,
    "count_error": 0,
-   "name_accuracy": 0.4286,
-   "name_churn": 2,
+   "name_accuracy": 1.0,
+   "name_churn": 0,
    "turns_to_first_name": {
-    "human-sam": 2,
-    "human-dan": 2,
-    "tts-karen": null
+    "human-sam": 1,
+    "human-dan": 1,
+    "tts-karen": 1
    }
   }
  }

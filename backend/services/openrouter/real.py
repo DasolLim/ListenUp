@@ -17,16 +17,22 @@ from services.openrouter.base import (
     coerce_enhanced,
     parse_llm_json,
 )
+from services.openrouter.tiers import DEFAULT_TIER, resolve
 from services.translate.base import SUPPORTED_LANGUAGES, assert_supported
 from services.translate.cache import cache_key, get_cache
 
 logger = logging.getLogger("listenup.openrouter")
 
 API_URL = "https://openrouter.ai/api/v1/chat/completions"
-# gpt-4o over 4o-mini: markedly better on nuanced/newer slang (e.g. "lowkey",
-# ironic "coping"). Cultural accuracy is the product's core value; Redis caching
-# bounds cost (repeats are free). Override with OPENROUTER_MODEL for cheaper runs.
-DEFAULT_MODEL = "openai/gpt-4o"
+# Derived from the tier table rather than written twice. Every request through
+# `/translate/enhanced` carries a tier, so this is only reached by a direct
+# service call — but a stale constant here is actively misleading: it read
+# `openai/gpt-4o` long after the default tier had moved to gemini, and was
+# reported as the live model on that basis. One source of truth removes the
+# chance of reading the wrong one.
+#
+# Override with OPENROUTER_MODEL to pin a model for a one-off run.
+DEFAULT_MODEL = resolve(DEFAULT_TIER).model
 # Bump when the prompt changes so improvements invalidate cached translations
 # instead of serving stale output for up to the cache TTL.
 # Bumped for KB grounding (2026-08-10). The Redis cache key includes this, so a

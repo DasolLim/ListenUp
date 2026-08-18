@@ -434,6 +434,55 @@ score(voice) = similarity(voice, embedding) + (STICKINESS if voice is previous e
 
 ---
 
+## Task 5 — The ambiguous band on an unseen label — ✅ DONE 2026-08-18
+
+Not in the original plan. Task 1's harness left one scenario failing —
+`trio-short-churn` at 0.167 confusion / 0.67 split / 5 churn — and Tasks 2 and 4
+were both attempts to move it that were built, measured and reverted. Tracing
+the scenario turn by turn instead of tuning found a one-line cause.
+
+**All three of one speaker's ambiguous turns were creating new voices.** The
+middle band (`SPLIT_FLOOR` ≤ score < threshold) had two different answers
+depending on the *label*: a label already carrying a voice kept it, a label the
+provider had not used before fell through and created a speaker. With a
+churning provider every label is new, so ambiguity always resolved to "another
+person" — the label acting as the tie-break, which is the assumption
+`SessionSpeakers` exists to remove.
+
+The asymmetry is not justified by the audio. Measured on real ECAPA:
+
+| window | same speaker | different speakers |
+|---|---|---|
+| full sentence | 0.696 – 0.907 | 0.088 – 0.272 |
+| 1.0 s | 0.342 – 0.721 | 0.083 – 0.242 |
+
+A short window makes a voice a noisier sample of *itself*; it barely moves how
+much it resembles anyone else. So a score above the floor is weak evidence of
+sameness and still strong evidence of not-difference, and continuity is the
+right answer to it whether or not the label is familiar.
+
+**Result (real ECAPA, 5 speakers, 3 enrolled, clean):** `trio-short-churn`
+0.167 → **0.000** confusion, 0.67 → **0.00** split, 5 → **3** churn, 0.58 →
+**0.75** naming. Confusion and split are now **0.000 across all 13 scenarios**,
+merges **0**. The residual 3 churn is one unnamed→named upgrade per speaker,
+which is the designed floor — never force a wrong name (INTRODUCTION §5.7).
+
+A margin rule was measured first and rejected: on the later turns the two
+nearest voices were *both* the same person at 0.585/0.557 and 0.529/0.527, so a
+margin requirement would have blocked the correct join. The small gap was
+evidence of the earlier fragmentation, not of ambiguity.
+
+Both halves of the rule mutate-fail (deleting it, and dropping the floor guard
+so it joins whatever is nearest — 1 and 8 tests). **484 backend tests.**
+
+*Six reconciliation tests had to be repaired rather than passing: they forced a
+split by raising the merge bar and using a fresh label, which is exactly the
+recipe this rule now defeats, so they could no longer reach the code they name.
+One of the six — the label-remap test — had already been passing vacuously with
+one voice. They now raise the split floor as well, via a fixture that says why.*
+
+---
+
 ## Explicitly out of scope
 
 - **VB-HMM / VBx resegmentation** — needs frame-level posteriors the pipeline

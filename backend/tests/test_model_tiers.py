@@ -253,3 +253,13 @@ def test_a_refused_tier_never_reaches_the_provider_as_a_model_name(as_pro):
     assert response.status_code == 200
     assert response.json()["tier"] == DEFAULT_TIER
     assert json.loads(response.text)["model"] in {t.model for t in TIERS} | {"mock"}
+
+
+def test_the_service_fallback_model_matches_the_default_tier():
+    """One source of truth. The constant read `openai/gpt-4o` for a while after
+    the default tier had moved to gemini, and was reported as the live model on
+    the strength of reading it — the route always passes a tier, so it never
+    was. A constant that can disagree with reality is worse than no constant."""
+    from services.openrouter.real import DEFAULT_MODEL
+
+    assert DEFAULT_MODEL == resolve(DEFAULT_TIER).model

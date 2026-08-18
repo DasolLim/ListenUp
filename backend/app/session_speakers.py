@@ -224,6 +224,28 @@ class SessionSpeakers:
                 provider_label, voice.key, voice.similarity(embedding), SPLIT_FLOOR,
             )
 
+        # Ambiguous, and this label has no voice yet. Until now that fell
+        # through and created a speaker, which makes the *label* the tie-break —
+        # the exact assumption this class exists to remove. A known label in
+        # this same band keeps its voice; a new one split. Opposite answers to
+        # identical audio evidence, and with a churning provider every label is
+        # new, so ambiguity always resolved to "another speaker".
+        #
+        # Measured (real ECAPA, 1 s windows): the same speaker scores as low as
+        # 0.342 where a full sentence scores 0.696, while two different speakers
+        # peak at 0.242 — barely moved from 0.272 at full length. Short audio
+        # makes a voice a noisier sample of *itself*; it does not make it
+        # resemble anyone else. So a score above SPLIT_FLOOR on a short turn is
+        # weak evidence of sameness and still strong evidence of not-difference,
+        # and continuity is the right answer to it in both directions.
+        if known is None and best is not None and best_score > SPLIT_FLOOR:
+            logger.info(
+                "voice_continued label=%s -> %s score=%.3f floor=%.2f",
+                provider_label, best.key, best_score, SPLIT_FLOOR,
+            )
+            self._remember(best, provider_label, embedding)
+            return best.key
+
         if len(self.voices) >= MAX_VOICES and best is not None:
             self._remember(best, provider_label, embedding)
             return best.key

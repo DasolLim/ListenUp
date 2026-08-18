@@ -17,6 +17,7 @@ from pathlib import Path
 
 import pytest
 
+from app import session_speakers
 from app.routes.transcribe import SpeakerMapper
 from app.session_speakers import MAX_VOICES, SessionSpeakers, Voice
 from services.speaker_id import get_speaker_embedder
@@ -34,6 +35,26 @@ def voices() -> dict[str, list[float]]:
     """Embeddings for two recordings of one person, and one of someone else."""
     embedder = get_speaker_embedder()
     return {name: embedder.embed(pcm(name), 16000) for name in ("sam1", "sam2", "dan1")}
+
+
+@pytest.fixture
+def force_live_split(monkeypatch):
+    """Make the live pass split one person in two — which it no longer does.
+
+    The tests using this fixture are about `reconcile()`: evidence that arrives
+    *after* a split and undoes it. They need a split to exist. They used to get
+    one by raising the merge bar and using a fresh label, but a fresh label in
+    the ambiguous band now stays with the nearest voice, which is the whole
+    point of the continuity rule — so that recipe produces one voice and the
+    tests can no longer reach the code they name.
+
+    Raising the split floor alongside the merge bar reproduces the same state
+    through the same code path, rather than hand-building two voices: the
+    fixtures are one person at 0.957, and no fixture pair is one person scoring
+    below a realistic floor, so this is the only way to drive a live split from
+    real audio.
+    """
+    monkeypatch.setattr(session_speakers, "SPLIT_FLOOR", 0.99)
 
 
 # ── The reported bug ─────────────────────────────────────────────────────────
@@ -108,6 +129,40 @@ def test_an_ambiguous_turn_does_not_split_a_known_label(voices):
     first = speakers.assign("A", voices["sam1"])
     second = speakers.assign("A", voices["sam2"])  # same person, so above the floor
     assert first == second, "a known label was split by one ambiguous turn"
+
+
+def test_an_ambiguous_turn_does_not_split_an_unseen_label(voices):
+    """The same band, on a label with no history — which is the reported bug.
+
+    A known label in the ambiguous band keeps its voice (the test above). A new
+    label used to fall through and create a speaker, so identical audio evidence
+    got opposite answers depending on whether the provider had reused a label —
+    and a churning provider never does, so ambiguity always resolved to "another
+    person". That is the *label* acting as the tie-break, which is the exact
+    assumption this class exists to remove.
+
+    Measured on real ECAPA at 1 s windows: the same speaker scores as low as
+    0.342 (0.696 at full length) while two different speakers peak at 0.242
+    (0.272 at full length). Short audio makes a voice a noisier sample of
+    itself, not a better match for anyone else, so above the floor continuity
+    is the right answer whether or not the label is familiar.
+    """
+    speakers = SessionSpeakers(threshold=0.99)  # nothing clears the merge bar
+    first = speakers.assign("A", voices["sam1"])
+    second = speakers.assign("B", voices["sam2"])  # same person, brand-new label
+    assert first == second, "a churned label split one person into two voices"
+    assert len(speakers.voices) == 1
+
+
+def test_a_different_person_on_a_new_label_is_still_a_new_voice(voices):
+    """The guard on the rule above. Continuity must not become "join whatever is
+    nearest": below the floor the audio is positive evidence of someone else,
+    and merging two people is the dangerous direction — a reader is told the
+    wrong person said something, with no way to notice."""
+    speakers = SessionSpeakers(threshold=0.99)
+    first = speakers.assign("A", voices["sam1"])
+    second = speakers.assign("B", voices["dan1"])
+    assert first != second, "two different people were merged into one voice"
 
 
 def test_the_number_of_tracked_voices_is_bounded(voices):
@@ -200,7 +255,7 @@ def test_the_first_sample_of_a_voice_is_never_evicted(voices):
 # the whole recording at the end. These cover that advantage made incremental.
 
 
-def test_a_split_speaker_is_reunited_once_there_is_evidence(voices):
+def test_a_split_speaker_is_reunited_once_there_is_evidence(voices, force_live_split):
     """The reported bug, arriving late: two voices that turn out to be one."""
     # Each voice gets its own recording of the same person, so the live pass
     # cannot match them (0.957 similarity, under the 0.99 bar) but the centroids
@@ -232,7 +287,7 @@ def test_reconciliation_never_fuses_two_different_people(voices):
     assert len(speakers.voices) == before == 2
 
 
-def test_the_older_voice_is_the_one_kept(voices):
+def test_the_older_voice_is_the_one_kept(voices, force_live_split):
     """The display number a reader has been watching must not move under them."""
     speakers = SessionSpeakers(threshold=0.99)
     speakers.assign("A", voices["sam1"])
@@ -260,7 +315,7 @@ def test_one_turn_voices_are_left_alone(voices):
     assert speakers.reconcile() == [], "merged on one turn of evidence each"
 
 
-def test_reconciliation_is_idempotent(voices):
+def test_reconciliation_is_idempotent(voices, force_live_split):
     """Called after every final turn, so it must go quiet once settled or the
     client is told to relabel the same speakers forever."""
     speakers = SessionSpeakers(threshold=0.99)
@@ -273,7 +328,7 @@ def test_reconciliation_is_idempotent(voices):
     assert speakers.reconcile() == [], "kept merging after everything had settled"
 
 
-def test_labels_follow_the_voice_they_were_folded_into(voices):
+def test_labels_follow_the_voice_they_were_folded_into(voices, force_live_split):
     """A provider label pointing at the absorbed voice must end up pointing at
     the survivor, or the next turn under it would split all over again."""
     speakers = SessionSpeakers(threshold=0.99)
@@ -294,7 +349,7 @@ def test_labels_follow_the_voice_they_were_folded_into(voices):
     assert {v.key for v in speakers.voices} == {survivor}
 
 
-def test_the_merge_reaches_the_display_label(voices):
+def test_the_merge_reaches_the_display_label(voices, force_live_split):
     """End to end through the mapper: what the caption actually shows."""
     speakers = SessionSpeakers(threshold=0.99)
     mapper = SpeakerMapper()
@@ -369,7 +424,7 @@ def test_a_correction_outranks_any_amount_of_evidence():
     assert speakers.identity("A") == (MOM, "Mom")
 
 
-def test_folding_two_voices_keeps_what_each_knew(voices):
+def test_folding_two_voices_keeps_what_each_knew(voices, force_live_split):
     """Half of David's turns under one label and half under another must not
     leave the survivor knowing less about who he is than either half did."""
     speakers = SessionSpeakers(threshold=0.99)
