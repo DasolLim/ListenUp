@@ -19,7 +19,7 @@ task; the detail lives here.
 | 0.1 Deploy the backend | ❌ **BLOCKED** | `e58ad71` | 8 | 3 ✅ |
 | 0.2 CORS for Capacitor | ✅ **DONE** | `de77e8d` | 13 | 5 ✅ |
 | 0.3 Legal pages | ❌ **BLOCKED** | `4b51d4a` | 16 browser | n/a |
-| 0.4 Monitoring + spend ceiling | ✅ **DONE** | `cc8bd75` | 15 | 6 ✅ |
+| 0.4 Monitoring + spend ceiling | ✅ **DONE** | `fbfd253` | 15 | 6 ✅ |
 | 0.5 Accounts | ❌ **BLOCKED** (your choice) | — | — | — |
 | 1.1 Phone layout | ⬜ not started | | | |
 | 1.2 Audio path (highest risk) | ⬜ not started | | | |
