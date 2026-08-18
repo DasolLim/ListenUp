@@ -15,7 +15,7 @@ import { contrastFindings, gotoSettled } from "./support";
  * High contrast is included because it is a separate palette, not a filter:
  * `[data-contrast="high"]` redefines the tokens, so it can regress on its own.
  */
-const PAGES = ["/", "/about", "/product", "/design", "/login"];
+const PAGES = ["/", "/about", "/product", "/design", "/login", "/privacy", "/terms"];
 
 for (const path of PAGES) {
   for (const contrast of [false, true]) {

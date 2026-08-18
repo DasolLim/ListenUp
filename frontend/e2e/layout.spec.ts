@@ -10,7 +10,7 @@ import { gotoSettled } from "./support";
  * eyeballed — it recreated the original complaint in miniature), and an 18px
  * tap-to-correct target a phone user could not reliably hit.
  */
-const PAGES = ["/", "/about", "/product", "/design", "/login"];
+const PAGES = ["/", "/about", "/product", "/design", "/login", "/privacy", "/terms"];
 const VIEWPORTS = [
   { name: "phone", width: 390, height: 844 },
   { name: "tablet", width: 834, height: 1112 },
@@ -126,9 +126,8 @@ test.describe("touch targets", () => {
           // "in a sentence" means, and it is what makes the constraint genuine
           // rather than an excuse.
           const own = (el.textContent ?? "").trim();
-          const around = ((el.parentElement?.textContent ?? "").trim().length - own.length);
-          const inSentence =
-            getComputedStyle(el).display === "inline" && around >= 20;
+          const around = (el.parentElement?.textContent ?? "").trim().length - own.length;
+          const inSentence = getComputedStyle(el).display === "inline" && around >= 20;
           if (inSentence) continue;
 
           const rx = (labelled ? 24 : MIN) / 2 - 1;

@@ -19,12 +19,19 @@ const columns = [
       { href: "/login", label: "Log in" },
     ],
   },
+  {
+    heading: "Legal",
+    links: [
+      { href: "/privacy", label: "Privacy" },
+      { href: "/terms", label: "Terms" },
+    ],
+  },
 ];
 
 export default function SiteFooter() {
   return (
     <footer className="mt-8 border-t border-white/40 bg-white/25">
-      <div className="mx-auto grid w-full max-w-6xl gap-10 px-5 py-14 sm:px-8 md:grid-cols-[1.4fr_1fr_1fr]">
+      <div className="mx-auto grid w-full max-w-6xl gap-10 px-5 py-14 sm:px-8 md:grid-cols-[1.4fr_1fr_1fr_1fr]">
         <div className="flex flex-col gap-3">
           <Link
             href="/"

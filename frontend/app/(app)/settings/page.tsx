@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import SubscriptionPanel from "@/components/billing/SubscriptionPanel";
 import VoiceProfiles from "@/components/profiles/VoiceProfiles";
 import VoiceStudio from "@/components/speech/VoiceStudio";
@@ -25,6 +26,21 @@ export default function SettingsPage() {
       <SubscriptionPanel />
       <VoiceProfiles />
       <VoiceStudio />
+      {/* Reachable from inside the product, not only from the marketing footer.
+          Someone looking for how to withdraw a consent they gave for a voice
+          profile is already signed in and already on this page — sending them
+          to the public site to find it would be the wrong way round. */}
+      <footer className="border-t border-white/40 pt-6 text-sm text-ink-soft">
+        How we handle your data, including voice profiles, is in the{" "}
+        <Link href="/privacy" className="text-accent-strong underline underline-offset-2">
+          privacy policy
+        </Link>
+        . Using ListenUp is subject to the{" "}
+        <Link href="/terms" className="text-accent-strong underline underline-offset-2">
+          terms of use
+        </Link>
+        .
+      </footer>
     </div>
   );
 }

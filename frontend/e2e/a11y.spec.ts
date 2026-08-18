@@ -30,7 +30,7 @@ import { gotoSettled } from "./support";
  * rendered there, and measuring it found two pieces of text that had been below
  * AA since they were written.
  */
-const PAGES = ["/", "/about", "/product", "/design", "/login"];
+const PAGES = ["/", "/about", "/product", "/design", "/login", "/privacy", "/terms"];
 
 // Reduced motion is set suite-wide in `playwright.config.ts`; see the note there.
 

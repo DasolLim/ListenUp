@@ -276,7 +276,44 @@ carries bearer tokens and biometric data.
 **Gate:** an authenticated request and a WebSocket upgrade both succeed from a
 real device build, not just from the simulator.
 
-### Task 0.3 — Legal pages (an App Store requirement, and a real one here)
+### Task 0.3 — Legal pages — ❌ BLOCKED 2026-08-18
+
+**Both pages written, linked and browser-verified. Blocked on legal review,
+which is the part that actually matters here.**
+
+`/privacy` and `/terms`, linked from the site footer (a new Legal column) and
+from **Settings** — someone looking for how to withdraw a consent they gave is
+already signed in, and sending them to the marketing site to find it would be
+the wrong way round.
+
+**The content is derived from the schema, not from a template.** Every claim was
+checked against `db/migrations/` and the code: audio is streamed and never
+written to disk; **transcripts are not stored at all** (six migrations, none of
+them a conversation, so "opt-in transcripts" would have been a lie); a voice
+profile is 192 numbers and cannot be played back; consent is recorded with the
+consenting person's name, the exact wording and a timestamp; slang lookups are
+logged with **no link to an account** (`slang_gap_log` has no user column).
+
+Two clauses carry real weight and should not be softened without advice: the
+requirement to have permission before enrolling somebody else's voice, and an
+**emergency clause** — this is an accessibility tool, and a deaf user relying on
+it in a safety-critical moment is a foreseeable use, so the terms say plainly
+not to.
+
+**Verified:** 56 browser checks green (up from 40) — both pages axe-clean in
+both contrast modes, AA against the gradient measured from pixels, no overflow
+at 390/834/1440, touch targets reachable.
+
+**Blocked on you:**
+1. **A lawyer must read the biometric section.** Voiceprints collected from
+   third parties is the fact pattern BIPA suits are built on, and statutory
+   damages are per violation. A source comment on each page says so.
+2. `privacy@listenup.app` and `hello@listenup.app` must become deliverable
+   addresses, or be replaced.
+3. App Store Connect: the privacy policy URL, and Privacy Nutrition Labels that
+   **declare biometric collection**.
+
+### Original specification
 
 Apple requires a privacy policy URL. Neither a privacy policy nor terms exists.
 
