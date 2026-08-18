@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import SpeakerBubble from "@/components/captions/SpeakerBubble";
 import SpeakerCorrectionDialog from "@/components/captions/SpeakerCorrectionDialog";
+import SpeakerNamingNudge from "@/components/captions/SpeakerNamingNudge";
 import SpeakerName from "@/components/captions/SpeakerName";
 import VoiceOrb from "@/components/captions/VoiceOrb";
 import SpokenLanguagePicker from "@/components/SpokenLanguagePicker";
@@ -199,6 +200,16 @@ function LiveCaptionsInner(props: {
   // separate destination in the nav, which is the wrong moment — you discover
   // you want it while looking at "Speaker 1", not while browsing tools.
   const hasUnnamedSpeaker = segments.some((segment) => segment.isFinal && !segment.speakerName);
+  const [nudgeDismissed, setNudgeDismissed] = useState(false);
+  // Held back until a couple of turns have settled: offering to name people
+  // before anyone has finished speaking is advice about nothing, and it would
+  // flash on screen in the first second of every session.
+  const showNamingNudge =
+    hasUnnamedSpeaker &&
+    !nudgeDismissed &&
+    finalsCount >= 2 &&
+    (status === "listening" || paused) &&
+    !correction.correcting;
 
   const colorOf = identityColor(segments);
 
@@ -429,11 +440,8 @@ function LiveCaptionsInner(props: {
             </p>
           )}
 
-          {hasUnnamedSpeaker && (status === "listening" || paused) && !correction.correcting && (
-            <p className="rounded-2xl border border-white/60 bg-white/50 px-4 py-2.5 text-[13px] leading-relaxed text-ink-soft">
-              Tap a speaker&apos;s name to say who they are — ListenUp will recognise them next
-              time.
-            </p>
+          {showNamingNudge && (
+            <SpeakerNamingNudge onDismiss={() => setNudgeDismissed(true)} />
           )}
 
           {segments.length === 0 && !error ? (

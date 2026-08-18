@@ -302,7 +302,15 @@ harness and keep the one that wins.
 
 ---
 
-## Task 3 — Enrolment as an anchor (product, not algorithm)
+## Task 3 — Enrolment as an anchor — ✅ DONE 2026-08-18
+
+One shared `SpeakerNamingNudge` in both transcripts. Verified in a browser:
+absent before anyone speaks, present after two settled turns with unnamed
+speakers, dismissed for good, enrolment link reaches `/settings`, 0 axe
+violations in both contrast modes, no overflow at 390/834/1440, desktop pane
+bottom still above the fold (884/900).
+
+### Original specification
 
 **Goal.** Get the primary user enrolled, because a known voice is a fixed
 reference instead of a cluster that must be discovered.

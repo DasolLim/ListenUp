@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import SpeakerBubble from "@/components/captions/SpeakerBubble";
 import SpeakerCorrectionDialog from "@/components/captions/SpeakerCorrectionDialog";
+import SpeakerNamingNudge from "@/components/captions/SpeakerNamingNudge";
 import SpeakerName from "@/components/captions/SpeakerName";
 import SpokenLanguagePicker from "@/components/SpokenLanguagePicker";
 import VoicePicker from "@/components/speech/VoicePicker";
@@ -139,6 +140,16 @@ export default function VoiceConversation({
 
   const live = status === "listening" || status === "connecting";
   const paused = status === "paused";
+
+  // Same prompt as live captions, because it is the same conversation and the
+  // same moat: this pane could name Mom and, until now, never said so.
+  const [nudgeDismissed, setNudgeDismissed] = useState(false);
+  const showNamingNudge =
+    !nudgeDismissed &&
+    finalCount >= 2 &&
+    (live || paused) &&
+    !correction.correcting &&
+    segments.some((s) => s.isFinal && !s.speakerName);
   const colorOf = identityColor(segments);
 
   const statusLine = paused
@@ -405,6 +416,10 @@ export default function VoiceConversation({
           aria-label="Spoken conversation and translations"
           className="flex h-full flex-col overflow-y-auto overscroll-contain px-0.5"
         >
+          {showNamingNudge && (
+            <SpeakerNamingNudge onDismiss={() => setNudgeDismissed(true)} />
+          )}
+
           {segments.length === 0 ? (
             <div className="m-auto flex max-w-sm flex-col items-center gap-2 px-4 text-center">
               <p className="text-sm font-medium text-ink">
