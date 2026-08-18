@@ -18,8 +18,8 @@ from pathlib import Path
 import pytest
 
 from app import session_speakers
-from app.routes.transcribe import SpeakerMapper
 from app.session_speakers import MAX_VOICES, SessionSpeakers, Voice
+from app.speaker_labels import SpeakerMapper
 from services.speaker_id import get_speaker_embedder
 
 FIXTURES = Path(__file__).parent.parent / "services" / "speaker_id" / "fixtures"

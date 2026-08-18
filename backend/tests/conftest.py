@@ -28,6 +28,18 @@ import pytest  # noqa: E402
 TEST_USER = "11111111-1111-1111-1111-111111111111"
 
 
+@pytest.fixture
+def anyio_backend() -> str:
+    """Let a test be `async def` under `@pytest.mark.anyio`.
+
+    anyio ships its own pytest plugin, so async unit tests cost no new
+    dependency — and without them the only way to reach an async decision was
+    to open a websocket, which is why the caption session's rules were only
+    ever tested through the transport that carries them.
+    """
+    return "asyncio"
+
+
 @pytest.fixture(autouse=True)
 def _no_leaked_mock_fixture():
     """Clear MOCK_FIXTURE between tests.

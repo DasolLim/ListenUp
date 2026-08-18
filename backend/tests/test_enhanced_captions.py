@@ -30,7 +30,7 @@ def profile_loads(monkeypatch):
         calls.append(token)
         return []  # an empty gallery still exercises the load path
 
-    monkeypatch.setattr("app.routes.transcribe.load_profiles", _load_profiles)
+    monkeypatch.setattr("app.caption_session.load_profiles", _load_profiles)
 
     async def _caller_for_token(token, _user_id=None):
         from app.plans import PLANS
@@ -93,7 +93,7 @@ def test_a_profile_load_failure_does_not_break_captions(monkeypatch):
         return Caller("u", token, {"status": "active", "tier": "pro"},
                       PLANS["pro"], Usage(dict(EMPTY)))
 
-    monkeypatch.setattr("app.routes.transcribe.load_profiles", _boom)
+    monkeypatch.setattr("app.caption_session.load_profiles", _boom)
     monkeypatch.setattr("app.routes.billing.caller_for_token", _caller_for_token)
 
     with client.websocket_connect("/ws/transcribe") as ws:
@@ -118,7 +118,7 @@ def test_named_speakers_reach_the_client(monkeypatch):
         return Caller("u", token, {"status": "active", "tier": "pro"},
                       PLANS["pro"], Usage(dict(EMPTY)))
 
-    monkeypatch.setattr("app.routes.transcribe.load_profiles", _load_profiles)
+    monkeypatch.setattr("app.caption_session.load_profiles", _load_profiles)
     monkeypatch.setattr("app.routes.billing.caller_for_token", _caller_for_token)
 
     with client.websocket_connect("/ws/transcribe") as ws:

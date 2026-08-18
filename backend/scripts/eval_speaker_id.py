@@ -39,8 +39,8 @@ sys.path.insert(0, str(Path(__file__).parent))
 from build_speaker_corpus import CorpusError, build  # noqa: E402
 from speaker_metrics import Turn, summarise  # noqa: E402
 
-from app.routes.transcribe import SpeakerMapper  # noqa: E402
 from app.session_speakers import SessionSpeakers  # noqa: E402
+from app.speaker_labels import SpeakerMapper  # noqa: E402
 from services.speaker_id import get_speaker_embedder  # noqa: E402
 from services.speaker_id.matcher import Profile, SpeakerMatcher  # noqa: E402
 

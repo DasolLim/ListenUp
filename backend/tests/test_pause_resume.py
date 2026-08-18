@@ -145,7 +145,7 @@ def fake_session_clock(monkeypatch):
     """Give the websocket a clock this test drives."""
     fake = FakeTime()
     monkeypatch.setattr(
-        "app.routes.transcribe.SessionClock", lambda: SessionClock(now=fake.now)
+        "app.caption_session.SessionClock", lambda: SessionClock(now=fake.now)
     )
     return fake
 
@@ -211,7 +211,7 @@ def spy_service(monkeypatch):
 
     Spy.audio_calls = 0
     monkeypatch.setattr(
-        "app.routes.transcribe.get_transcription_service", lambda _language: Spy("family")
+        "app.caption_session.get_transcription_service", lambda _language: Spy("family")
     )
     return Spy
 
