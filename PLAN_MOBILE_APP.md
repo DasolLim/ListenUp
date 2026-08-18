@@ -336,7 +336,46 @@ plaintiffs' firms look for.
 **Gate:** both pages live at stable URLs, linked in-app and in App Store
 Connect; Apple's Privacy Nutrition Labels declare biometric collection.
 
-### Task 0.4 — Monitoring and a spend circuit-breaker
+### Task 0.4 — Monitoring and a spend circuit-breaker — ✅ DONE 2026-08-18
+
+`app/spend.py` — a daily ceiling in dollars, in the units the app already
+meters. 15 tests, **six mutations confirmed to fail**. 548 backend tests.
+
+Unset means off: a default ceiling would be a number nobody chose silently
+deciding when captions stop working, and for an accessibility tool that is not
+a decision to make on someone's behalf. Preflight now warns when production
+runs without one.
+
+**It refuses the next start, never a live session** — the same trade
+`CaptionSession` already makes for the per-user allowance, because a cap that
+fires mid-sentence can fire in a medical appointment. The refusal is
+`reason: "service_capacity"` with copy that says nothing is wrong with your
+account, because the user may have hours of allowance left and be refused
+anyway; wording borrowed from the per-user cap would be a lie they cannot act
+on.
+
+**It fails open.** Every failure inside the ledger is swallowed and an
+unanswerable ledger reports "not over". An hour of unnoticed overspend is
+recoverable; a deaf user unable to follow a conversation because a counter
+broke is not.
+
+**Found while building it: an anonymous caption session is completely
+unmetered.** `open()` treats the token as optional, so a client that sends none
+gets a real provider connection with no allowance check — per-user metering only
+runs when `_who` exists. The ledger deliberately records **outside** that guard
+so the global ceiling at least sees the spend, and a test pins it. *The
+underlying hole is not closed and is not this task's scope* — see the log.
+
+**Deliberately not done:** translation spend is *recorded* but never *refused*.
+Live captions push every finished line through `/translate`, so refusing there
+would strip translations out of a conversation in progress — the mid-session cut
+this feature exists to avoid. The ceiling closes the loop by refusing the next
+session instead.
+
+**Sentry DSNs remain yours to set** (`SENTRY_DSN`, `NEXT_PUBLIC_SENTRY_DSN`);
+the code is wired and alerts once per day rather than once per refusal.
+
+### Original specification
 
 Sentry is wired as an env-guarded no-op in both stacks — it needs real DSNs.
 
@@ -354,7 +393,18 @@ already emit.
 is provably reachable in a test and refuses new sessions without killing live
 ones.
 
-### Task 0.5 — Accounts (start today; it is pure waiting)
+### Task 0.5 — Accounts — ❌ BLOCKED 2026-08-18 (by choice)
+
+**Deferred by you: the Apple Developer Program is your last step before
+production.** Nothing here is code and nothing else in the plan depends on it
+until Phase 5 — Phases 1–4 all run without a developer account. The one caution
+worth repeating: enrolment takes 24–48 hours of pure waiting, so start it while
+Phase 3 is in progress rather than after.
+
+Bundle id `com.<you>.listenup` is still a placeholder in Task 3.1 and needs a
+real value before `npx cap init`.
+
+### Original specification
 
 Apple Developer Program ($99/yr, ~24–48h). Google Play Console ($25 once).
 Bundle id reserved. **Back up the Android keystore somewhere you will still

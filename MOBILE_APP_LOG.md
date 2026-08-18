@@ -18,9 +18,9 @@ task; the detail lives here.
 |---|---|---|---|---|
 | 0.1 Deploy the backend | ❌ **BLOCKED** | `e58ad71` | 8 | 3 ✅ |
 | 0.2 CORS for Capacitor | ✅ **DONE** | `de77e8d` | 13 | 5 ✅ |
-| 0.3 Legal pages | ⬜ not started | | | |
-| 0.4 Monitoring + spend ceiling | ⬜ not started | | | |
-| 0.5 Accounts | ⬜ **yours** | | | |
+| 0.3 Legal pages | ❌ **BLOCKED** | `4b51d4a` | 16 browser | n/a |
+| 0.4 Monitoring + spend ceiling | ✅ **DONE** | `cc8bd75` | 15 | 6 ✅ |
+| 0.5 Accounts | ❌ **BLOCKED** (your choice) | — | — | — |
 | 1.1 Phone layout | ⬜ not started | | | |
 | 1.2 Audio path (highest risk) | ⬜ not started | | | |
 | 1.3 Microphone constraints | ⬜ not started | | | |
@@ -30,8 +30,8 @@ task; the detail lives here.
 | 4 Native capabilities | ⬜ not started | | | |
 | 5 Store submission | ⬜ not started | | | |
 
-**Suite state at the latest commit:** 533 backend tests · 97 frontend checks ·
-40 browser checks · `make check` and `make e2e` both green.
+**Suite state at the latest commit:** 548 backend tests · 97 frontend checks ·
+56 browser checks · `make check` and `make e2e` both green.
 
 ---
 
@@ -39,30 +39,43 @@ task; the detail lives here.
 
 Ordered by what blocks the most.
 
-1. **Google Translation auth for a container.** Local development uses `gcloud`
+1. **A lawyer must read the biometric section of `/privacy` and `/terms`.**
+   Voiceprints collected from third parties — the account holder's mother, not
+   the account holder — is the fact pattern BIPA suits are built on, and
+   statutory damages are per violation. A comment at the top of each page says
+   so. **This is now the single highest-consequence open item.**
+2. **Google Translation auth for a container.** Local development uses `gcloud`
    Application Default Credentials because the org policy
    `iam.disableServiceAccountKeyCreation` blocks JSON key files (Decisions Log,
    2026-07-17). **ADC does not exist inside a container.** You need either a
    service-account key from a project without that policy, or Workload Identity
-   Federation. This is the one credential that cannot be pasted into Railway,
-   and meeting it at the end of a deploy will stop it dead.
-2. **Railway project.** Root directory `backend/`, **≥2 GB memory** — torch plus
+   Federation. It cannot be pasted into Railway, and meeting it at the end of a
+   deploy will stop it dead.
+3. **Railway project.** Root directory `backend/`, **≥2 GB memory** — torch plus
    the loaded ECAPA model is 1–1.5 GB resident, and a 512 MB instance OOMs as a
    restart loop rather than an error message.
-3. **Upstash Redis** → `REDIS_URL`. Without it every cached phrase is billed
-   again, which raises COGS on a product whose margins are already thin.
-4. **The remaining env vars** in `infra/README.md` §3.
-5. **Apple Developer Program** ($99/yr, ~24–48h) and **Google Play Console**
-   ($25 once). Pure waiting — start it before you need it.
-6. **A lawyer for the biometric section** of the privacy policy (Task 0.3).
-   Voiceprints collected from third parties is the fact pattern BIPA suits are
-   built on.
-7. **A throwaway Supabase test user** (`E2E_EMAIL` / `E2E_PASSWORD`) so the
-   browser suite can cover the five auth-gated tool pages. It currently covers
-   public pages only.
-8. **A real iPhone and a real Android phone.** Task 1.2 cannot be resolved
-   without them, and the iOS Simulator fakes audio in exactly the way that
-   would hide the bug.
+4. **Pick a number for `DAILY_SPEND_CEILING_USD`.** Dollars you would be willing
+   to lose to a bad day. Without it there is no limit on total provider spend —
+   per-user allowances cap each account, not the total. Preflight warns, it does
+   not guess.
+5. **Upstash Redis** → `REDIS_URL`. Without it every cached phrase is billed
+   again, raising COGS on already-thin margins.
+6. **Two mailboxes that receive mail:** `privacy@listenup.app` and
+   `hello@listenup.app` are published on the legal pages and do not exist.
+7. **Sentry DSNs** — `SENTRY_DSN` (backend) and `NEXT_PUBLIC_SENTRY_DSN`
+   (frontend). Both stacks are wired and inert without them.
+8. **The remaining env vars** in `infra/README.md` §3.
+9. **Docker**, if you want to verify the image before pushing — see *Tool setup*
+   below. Optional; Railway builds server-side either way.
+10. **A throwaway Supabase test user** (`E2E_EMAIL` / `E2E_PASSWORD`) so the
+    browser suite can cover the five auth-gated tool pages. It covers public
+    pages only today.
+11. **A real iPhone and a real Android phone** for Task 1.2. The iOS Simulator
+    fakes audio in exactly the way that would hide the bug.
+12. **Apple Developer Program / Google Play Console** — deferred by you to the
+    last step. Fine: nothing before Phase 5 needs it. Start it *during* Phase 3
+    rather than after, because enrolment is 24–48 hours of pure waiting.
+13. **A real bundle id** to replace `com.<you>.listenup` before `npx cap init`.
 
 ---
 
@@ -195,6 +208,199 @@ separate claims, and only the wiring mutation tests the second one.
 
 ---
 
+## Task 0.3 — Legal pages — ❌ BLOCKED (`4b51d4a`)
+
+### Delivered
+`/privacy` and `/terms` on the web build, plus `components/marketing/LegalPage.tsx`.
+Linked from a new **Legal** column in the site footer and from **Settings** —
+somebody looking for how to withdraw a consent they gave is already signed in,
+and sending them to the marketing site to find it would be the wrong way round.
+
+### Why this is not boilerplate
+Every claim was checked against `backend/db/migrations/` and the code rather
+than taken from a template. Three things came out differently than a template
+would have said:
+
+- **Transcripts are not stored at all.** Six migrations, none of them a
+  conversation. The project has described transcripts as "opt-in" elsewhere;
+  on the page that has to be true, that would have been a false statement.
+- **A voice profile is 192 numbers**, not a recording, and cannot be played
+  back. Worth stating plainly — it is the difference between what the product
+  does and what people fear it does.
+- **Slang lookups are logged with no link to an account.** `slang_gap_log` has
+  no user column, so the page says so rather than hedging.
+
+The terms carry two clauses that should not be softened without advice: you must
+have permission before enrolling somebody else's voice, and **an emergency
+clause** — a deaf user relying on an imperfect caption in a safety-critical
+moment is a foreseeable use of an accessibility tool, so the terms say plainly
+not to.
+
+### Not implemented / blocked
+1. **Legal review of the biometric section.** The pages carry a source comment
+   marking this; users do not see it.
+2. `privacy@listenup.app` and `hello@listenup.app` must become real.
+3. App Store Connect: privacy policy URL and Privacy Nutrition Labels
+   **declaring biometric collection**.
+
+### Verification
+Browser suite grew **40 → 56 checks**, all green: both pages axe-clean in both
+contrast modes, AA measured from rendered pixels against the gradient, no
+horizontal overflow at 390/834/1440, touch targets hit-tested.
+
+### Mutations run
+None. There is no logic here to mutate — the verification is the rendered-page
+suite, which is the right instrument for two static documents.
+
+---
+
+## Task 0.4 — Monitoring and a spend circuit-breaker — ✅ DONE
+
+### Delivered
+`backend/app/spend.py`. A daily ceiling in dollars, denominated in the units the
+app already meters, with rates sourced from `SUBSCRIPTION.md` §10 and pinned by
+a test — a ceiling computed from drifted rates would refuse sessions at the
+wrong moment while looking perfectly reasonable.
+
+Three decisions worth keeping:
+
+- **Unset means off.** A default would be a number nobody chose silently
+  deciding when captions stop working. Preflight warns instead.
+- **It refuses the next start, never a live session** — the same trade
+  `CaptionSession` already makes for the per-user allowance, because a cap that
+  fires mid-sentence can fire in a medical appointment. The refusal carries
+  `reason: "service_capacity"` and copy saying nothing is wrong with your
+  account, because a user may have hours of allowance left and be refused
+  anyway.
+- **It fails open.** Every failure inside the ledger is swallowed and an
+  unanswerable ledger reports "not over". An hour of unnoticed overspend is
+  recoverable; a deaf user unable to follow a conversation because a counter
+  broke is not.
+
+Sentry alerts **once per day**, not once per refused session — an alert that
+fires on every attempt buries itself.
+
+### The defect this task found — and did not fix
+**An anonymous caption session is completely unmetered.** `CaptionSession.open()`
+treats the token as optional, so a client that sends none gets a real provider
+connection with no allowance check — per-user metering only runs when `_who`
+exists. The frontend never does this (the route is auth-guarded), but the API is
+public.
+
+The ledger deliberately records **outside** the `_who` guard so the global
+ceiling at least sees that spend, and a test pins it. **The underlying hole is
+open**: fixing it means deciding whether unauthenticated captioning is a feature
+(a free trial with no signup) or an oversight. That is a product decision, not a
+bug fix, and it belongs in its own task.
+
+### Deliberately not done
+Translation spend is **recorded but never refused**. Live captions push every
+finished line through `/translate`, so refusing there would strip translations
+out of a conversation already in progress — the mid-session cut this feature
+exists to avoid. The ceiling closes the loop by refusing the next session.
+
+### Not implemented / blocked
+`DAILY_SPEND_CEILING_USD` and both Sentry DSNs are yours to set. Also: **the
+ledger is in-process**, which is correct at `numReplicas: 1` and wrong above it —
+two instances would each allow the full ceiling. `infra/README.md` says to
+divide if you scale out.
+
+### Test failures and errors hit
+| what | cause | resolution |
+|---|---|---|
+| A websocket test hung for 2 minutes | my drain loop waited for a `closed` message the socket never sends; it sends `done` | matched the existing `test_ws_transcribe` pattern |
+| `assert "your" not in message` failed | a crude proxy for "does not blame the user" — it tripped on *"nothing is wrong with **your** account"*, which is the reassurance the copy exists to give | replaced with assertions on the substance: the reassurance must be present, and `allowance` / `upgrade` / `your limit` must not |
+| **Mutation M2 was not caught** | the mid-session test stopped the session immediately, so an injected cut in `push_audio` was never reached | the test now streams audio *after* crossing the ceiling; M2 fails |
+
+### Mutations run — 6, all confirmed to fail
+| mutation | result |
+|---|---|
+| No ceiling check when opening a session | 1 fails |
+| **The ceiling also cuts live sessions** | 1 fails *(only after the test was fixed — see above)* |
+| Record only for signed-in users (restore the anonymous blind spot) | 1 fails |
+| The safe wrapper stops swallowing | 1 fails |
+| `over_ceiling()` fails closed instead of open | 1 fails |
+| No daily reset | 1 fails |
+
+---
+
+## Task 0.5 — Accounts — ❌ BLOCKED (your choice)
+
+Deferred: the Apple Developer Program is your last step before production.
+
+Nothing is lost by this. Phases 1–4 all run without a developer account —
+building, testing on a simulator, and running on your own device via a free
+provisioning profile all work. Only Phase 5 needs it.
+
+**One caution:** enrolment is 24–48 hours of pure waiting. Start it *during*
+Phase 3, not after, or it becomes two idle days at the end.
+
+**Still needed before Task 3.1:** a real bundle id to replace
+`com.<you>.listenup`.
+
+---
+
+## Tool setup — Docker
+
+You asked whether an MCP server could set this up. **There is no Docker MCP
+available in this environment** — I checked the tool list. So: manual, and it is
+short.
+
+### Do you actually need it?
+
+**No, strictly.** Railway builds the image server-side from the `Dockerfile`, so
+you can deploy without ever installing Docker.
+
+**But it is worth 20 minutes**, because this image installs torch and downloads
+model weights. A build failure costs a full push-wait-fail cycle on Railway,
+and the four things listed in *Unverified* above have never been run. Building
+once locally converts them from unknowns into facts.
+
+### Pick one (macOS, Homebrew already installed)
+
+| option | why | command |
+|---|---|---|
+| **OrbStack** *(recommended)* | fastest and lightest on Apple silicon, low idle drain, free for personal use | `brew install --cask orbstack` |
+| Docker Desktop | the official one; free for personal use and small businesses | `brew install --cask docker` |
+| Colima | free and open source, CLI only, no GUI | `brew install colima docker && colima start --memory 6` |
+
+Whichever you choose, open it once so it can start its background VM. Then:
+
+```bash
+docker --version        # expect a version string
+docker info             # expect no "Cannot connect to the Docker daemon"
+```
+
+**Give it at least 6 GB of memory** in the app's settings. Installing torch in a
+4 GB VM is where these builds usually die, and the error does not say so.
+
+### Then verify our image — four commands, four unknowns closed
+
+```bash
+cd backend
+
+# 1. Does it build at all? First run ~10–20 min; the image is ~2–3 GB.
+docker build -t listenup-backend .
+
+# 2. Does it run, and is the model actually baked in?
+#    Watch for "ECAPA weights cached" during the build, and for a fast start here.
+docker run --rm -p 8000:8000 listenup-backend
+curl localhost:8000/health          # {"status":"ok"}
+
+# 3. Does preflight refuse a broken production config?
+docker run --rm -e APP_ENV=production listenup-backend
+#    Expect: refuses to start, lists every missing variable with its remedy.
+
+# 4. Does a code change reuse the torch layer?
+touch app/main.py && docker build -t listenup-backend .
+#    Expect: "CACHED" on the pip layers, only the last steps re-run.
+```
+
+If any of those four fail, that is the Dockerfile being wrong rather than your
+setup — tell me the output and I will fix it.
+
+---
+
 ## Cross-task defect register
 
 Where the bugs came from, which is worth watching over time.
@@ -206,6 +412,9 @@ Where the bugs came from, which is worth watching over time.
 | 3 | 0.2 | **my own tests** | parametrising over the constant under test made cases vanish rather than fail |
 | 4 | 0.1 | **my own process** | a `cd` failure aborted a shell chain and an edit silently did not apply |
 | 5 | 0.1 | **my own reporting** | stated 69 frontend checks; the real number is 97 |
+| 6 | 0.4 | **product — OPEN** | an anonymous caption session is unmetered: `open()` treats the token as optional, so no allowance is checked and a real provider connection is made. The ledger sees the spend; the hole itself is not closed |
+| 7 | 0.4 | **my own tests** | the mid-session test never sent audio after crossing the ceiling, so an injected cut was never reached and mutation M2 passed |
+| 8 | 0.4 | **my own tests** | `assert "your" not in message` was a crude proxy that tripped on the reassurance the copy exists to give |
 
 ---
 

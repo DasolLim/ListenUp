@@ -7,6 +7,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
+from app import spend
 from app.plans import ENHANCED_COST_RATIO
 from app.routes.billing import Caller, requires
 from app.timing import span
@@ -81,6 +82,16 @@ async def translate(
     # their allowance either — the cap tracks margin rather than punishing
     # someone for a conversation that happens to repeat itself.
     await who.record("translated", result.characters)
+    # Counted in the global ledger too, because translation is the *larger*
+    # cost driver ($1.25 vs $0.15 per hour of conversation) and a ceiling that
+    # could not see it would be measuring the smaller half.
+    #
+    # Deliberately not *refused* here, unlike a new caption session. Live
+    # captions push every finished line through this route, so refusing would
+    # strip translations out of a conversation already in progress — which is
+    # the mid-session cut the ceiling exists to avoid. The ceiling closes the
+    # loop by refusing the next session instead.
+    spend.record("translated", result.characters)
     logger.info(
         "translate chars=%d cached=%s hit_ratio=%.2f",
         result.characters, result.cached, cache.hit_ratio,

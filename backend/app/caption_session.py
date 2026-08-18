@@ -31,6 +31,7 @@ from collections.abc import AsyncIterator, Mapping
 from dataclasses import dataclass
 from typing import Any, Protocol
 
+from app import spend
 from app.naming import SessionNamer, load_profiles
 from app.session_clock import SessionClock
 from app.speaker_labels import SpeakerMapper
@@ -213,6 +214,27 @@ class CaptionSession:
         fixture = config.get("fixture")
         if fixture and os.environ.get("TRANSCRIPTION_SERVICE", "mock").lower() == "mock":
             os.environ["MOCK_FIXTURE"] = str(fixture)
+
+        # Before anything that costs money. This is a *deployment* limit, not
+        # the user's allowance: they may have hours left and still be refused
+        # because the service as a whole is over budget for the day. The
+        # message says so, because "you have used your allowance" would be a
+        # lie the user cannot act on.
+        if spend.over_ceiling():
+            raise SessionRefused(
+                Frame(
+                    {
+                        "type": "error",
+                        "reason": "service_capacity",
+                        "message": (
+                            "Captions are paused for everyone right now while we "
+                            "check on service capacity. Nothing is wrong with your "
+                            "account, and this usually clears within a few hours."
+                        ),
+                    }
+                ),
+                code=1013,  # RFC 6455 "try again later"
+            )
 
         language = str(config.get("language") or "en").lower()
         try:
@@ -524,6 +546,11 @@ class CaptionSession:
         self.cost.paused_seconds = self._clock.paused_seconds()
         if self._who is not None:
             await self._who.record("captions", self.cost.billed_seconds)
+        # Deliberately *outside* the `_who` guard. Per-user metering only runs
+        # when a token was sent, so an anonymous session is unmetered — and it
+        # still opened a real provider connection and still cost money. The
+        # global ledger is the only thing that sees that spend.
+        spend.record("captions", self.cost.billed_seconds)
         logger.info(
             "transcribe_end client=%s chunks=%d billed_s=%d paused_s=%.1f",
             self.client, self.cost.chunks, self.cost.billed_seconds, self.cost.paused_seconds,

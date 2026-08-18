@@ -97,6 +97,12 @@ ADVISORY = {
         "memory, so a repeated phrase is billed again on every instance",
         "add an Upstash Redis URL — the cache is what makes repeats free",
     ),
+    "DAILY_SPEND_CEILING_USD": (
+        "no DAILY_SPEND_CEILING_USD: nothing limits what this deployment can "
+        "spend at the providers in a day — per-user allowances cap each account, "
+        "not the total",
+        "set a daily ceiling in dollars you are willing to lose to a bad day",
+    ),
     "SENTRY_DSN": (
         "no SENTRY_DSN: backend errors will only exist in log lines nobody reads",
         "set the DSN from your Sentry project",

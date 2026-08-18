@@ -60,6 +60,7 @@ report healthy, and serve the first real user a fixture conversation.
 | variable | why |
 |---|---|
 | `REDIS_URL` | without it, cached phrases are billed again (§1) |
+| `DAILY_SPEND_CEILING_USD` | **the only thing standing between you and an unbounded provider bill.** Per-user allowances cap each account; nothing caps the total. Set it to a number of dollars you would be willing to lose to a bad day. **Per instance** — the ledger is in-process, so if you ever raise `numReplicas` above 1, divide this by the replica count |
 | `EXTRA_CORS_ORIGINS` | comma-separated extra origins, e.g. Vercel preview hostnames. The two Capacitor WebView origins are always allowed and need no configuration (`app/cors.py`) |
 | `SENTRY_DSN` | without it, backend errors exist only in logs nobody reads |
 
