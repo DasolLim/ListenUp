@@ -444,7 +444,61 @@ have it in five years** — losing it means never updating that listing again.
 
 ## Phase 1 — Make the phone experience correct (before any packaging)
 
-### Task 1.1 — Fix the phone layout
+### Task 1.1 — Fix the phone layout — ✅ DONE 2026-08-18
+
+The transcript now fits the screen on every phone viewport in both
+orientations. **62 browser checks** (up from 56), four mutations confirmed to
+fail.
+
+**What changed.** `SessionHeader` is extracted and shared by both transcripts,
+with a `compact` mode that collapses while a session runs or is paused: the orb
+drops from 64px to 32px, the heading goes `sr-only` (still in the
+accessibility tree — a screen-reader user needs to know which tool this is; a
+person reading their own conversation does not need 30px spent saying so), and
+the setup controls move behind one `Session settings` disclosure. **Nothing is
+removed**: the spoken-language picker is already `disabled` while listening, so
+displaying it was spending height on something inert, and the rest stays one tap
+away because a translation target is still worth changing mid-conversation.
+
+That took the header from **189px to 96px**, and the chrome around the pane to a
+measured **274px** on every phone viewport. `lib/paneHeight.ts` holds the two
+heights both transcripts use, so the live pane is sized from what is left:
+`clamp(6rem, calc(100dvh - 18rem), 34rem)`. `dvh` rather than `vh` because
+mobile browser chrome grows and shrinks as you scroll and `vh` freezes at the
+largest size. Safe-area insets added to the app shell.
+
+**The 18rem was measured, not guessed** — a first guess of 20rem was wrong and
+the fold check caught it: 47px past the fold in portrait, 81px in landscape.
+The 6rem floor is what a 375px-tall landscape phone allows after the chrome;
+the transcript is genuinely small there, which is the honest consequence of
+captioning on a phone held sideways.
+
+**How it is measured, given `/captions` is auth-gated.**
+`components/design/LiveSessionSample.tsx` renders the **same** `SessionHeader`
+and `ConversationPane`, at the same shared height constant, inside the same
+shell spacing, and is placed first on `/design` so it sits under the same
+`<Navbar />`. Composing the real components rather than describing them is what
+keeps the measurement about the product.
+
+**A real defect found on the way, and a bigger one in the check itself.**
+Tightening the touch-target probe exposed `/login`'s inline `Register` button at
+**54x20** — half the required height. Fixed with the pseudo-element pattern
+`SpeakerName` already uses, so it stays inline in its sentence and still offers
+a thumb 44px.
+
+Worse: **the touch-target check had only ever inspected controls above the
+fold.** `elementFromPoint` works on the visible viewport only, so everything
+further down was silently skipped — on `/design` at 844px that was most of the
+page, including the icon buttons the rule exists for. It read as a page-wide
+check and was a first-screen one. Controls are now scrolled into view before
+measuring, and the mutation that shrinks `IconButton` to 40x40 — which had
+passed three times — now fails.
+
+**Mutations:** live height reverted to the fixed clamp (3 fail) · `compact`
+ignored (5 fail) · `IconButton` at 40x40 (1 fail) · the inline hit area removed
+(1 fail).
+
+### Original specification
 
 **Known defect** (`CLAUDE.md`, 2026-08-14): on a 390×844 phone the caption
 pane's bottom edge sits at 1010px — **166px below the fold** — so a phone user

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import ConversationPaneSample from "@/components/design/ConversationPaneSample";
+import LiveSessionSample from "@/components/design/LiveSessionSample";
 import Button from "@/components/ui/Button";
 import GlassCard from "@/components/ui/GlassCard";
 import IconButton from "@/components/ui/IconButton";
@@ -13,6 +14,13 @@ export const metadata: Metadata = { title: "Design reference — ListenUp" };
 export default function DesignPage() {
   return (
     <div className="flex flex-col gap-8 pb-16">
+      {/* First on the page deliberately: it sits directly under the same
+          <Navbar /> the app shell uses, so the fold measurement in
+          e2e/layout.spec.ts is the real offset rather than an approximation. */}
+      <section aria-label="Live session layout">
+        <LiveSessionSample />
+      </section>
+
       <h1 className="font-display text-[34px] font-bold">Design reference</h1>
 
       <section aria-label="Glass cards" className="flex flex-wrap gap-6">

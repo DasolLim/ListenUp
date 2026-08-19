@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import ConversationPane from "@/components/captions/ConversationPane";
+import SessionHeader from "@/components/captions/SessionHeader";
+import { PANE_HEIGHT_IDLE, PANE_HEIGHT_LIVE } from "@/lib/paneHeight";
 import SpeakerCorrectionDialog from "@/components/captions/SpeakerCorrectionDialog";
 import VoiceOrb from "@/components/captions/VoiceOrb";
 import SpokenLanguagePicker from "@/components/SpokenLanguagePicker";
@@ -31,11 +33,7 @@ const statusCopy = {
   error: "",
 } as const;
 
-
-function LiveCaptionsInner(props: {
-  targetLang: string;
-  setTargetLang: (v: string) => void;
-}) {
+function LiveCaptionsInner(props: { targetLang: string; setTargetLang: (v: string) => void }) {
   const [spoken, setSpoken] = useStickyLanguage("listenup-spoken-captions");
   const {
     status,
@@ -188,102 +186,94 @@ function LiveCaptionsInner(props: {
 
   return (
     <GlassCard strong className="flex flex-col gap-4 p-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          {/* Reacts to how loudly the room is speaking, so it doubles as a
-              "your mic is working" signal — the thing you most want confirmed
-              when captions are the reason you're in the conversation. */}
-          {listening && (
+      <SessionHeader
+        title="Live captions"
+        status={statusCopy[status]}
+        // Collapses while a session runs or is paused. See SessionHeader: the
+        // expanded chrome put the transcript's bottom edge below the fold on a
+        // phone, which is the complaint the pane was rebuilt to fix.
+        compact={listening || paused}
+        orb={
+          listening ? (
             <VoiceOrb getSignal={getVoiceSignal} state={orbState} className="size-16 shrink-0" />
-          )}
-          <div>
-            <h2 className="font-display text-[22px] font-semibold">Live captions</h2>
-            <p role="status" className="mt-0.5 text-sm text-ink-soft">
-              {statusCopy[status]}
-            </p>
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <SpokenLanguagePicker
-            id="live-spoken"
-            value={spoken}
-            onChange={setSpoken}
-            disabled={listening}
-          />
-          {
-            <>
-              <label className="flex items-center gap-2 text-sm text-ink">
-                <input
-                  type="checkbox"
-                  checked={translateOn}
-                  onChange={(e) => {
-                    setTranslateOn(e.target.checked);
-                    if (!e.target.checked) resetTranslations();
-                  }}
-                  className="h-4 w-4 accent-accent-strong"
-                />
-                Translate to
-              </label>
-              <select
-                id="live-target"
-                aria-label="Live caption target language"
-                value={targetLang}
-                onChange={(e) => setTargetLang(e.target.value)}
-                disabled={!translateOn}
-                className="glass-strong min-h-11 rounded-xl border border-white/60 px-3 text-sm text-ink shadow-glass outline-none disabled:opacity-50"
-              >
-                {Object.entries(languages).map(([code, name]) => (
-                  <option key={code} value={code}>
-                    {name}
-                  </option>
-                ))}
-              </select>
-            </>
-          }
-          {/* Pause holds the session without ending it, so the transcript on
-              screen survives a private aside; stopping clears it on the next
-              start. Paused time is neither billed nor counted as latency. */}
-          {paused ? (
-            <Button onClick={resume} className="flex items-center gap-2">
-              <MicIcon />
-              Resume
-            </Button>
-          ) : listening ? (
-            <Button variant="ghost" onClick={pause} className="flex items-center gap-2">
-              <PauseIcon />
-              Pause
-            </Button>
-          ) : (
-            <Button onClick={start} className="flex items-center gap-2">
-              <MicIcon />
-              Start captions
-            </Button>
-          )}
-          {(listening || paused) && (
-            <Button variant="ghost" onClick={handleStop}>
-              Stop
-            </Button>
-          )}
-        </div>
-      </div>
-
-      {translateOn && (
-        <div className="flex flex-wrap items-center gap-3 border-t border-white/40 pt-3">
-          <VoicePicker
-            id="live-voice"
-            voices={speech.voices}
-            voiceId={speech.voiceId}
-            onChoose={speech.chooseVoice}
-            onPreview={(text, id) => speech.speak(text, id)}
-            onStop={speech.stop}
-            speaking={speech.speaking}
-            autoSpeak={speech.autoSpeak}
-            onToggleAutoSpeak={speech.toggleAutoSpeak}
-            language={targetLang}
-          />
-        </div>
-      )}
-
+          ) : null
+        }
+        setup={
+          <>
+            <SpokenLanguagePicker
+              id="live-spoken"
+              value={spoken}
+              onChange={setSpoken}
+              disabled={listening}
+            />
+            <label className="flex items-center gap-2 text-sm text-ink">
+              <input
+                type="checkbox"
+                checked={translateOn}
+                onChange={(e) => {
+                  setTranslateOn(e.target.checked);
+                  if (!e.target.checked) resetTranslations();
+                }}
+                className="h-4 w-4 accent-accent-strong"
+              />
+              Translate to
+            </label>
+            <select
+              id="live-target"
+              aria-label="Live caption target language"
+              value={targetLang}
+              onChange={(e) => setTargetLang(e.target.value)}
+              disabled={!translateOn}
+              className="glass-strong min-h-11 rounded-xl border border-white/60 px-3 text-sm text-ink shadow-glass outline-none disabled:opacity-50"
+            >
+              {Object.entries(languages).map(([code, name]) => (
+                <option key={code} value={code}>
+                  {name}
+                </option>
+              ))}
+            </select>
+            {translateOn && (
+              <VoicePicker
+                id="live-voice"
+                voices={speech.voices}
+                voiceId={speech.voiceId}
+                onChoose={speech.chooseVoice}
+                onPreview={(text, id) => speech.speak(text, id)}
+                onStop={speech.stop}
+                speaking={speech.speaking}
+                autoSpeak={speech.autoSpeak}
+                onToggleAutoSpeak={speech.toggleAutoSpeak}
+                language={targetLang}
+              />
+            )}
+          </>
+        }
+        actions={
+          <>
+            {paused ? (
+              <Button onClick={resume} className="flex items-center gap-2">
+                <MicIcon />
+                Resume
+              </Button>
+            ) : listening ? (
+              <Button variant="ghost" onClick={pause} className="flex items-center gap-2">
+                <PauseIcon />
+                Pause
+              </Button>
+            ) : (
+              <Button onClick={start} className="flex items-center gap-2">
+                <MicIcon />
+                Start captions
+              </Button>
+            )}
+            {(listening || paused) && (
+              <Button variant="ghost" onClick={handleStop}>
+                Stop
+              </Button>
+            )}
+          </>
+        }
+      />
       {error && (
         <p
           role="alert"
@@ -320,8 +310,7 @@ function LiveCaptionsInner(props: {
           role="status"
           className="rounded-xl border border-warning bg-white/70 px-4 py-2.5 text-[13px] leading-relaxed text-ink"
         >
-          {Math.round(allowanceWarning.remaining / 60)} minutes of captions left this billing
-          period
+          {Math.round(allowanceWarning.remaining / 60)} minutes of captions left this billing period
           {allowanceWarning.resetsAt && `, resetting ${formatDate(allowanceWarning.resetsAt)}`}.
         </p>
       )}
@@ -382,7 +371,7 @@ function LiveCaptionsInner(props: {
         // Empty when translation is off, so the bubbles show the original only.
         translations={translateOn ? translations : undefined}
         label="Live captions"
-        height="h-[clamp(18rem,55vh,34rem)]"
+        height={listening || paused ? PANE_HEIGHT_LIVE : PANE_HEIGHT_IDLE}
         noun="caption"
         active={status === "listening" || paused}
         correcting={Boolean(correction.correcting)}

@@ -60,10 +60,19 @@ test.describe("touch targets", () => {
         const MIN = 44;
         const bad: string[] = [];
         for (const el of Array.from(document.querySelectorAll<HTMLElement>(selector))) {
+          if (el.getBoundingClientRect().width === 0) continue;
+          // Bring it into view before measuring. `elementFromPoint` only works
+          // on the visible viewport, so without this the check silently skipped
+          // everything below the fold — on `/design` at 844px that was most of
+          // the page, including the icon buttons this rule exists for. It read
+          // as a page-wide check and was really a first-screen one.
+          el.scrollIntoView({ block: "center", inline: "center" });
           const box = el.getBoundingClientRect();
           if (box.width === 0 || box.height === 0) continue;
           const cx = box.left + box.width / 2;
           const cy = box.top + box.height / 2;
+          // Still possible after scrolling: an element inside its own scroll
+          // container, or wider than the viewport.
           if (cx < 0 || cy < 0 || cx > innerWidth || cy > innerHeight) continue;
 
           // Precondition, and the reason an earlier version of this check
@@ -93,7 +102,14 @@ test.describe("touch targets", () => {
             if (px < 0 || py < 0 || px > innerWidth || py > innerHeight) return true;
             const hit = document.elementFromPoint(px, py);
             if (!hit) return false;
-            if (el.contains(hit) || hit.contains(el) || hit === el) return true;
+            // The element itself, or something inside it. **Not** an
+            // ancestor: reaching the card behind a button is not reaching the
+            // button, and accepting it made this blind — a 40x40 icon button
+            // probed 1px outside its own box hit the card and passed, so the
+            // mutation that shrank it went undetected. A `before:`
+            // pseudo-element still works, because a hit on one returns the
+            // element that owns it.
+            if (hit === el || el.contains(hit)) return true;
             // A `position: fixed` overlay — the A11y bar is pinned to the foot
             // of every page — covers whatever happens to be scrolled under it,
             // on every page, at this scroll position only. That is a fact about
@@ -130,10 +146,17 @@ test.describe("touch targets", () => {
           const inSentence = getComputedStyle(el).display === "inline" && around >= 20;
           if (inSentence) continue;
 
-          const rx = (labelled ? 24 : MIN) / 2 - 1;
+          const needWide = labelled ? 24 : MIN;
+          const rx = needWide / 2 - 1;
           const ry = MIN / 2 - 1;
-          const wide = reach(-rx, 0) && reach(rx, 0);
-          const tall = reach(0, -ry) && reach(0, ry);
+          // Size first, hit test second. The hit test exists to find hit areas a
+          // bounding box cannot see — a `before:` pseudo-element expanding an
+          // 18px label to 44px. A control already big enough has nothing to
+          // prove, and probing its exact edge is a coin flip: a button measuring
+          // 44px at a fractional offset had `elementFromPoint` return the
+          // element above it.
+          const wide = box.width >= needWide - 0.5 || (reach(-rx, 0) && reach(rx, 0));
+          const tall = box.height >= MIN - 0.5 || (reach(0, -ry) && reach(0, ry));
           if (!wide || !tall) {
             bad.push(
               `${el.tagName.toLowerCase()}${el.id ? "#" + el.id : ""} ` +
@@ -149,5 +172,49 @@ test.describe("touch targets", () => {
       // The skip link is `sr-only` until focused, and correctly small.
       expect(small.filter((s) => !s.includes("Skip to"))).toEqual([]);
     });
+  }
+});
+
+test.describe("live session fits the phone", () => {
+  /**
+   * The guarantee the transcript pane exists to give — the newest line never
+   * moves — only holds if the pane is on screen. It was not: on a 390x844
+   * phone the pane's bottom edge sat at 1010px, 166px below the fold, so a
+   * reader had to scroll to follow their own conversation. That is the
+   * original complaint reappearing on the device where captions matter most.
+   *
+   * Measured on `/design`, which renders the **same** `SessionHeader` and
+   * `ConversationPane` the real page does, at the same shared height constant,
+   * inside the same shell spacing and under the same `<Navbar />`. `/captions`
+   * is auth-gated, so this is the only surface the browser loop can reach —
+   * and composing the real components rather than describing them is what
+   * keeps the measurement about the product.
+   */
+  const PHONES = [
+    { name: "iPhone 14", width: 390, height: 844 },
+    { name: "iPhone SE", width: 375, height: 667 },
+    { name: "Pixel", width: 412, height: 915 },
+  ];
+
+  for (const phone of PHONES) {
+    for (const landscape of [false, true]) {
+      const width = landscape ? phone.height : phone.width;
+      const height = landscape ? phone.width : phone.height;
+      test(`${phone.name} ${landscape ? "landscape" : "portrait"} shows the whole transcript without scrolling`, async ({
+        page,
+      }) => {
+        await page.setViewportSize({ width, height });
+        await gotoSettled(page, "/design");
+
+        const box = await page
+          .getByTestId("live-session-sample")
+          .evaluate((el) => el.getBoundingClientRect().bottom);
+
+        expect(
+          Math.round(box),
+          `the session surface ends ${Math.round(box - height)}px below the ${height}px fold`
+        ).toBeLessThanOrEqual(height);
+      });
+    }
   }
 });

@@ -22,7 +22,7 @@ import type { LiveTranslation } from "@/lib/translationMerge";
  * translated line with slang notes, and a long enough gap to draw a divider.
  */
 
-const SEGMENTS: CaptionSegment[] = [
+export const SEGMENTS: CaptionSegment[] = [
   {
     id: "t1",
     speaker: "Speaker 1",
@@ -62,7 +62,7 @@ const SEGMENTS: CaptionSegment[] = [
   },
 ];
 
-const TRANSLATIONS: Record<string, LiveTranslation> = {
+export const TRANSLATIONS: Record<string, LiveTranslation> = {
   t3: {
     text: "그거 진짜 맛있겠다, 찐이야.",
     sourceLang: "en",

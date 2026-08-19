@@ -9,6 +9,7 @@ import { MicIcon, PauseIcon } from "@/components/shell/icons";
 import Button from "@/components/ui/Button";
 import { formatDate } from "@/lib/plans";
 import ConversationPane from "@/components/captions/ConversationPane";
+import { PANE_HEIGHT_IDLE, PANE_HEIGHT_LIVE } from "@/lib/paneHeight";
 import { useAutoSpeak, useSharedSpeech } from "@/lib/SpeechProvider";
 import { useSpeakerCorrection } from "@/lib/useSpeakerCorrection";
 import { useStickyFlag } from "@/lib/useStickyFlag";
@@ -116,9 +117,7 @@ export default function VoiceConversation({
   // the tool reads as broken. Detected from what came back rather than from the
   // spoken-language picker, because the picker says what the mic is set to and
   // this says what was actually heard.
-  const echoing = Object.values(translations).some(
-    (t) => t.sourceLang && t.sourceLang === target
-  );
+  const echoing = Object.values(translations).some((t) => t.sourceLang && t.sourceLang === target);
 
   // The first supported language that isn't the current target — with en/ko
   // that is simply "the other one", and it stays correct if the list grows.
@@ -191,7 +190,9 @@ export default function VoiceConversation({
             aria-checked={explain}
             onClick={() => setExplain(!explain)}
             className={`inline-flex min-h-11 items-center gap-2 rounded-full px-3.5 text-[13px] font-medium transition-colors ${
-              explain ? "bg-accent-strong text-on-accent" : "pill-inactive text-ink-soft hover:text-ink"
+              explain
+                ? "bg-accent-strong text-on-accent"
+                : "pill-inactive text-ink-soft hover:text-ink"
             }`}
           >
             <span
@@ -290,8 +291,8 @@ export default function VoiceConversation({
           className="flex flex-col gap-2 rounded-xl border border-warning bg-white/70 px-4 py-3 text-[13px] leading-relaxed text-ink"
         >
           <p>
-            You&apos;re translating {languages[target] ?? target} into{" "}
-            {languages[target] ?? target}, so these lines come back unchanged.
+            You&apos;re translating {languages[target] ?? target} into {languages[target] ?? target}
+            , so these lines come back unchanged.
           </p>
           {/* The fix, where the problem is noticed. Offered rather than applied
               silently: the target is the user's setting, and changing it under
@@ -376,7 +377,7 @@ export default function VoiceConversation({
         // smaller. Measured at 1280×900 with the chrome above it, and
         // retrimmed when the explanations switch and model picker were added —
         // the fold guarantee has to survive controls being added above it.
-        height="h-[clamp(15rem,40dvh,28rem)]"
+        height={live || paused ? PANE_HEIGHT_LIVE : PANE_HEIGHT_IDLE}
         noun="line"
         active={live || paused}
         correcting={Boolean(correction.correcting)}

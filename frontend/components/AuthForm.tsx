@@ -85,7 +85,9 @@ export default function AuthForm() {
 
   return (
     <div>
-      <h1 className="text-center font-display text-[28px] font-bold">{mode === "login" ? "Log in" : "Create account"}</h1>
+      <h1 className="text-center font-display text-[28px] font-bold">
+        {mode === "login" ? "Log in" : "Create account"}
+      </h1>
 
       <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-4">
         <div className="flex flex-col gap-1">
@@ -119,12 +121,18 @@ export default function AuthForm() {
         </div>
 
         {error && (
-          <p role="alert" className="rounded-xl border border-error bg-white/70 px-3.5 py-2.5 text-sm text-error-strong">
+          <p
+            role="alert"
+            className="rounded-xl border border-error bg-white/70 px-3.5 py-2.5 text-sm text-error-strong"
+          >
             {error}
           </p>
         )}
         {notice && (
-          <p role="status" className="rounded-xl border border-success bg-white/70 px-3.5 py-2.5 text-sm text-ink">
+          <p
+            role="status"
+            className="rounded-xl border border-success bg-white/70 px-3.5 py-2.5 text-sm text-ink"
+          >
             {notice}
           </p>
         )}
@@ -139,6 +147,10 @@ export default function AuthForm() {
       </form>
 
       <p className="mt-5 text-sm text-ink-soft">
+        {/* Inline in a sentence, so they stay 20px tall visually — making them
+            44px would break the line. The hit area is expanded with a
+            pseudo-element instead, the same way `SpeakerName` does it, which
+            gives a thumb the full 44px without moving any text. */}
         {mode === "login" ? (
           <>
             No account?{" "}
@@ -149,7 +161,7 @@ export default function AuthForm() {
                 setError(null);
                 setNotice(null);
               }}
-              className="underline focus-visible:outline-2 focus-visible:outline-offset-2"
+              className="relative z-10 underline before:absolute before:-inset-y-3 before:left-0 before:right-0 before:content-[''] focus-visible:outline-2 focus-visible:outline-offset-2"
             >
               Register
             </button>
@@ -164,7 +176,7 @@ export default function AuthForm() {
                 setError(null);
                 setNotice(null);
               }}
-              className="underline focus-visible:outline-2 focus-visible:outline-offset-2"
+              className="relative z-10 underline before:absolute before:-inset-y-3 before:left-0 before:right-0 before:content-[''] focus-visible:outline-2 focus-visible:outline-offset-2"
             >
               Log in
             </button>
