@@ -22,7 +22,7 @@ task; the detail lives here.
 | 0.4 Monitoring + spend ceiling | ✅ **DONE** | `fbfd253` | 15 | 6 ✅ |
 | 0.5 Accounts | ❌ **BLOCKED** (your choice) | — | — | — |
 | 1.1 Phone layout | ✅ **DONE** | `8b27e2f` | 6 browser | 4 ✅ |
-| 1.2 Audio path (highest risk) | ❌ **BLOCKED** (device half) | `<t12>` | 18 + 2 browser | 4 ✅ |
+| 1.2 Audio path (highest risk) | ❌ **BLOCKED** (device half) | `55477a4` | 18 + 2 browser | 4 ✅ |
 | 1.3 Microphone constraints | ⬜ not started | | | |
 | 1.4 Touch and gesture | ⬜ not started | | | |
 | 2.1–2.3 Static export | ⬜ not started | | | |
