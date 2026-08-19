@@ -1,4 +1,4 @@
-# ListenUp
+# ListenUp 
 
 A SaaS web app that makes spoken conversation **accessible** (live speaker-named captions for deaf/HoH users) and **culturally understandable** (translation that carries slang, register, and nuance).
 
