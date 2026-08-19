@@ -1,11 +1,23 @@
-// Batches mic audio into ~200 ms Int16 PCM chunks (INTRODUCTION §5: 100–250 ms).
-// The AudioContext is created at 16 kHz, so `sampleRate` here is already 16000
-// and the browser has done the resampling — this worklet only converts + batches.
-const CHUNK_SAMPLES = 3200; // 200 ms @ 16 kHz
-
+// Batches mic audio into fixed-duration blocks and hands them to the main
+// thread as Float32.
+//
+// It used to batch a fixed 3200 samples and convert to Int16 here, on the
+// assumption that `AudioContext` had granted the 16 kHz it was asked for. That
+// assumption is exactly what breaks on iOS: at 48 kHz, 3200 samples is 66 ms
+// rather than 200, and the samples were 48 kHz audio being labelled 16 kHz all
+// the way to the recogniser.
+//
+// So the batch size now comes from the main thread, which knows the rate the
+// context actually granted, and conversion moved to `lib/audioPcm.ts` — a
+// worklet is loaded by URL into an audio thread and cannot be imported by a
+// test, and this is the part of the pipeline least able to afford being
+// untestable.
 class PcmChunker extends AudioWorkletProcessor {
-  constructor() {
+  constructor(options) {
     super();
+    // 200 ms at whatever rate this context is running at. Falls back to the
+    // 16 kHz count so an older caller still behaves as it did.
+    this.chunkSamples = options?.processorOptions?.chunkSamples ?? 3200;
     this.buffers = [];
     this.length = 0;
   }
@@ -15,19 +27,14 @@ class PcmChunker extends AudioWorkletProcessor {
     if (channel && channel.length) {
       this.buffers.push(new Float32Array(channel));
       this.length += channel.length;
-      if (this.length >= CHUNK_SAMPLES) {
+      if (this.length >= this.chunkSamples) {
         const all = new Float32Array(this.length);
         let offset = 0;
         for (const buffer of this.buffers) {
           all.set(buffer, offset);
           offset += buffer.length;
         }
-        const pcm = new Int16Array(all.length);
-        for (let i = 0; i < all.length; i++) {
-          const s = Math.max(-1, Math.min(1, all[i]));
-          pcm[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
-        }
-        this.port.postMessage(pcm.buffer, [pcm.buffer]);
+        this.port.postMessage(all, [all.buffer]);
         this.buffers = [];
         this.length = 0;
       }

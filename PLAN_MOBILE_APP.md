@@ -519,7 +519,55 @@ is live, which is a design change."
 Extend `e2e/layout.spec.ts` with those viewports; it already measures exactly
 this and will fail loudly if it regresses.
 
-### Task 1.2 — Prove the audio path on real iOS and Android (HIGHEST RISK)
+### Task 1.2 — Prove the audio path — ❌ BLOCKED 2026-08-18 (device half)
+
+**The risk is largely retired, and it was a real bug, not a hypothetical.**
+115 frontend checks (up from 97) and **64 browser checks**; four mutations
+confirmed to fail. Blocked only on the handset half of the gate.
+
+**The defect was worse than "iOS might refuse".** `useTranscription.ts` sent
+`sampleRate: SAMPLE_RATE` — a hardcoded 16000 — on every session, and **nothing
+anywhere read `context.sampleRate` back**. `new AudioContext({ sampleRate })` is
+a *request*. Any browser that declines it produced 48 kHz audio labelled 16 kHz,
+which reaches the recogniser three times too slow: nonsense captions, meaningless
+embeddings, and a failure that reads like a bad model rather than a bad number.
+The worklet's own comment asserted the assumption — "the browser has done the
+resampling" — which is exactly the kind of claim that survives because nothing
+tests it.
+
+**The fix is one capture graph.** `lib/captureGraph.ts` reads the granted rate,
+resamples anything that is not 16 kHz (`lib/audioPcm.ts`, linear interpolation —
+speech sits far below the 8 kHz Nyquist limit and the plan says not to add a DSP
+library), and only then declares 16 kHz on the wire, truthfully. The worklet now
+batches **200 ms of input** rather than a fixed 3200 samples, which was 200 ms
+only at 16 kHz — at 48 kHz it was 66 ms, so a refusing device would also have
+tripled the message rate on a cellular link.
+
+**How it is verified without a handset.** `e2e/audio.spec.ts` patches
+`AudioContext` to accept the `sampleRate` option and ignore it — which is
+precisely what iOS does — and then drives the real graph in a real
+`AudioWorklet`. The pipeline still emits 6,400 B chunks at ~32,000 B/s. That
+runs on every commit, rather than waiting for a device.
+
+*The extraction was forced by a mutation.* The diagnostic panel first carried
+its own copy of the pipeline, so deleting the resampling from live captions left
+the browser check green — it was measuring a parallel implementation. All three
+recording paths now share one graph, and that mutation fails.
+
+**`/design` gains a public Microphone diagnostic** reporting granted rate,
+whether resampling is active, chunk size and bytes/second. Public and
+socket-free on purpose: the number has to be read off a real handset, and
+requiring a sign-in on a borrowed phone is how a measurement does not get taken.
+
+**Gate remaining — yours:** open `/design` on a real iPhone and a real Android,
+tap Measure, and confirm **6,400 B** per chunk and **~32,000 B/s** whatever the
+granted rate says. Then the 30-second WER comparison against desktop.
+
+**What this means for the estimate:** a WebView *can* deliver clean 16 kHz, so
+the native audio plugin that would have added 1–2 weeks and your first Swift is
+now unlikely to be needed.
+
+### Original specification
 
 **Do:**
 - Add a diagnostic that reports `AudioContext.sampleRate` actually granted,

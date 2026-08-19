@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { TARGET_RATE } from "@/lib/audioPcm";
+import { openCapture } from "@/lib/captureGraph";
 import { getAccessToken } from "@/lib/auth/token";
 import { applyCaptionMessage } from "@/lib/captionStream";
 import type { CaptionSegment } from "@/lib/captionStream";
@@ -11,14 +13,11 @@ export type { CaptionSegment } from "@/lib/captionStream";
 export type { LatencyStats } from "@/lib/sessionTimeline";
 
 export type TranscriptionStatus =
-  | "idle"
-  | "connecting"
-  | "listening"
-  | "paused"
-  | "stopped"
-  | "error";
+  "idle" | "connecting" | "listening" | "paused" | "stopped" | "error";
 
-const SAMPLE_RATE = 16000;
+// The rate the whole pipeline is written around; see lib/audioPcm.ts. Kept as
+// a local alias because the analyser fallbacks below read it too.
+const SAMPLE_RATE = TARGET_RATE;
 
 /** Caption hours are gone for this billing period. */
 export type CaptionLimit = {
@@ -38,6 +37,10 @@ export type CaptionWarning = {
 export function useTranscription(options?: { language?: string }) {
   const language = options?.language ?? "en";
   const [status, setStatus] = useState<TranscriptionStatus>("idle");
+  /** What the microphone actually runs at, once a session has opened. Exposed
+   *  because "my captions are gibberish" and "this device refused 16 kHz" are
+   *  the same report, and only one of them is answerable without it. */
+  const [captureRate, setCaptureRate] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [segments, setSegments] = useState<CaptionSegment[]>([]);
   const [latency, setLatency] = useState<LatencyStats>(null);
@@ -186,12 +189,19 @@ export function useTranscription(options?: { language?: string }) {
       return;
     }
 
-    // 2) Audio pipeline at 16 kHz (browser resamples for us).
-    const context = new AudioContext({ sampleRate: SAMPLE_RATE });
-    await context.audioWorklet.addModule("/pcm-worklet.js");
-    const source = context.createMediaStreamSource(stream);
-    const chunker = new AudioWorkletNode(context, "pcm-chunker");
-    source.connect(chunker);
+    // 2) One shared capture graph — see lib/captureGraph.ts. It reads back the
+    // rate the context actually granted and resamples anything that is not
+    // 16 kHz, because `new AudioContext({ sampleRate })` is a request that iOS
+    // is known to refuse.
+    const capture = await openCapture(stream, (pcm) => {
+      // Paused means the audio never leaves the device. The track is muted as
+      // well, so this is the second of two locks rather than the only one —
+      // but it is the one that guarantees nothing is transmitted.
+      if (!timeline.accepts()) return;
+      if (wsRef.current?.readyState === WebSocket.OPEN) wsRef.current.send(pcm.buffer);
+    });
+    const context = capture.context;
+    setCaptureRate(capture.captureRate);
 
     // Loudness tap for the voice orb. Branched off the STT stream on purpose:
     // opening a second getUserMedia for visuals would capture the same device
@@ -201,7 +211,7 @@ export function useTranscription(options?: { language?: string }) {
     const analyser = context.createAnalyser();
     analyser.fftSize = 512;
     analyser.smoothingTimeConstant = 0.3; // responsive, but not jittery
-    source.connect(analyser);
+    capture.source.connect(analyser);
     analyserRef.current = analyser;
     audioRef.current = { context, stream };
 
@@ -219,7 +229,8 @@ export function useTranscription(options?: { language?: string }) {
       const token = (await getAccessToken()) ?? undefined;
       ws.send(
         JSON.stringify({
-          sampleRate: SAMPLE_RATE,
+          // Now true rather than assumed: anything else was resampled above.
+          sampleRate: TARGET_RATE,
           encoding: "pcm_s16le",
           token,
           language,
@@ -247,13 +258,6 @@ export function useTranscription(options?: { language?: string }) {
       if (message.type === "ready") {
         if (message.mode === "batch" || message.mode === "streaming") setMode(message.mode);
         timeline.start();
-        chunker.port.onmessage = (audioEvent) => {
-          // Paused means the audio never leaves the device. The track is muted
-          // as well, so this is the second of two locks rather than the only
-          // one — but it is the one that guarantees nothing is transmitted.
-          if (!timeline.accepts()) return;
-          if (ws.readyState === WebSocket.OPEN) ws.send(audioEvent.data as ArrayBuffer);
-        };
         setStatus("listening");
       } else if (message.type === "segment") {
         if (message.isFinal) {
@@ -362,6 +366,7 @@ export function useTranscription(options?: { language?: string }) {
 
   return {
     status,
+    captureRate,
     error,
     limit,
     allowanceWarning,

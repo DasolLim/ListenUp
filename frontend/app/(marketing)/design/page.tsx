@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import ConversationPaneSample from "@/components/design/ConversationPaneSample";
 import LiveSessionSample from "@/components/design/LiveSessionSample";
+import MicDiagnostic from "@/components/design/MicDiagnostic";
 import Button from "@/components/ui/Button";
 import GlassCard from "@/components/ui/GlassCard";
 import IconButton from "@/components/ui/IconButton";
@@ -36,6 +37,14 @@ export default function DesignPage() {
             More opaque — use behind dense body text to protect contrast.
           </p>
         </GlassCard>
+      </section>
+
+      {/* Public on purpose: the number this reports has to be read off a real
+          handset, and requiring a sign-in on a borrowed phone is how a
+          measurement does not get taken. */}
+      <section aria-label="Microphone diagnostic" className="max-w-2xl">
+        <h2 className="mb-3 font-display text-[18px] font-semibold">Microphone diagnostic</h2>
+        <MicDiagnostic />
       </section>
 
       {/* The transcript pane, shared by live captions and Translate's voice

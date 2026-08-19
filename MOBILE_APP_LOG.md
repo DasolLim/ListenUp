@@ -22,7 +22,7 @@ task; the detail lives here.
 | 0.4 Monitoring + spend ceiling | ✅ **DONE** | `fbfd253` | 15 | 6 ✅ |
 | 0.5 Accounts | ❌ **BLOCKED** (your choice) | — | — | — |
 | 1.1 Phone layout | ✅ **DONE** | `8b27e2f` | 6 browser | 4 ✅ |
-| 1.2 Audio path (highest risk) | ⬜ not started | | | |
+| 1.2 Audio path (highest risk) | ❌ **BLOCKED** (device half) | `<t12>` | 18 + 2 browser | 4 ✅ |
 | 1.3 Microphone constraints | ⬜ not started | | | |
 | 1.4 Touch and gesture | ⬜ not started | | | |
 | 2.1–2.3 Static export | ⬜ not started | | | |
@@ -30,8 +30,8 @@ task; the detail lives here.
 | 4 Native capabilities | ⬜ not started | | | |
 | 5 Store submission | ⬜ not started | | | |
 
-**Suite state at the latest commit:** 553 backend tests · 97 frontend checks ·
-62 browser checks · `make check` and `make e2e` both green.
+**Suite state at the latest commit:** 553 backend tests · 115 frontend checks ·
+64 browser checks · `make check` and `make e2e` both green.
 
 ---
 
@@ -485,6 +485,9 @@ Where the bugs came from, which is worth watching over time.
 | 12 | tooling | **product** | `pydantic` and `websockets` are imported directly but were relying on arriving via `fastapi` and `uvicorn[standard]`. Works today, breaks the day either upstream swaps them |
 | 13 | tooling | **product** | shell-form `CMD` left the shell as PID 1, so `SIGTERM` never reached uvicorn — a redeploy would hard-kill live caption sessions instead of draining them, in an app whose central promise is never to cut a session mid-sentence. Found by the build's own `JSONArgsRecommended` warning |
 | 14 | tooling | **my own process** | repeated defect #4: `cd backend` inside a command whose session was *already* in `backend/`, aborting the chain. Now using absolute paths for background commands |
+| 18 | 1.2 | **product — would have broken every iOS session** | `useTranscription` declared `sampleRate: 16000` on the wire as a constant and **nothing ever read `context.sampleRate` back**. Any browser refusing the requested rate sent 48 kHz audio labelled 16 kHz — nonsense captions and meaningless embeddings, reading like a bad model rather than a bad number |
+| 19 | 1.2 | **product** | the worklet batched a fixed 3200 samples, which is 200 ms only at 16 kHz. At 48 kHz that is 66 ms, tripling the socket message rate and breaking the 100–250 ms chunk constraint |
+| 20 | 1.2 | **my own tests** | the diagnostic panel carried its own copy of the capture pipeline, so deleting the resampling from live captions left the browser check green. It was measuring a parallel implementation. Fixed by extracting one shared graph |
 | 16 | 1.1 | **product** | `/login`'s inline `Register` button was **54x20**, half the required touch height. Found only once the probe stopped accepting a hit on an ancestor |
 | 17 | 1.1 | **my own tests — the worst so far** | the touch-target check had only ever inspected controls **above the fold**. `elementFromPoint` works on the visible viewport, so everything below was silently skipped — most of `/design` at phone height, including the icon buttons the rule exists for. It read as page-wide and was first-screen only. A mutation shrinking `IconButton` to 40x40 passed **three times** before this was found |
 | 15 | tooling | **product — FATAL, fixed** | the model bake looked like it worked and did not. SpeechBrain writes **symlinks** into the HuggingFace cache rather than copying weights into `savedir`, so `/opt/models/ecapa` held 24 KB of links into `/root`, and the non-root runtime user got `Permission denied` loading them. With `SPEAKER_ID_SERVICE=real` — which preflight *requires* in production — `lifespan` calls `load()` at startup, so Railway would have crash-looped. Fixed by setting `HF_HOME` inside the image and running the bake **as the runtime user** |
