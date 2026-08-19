@@ -51,29 +51,39 @@ def test_mock_roundtrip_ordered_diarized_json() -> None:
         assert turn_messages[-1]["isFinal"], "each turn must end with a final"
         assert len({m["turnId"] for m in turn_messages}) == 1
     finals = [m for m in messages if m["isFinal"]]
-    assert [m["speaker"] for m in finals] == [
-        "Speaker 1",
-        "Speaker 2",
-        "Speaker 3",
-        "Speaker 1",
-        "Speaker 2",
-    ]
+    # Speaker labels used to be the provider's diarization labels passed
+    # through, and this asserted that sequence. They are now decided from the
+    # voice, which is the point: one person split across three labels is one
+    # speaker. What the transport still owes is that every turn is labelled,
+    # that the labels stay inside the cap, and that they are stable — the
+    # specific numbering is a property of the audio, and this fixture's audio
+    # deliberately does not correspond to its scripted transcript.
+    # `test_session_speakers.py` pins the identity rules on real voices.
+    labels = [m["speaker"] for m in finals]
+    assert all(labels), "every final turn needs a speaker label"
+    named = {label for label in labels if label != "Other"}
+    assert len(named) <= 4, f"more than four named speakers on screen: {named}"
     ends = [m["end"] for m in messages]
     assert ends == sorted(ends)
 
 
-def test_speaker_cap_collapses_extras_to_other() -> None:
+def test_speaker_labels_stay_inside_the_cap() -> None:
+    """Seven diarization labels must never produce more than four named
+    speakers plus "Other" (INTRODUCTION §5.8).
+
+    This no longer asserts a fixed sequence: voice clustering folds labels that
+    sound like the same person, so how many distinct speakers appear depends on
+    the audio. The cap is the invariant. `test_session_speakers.py` covers the
+    folding itself, where the fixtures are real voices.
+    """
     finals = [m for m in run_session("crowd") if m["isFinal"]]
     labels = [m["speaker"] for m in finals]
-    assert labels == [
-        "Speaker 1",
-        "Speaker 2",
-        "Speaker 3",
-        "Speaker 4",
-        "Other",
-        "Other",
-        "Other",
-    ]
+    assert len(labels) == 7, "every spoken turn should still be captioned"
+    named = {label for label in labels if label != "Other"}
+    # At most four *displayed at once*. Numbers are never recycled, so a session
+    # with folds can legitimately show "Speaker 5" while only four are live —
+    # the invariant is the count, not the highest number.
+    assert len(named) <= 4, f"more than four named speakers: {named}"
 
 
 def test_bad_sample_rate_gets_clear_error() -> None:

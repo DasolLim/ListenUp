@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
+import { authHeader, isAuthConfigured } from "@/lib/auth/token";
 import { usePcmRecorder } from "@/lib/usePcmRecorder";
 import { MicIcon } from "@/components/shell/icons";
 import Button from "@/components/ui/Button";
@@ -24,12 +24,6 @@ type Profile = {
   embedding_count: number;
 };
 
-async function authHeader(): Promise<Record<string, string>> {
-  const { data } = await createClient().auth.getSession();
-  const token = data.session?.access_token;
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
-
 export default function VoiceProfiles({ onChanged }: { onChanged?: () => void }) {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [enrolling, setEnrolling] = useState(false);
@@ -41,7 +35,7 @@ export default function VoiceProfiles({ onChanged }: { onChanged?: () => void })
   const recorder = usePcmRecorder(MAX_SECONDS);
 
   const refresh = useCallback(async () => {
-    if (!isSupabaseConfigured()) return;
+    if (!isAuthConfigured()) return;
     const response = await fetch(`${BACKEND}/profiles`, { headers: await authHeader() });
     if (response.ok) setProfiles(await response.json());
   }, []);
@@ -99,7 +93,12 @@ export default function VoiceProfiles({ onChanged }: { onChanged?: () => void })
   }
 
   async function remove(profile: Profile) {
-    if (!confirm(`Delete ${profile.display_name}'s voice profile? This removes their voice data and consent record permanently.`)) return;
+    if (
+      !confirm(
+        `Delete ${profile.display_name}'s voice profile? This removes their voice data and consent record permanently.`
+      )
+    )
+      return;
     const response = await fetch(`${BACKEND}/profiles/${profile.id}`, {
       method: "DELETE",
       headers: await authHeader(),
@@ -134,14 +133,12 @@ export default function VoiceProfiles({ onChanged }: { onChanged?: () => void })
     <GlassCard strong className="flex flex-col gap-4 p-6">
       <div className="flex items-center justify-between gap-3">
         <h2 className="font-display text-[22px] font-semibold">Voice profiles</h2>
-        {!enrolling && (
-          <Button onClick={() => setEnrolling(true)}>Enroll someone</Button>
-        )}
+        {!enrolling && <Button onClick={() => setEnrolling(true)}>Enroll someone</Button>}
       </div>
       <p className="text-sm text-ink-soft">
-        Enroll the people you talk to most (up to 4) and captions will use their names instead
-        of “Speaker 1”. Each person must agree — their voice print is biometric data, stored
-        encrypted, deletable and exportable anytime.
+        Enroll the people you talk to most (up to 4) and captions will use their names instead of
+        “Speaker 1”. Each person must agree — their voice print is biometric data, stored encrypted,
+        deletable and exportable anytime.
       </p>
 
       {message && (
@@ -242,7 +239,9 @@ export default function VoiceProfiles({ onChanged }: { onChanged?: () => void })
             </p>
           </div>
           {recorder.error && (
-            <p role="alert" className="text-sm text-error-strong">{recorder.error}</p>
+            <p role="alert" className="text-sm text-error-strong">
+              {recorder.error}
+            </p>
           )}
 
           <div className="flex flex-col gap-2 rounded-xl border border-white/60 bg-white/60 p-4">
@@ -254,9 +253,9 @@ export default function VoiceProfiles({ onChanged }: { onChanged?: () => void })
                 className="mt-0.5 h-4 w-4 accent-accent-strong"
               />
               <span>
-                <strong>{name || "This person"} agrees</strong> to ListenUp storing a
-                mathematical voice print (not a recording) so captions can label them by name.
-                They can have it deleted or exported at any time.
+                <strong>{name || "This person"} agrees</strong> to ListenUp storing a mathematical
+                voice print (not a recording) so captions can label them by name. They can have it
+                deleted or exported at any time.
               </span>
             </label>
             <div className="flex flex-col gap-1">

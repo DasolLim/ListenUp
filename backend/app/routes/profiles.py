@@ -25,6 +25,8 @@ router = APIRouter(prefix="/profiles")
 CONSENT_TEXT_VERSION = "2026-07-18.v1"
 MAX_ENROLL_SECONDS = 35.0
 # INTRODUCTION §5 speaker cap: 4 named lanes in captions → 4 saved profiles.
+# This is the product ceiling; a tier may allow fewer (Free names one person),
+# so the effective limit is min(MAX_PROFILES, plan.profiles).
 MAX_PROFILES = 4
 
 bearer = HTTPBearer(auto_error=False)
@@ -79,13 +81,35 @@ async def enroll(
             "must be recorded. Voice profiles are biometric data.",
         )
 
+    # How many people this plan can name. Free names one — enough to prove the
+    # feature works on someone the user actually talks to, which is a better
+    # advert for it than a locked button.
+    from app.routes.billing import caller_for_token
+
+    plan = (await caller_for_token(token, user_id)).plan
+    cap = min(MAX_PROFILES, plan.profiles)
+
     existing = await rest(
         "GET", "speaker_profiles", token, params={"select": "id"}
     )
-    if existing.status_code == 200 and len(existing.json()) >= MAX_PROFILES:
+    if existing.status_code == 200 and len(existing.json()) >= cap:
+        if cap < MAX_PROFILES:
+            raise HTTPException(
+                402,
+                {
+                    "reason": "not_included",
+                    "metric": "profiles",
+                    "plan": plan.tier,
+                    "upgradeTo": "basic",
+                    "message": (
+                        f"{plan.name} names one person. Basic and Pro name up to "
+                        f"{MAX_PROFILES}."
+                    ),
+                },
+            )
         raise HTTPException(
             400,
-            f"Profile limit reached ({MAX_PROFILES}). Captions name up to {MAX_PROFILES} "
+            f"Profile limit reached ({cap}). Captions name up to {MAX_PROFILES} "
             "people for accuracy — delete a profile you no longer need first.",
         )
 
@@ -179,4 +203,5 @@ async def export_profile(
     rows = response.json() if response.status_code == 200 else []
     if not rows:
         raise HTTPException(404, "Profile not found.")
-    return rows[0]
+    profile: dict = rows[0]  # trusted boundary: PostgREST
+    return profile

@@ -114,6 +114,13 @@ export const SendIcon = () => (
   </svg>
 );
 
+/** Holds a live session without ending it. Paired with `MicIcon` on resume. */
+export const PauseIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" {...p}>
+    <path d="M9 5v14M15 5v14" />
+  </svg>
+);
+
 export const PlayIcon = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" fill="currentColor" stroke="none">
     <path d="M7 4.5v15l13-7.5Z" />

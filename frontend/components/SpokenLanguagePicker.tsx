@@ -48,7 +48,7 @@ export default function SpokenLanguagePicker({
         value={value}
         disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
-        className="glass-strong rounded-xl border border-white/60 px-3 py-2 text-sm text-ink shadow-glass outline-none disabled:opacity-50"
+        className="glass-strong min-h-11 rounded-xl border border-white/60 px-3 text-sm text-ink shadow-glass outline-none disabled:opacity-50"
       >
         {Object.entries(info.languages).map(([code, name]) => (
           <option key={code} value={code}>

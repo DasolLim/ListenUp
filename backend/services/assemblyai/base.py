@@ -74,3 +74,20 @@ class TranscriptionService(ABC):
 
     @abstractmethod
     async def stop(self) -> None: ...
+
+    async def flush(self) -> None:
+        """Close the current utterance without ending the session.
+
+        Called when the user pauses. Concrete rather than abstract, and a no-op
+        by default, because it only means something to a transport that buffers
+        locally: a streaming transport has already sent every byte, so there is
+        nothing held back to close.
+
+        It exists because pausing creates a discontinuity in the audio that the
+        transport cannot see. A buffering transport would otherwise hold a
+        half-finished utterance across the pause and glue the speech after it
+        onto the speech before it, producing one caption out of two moments that
+        could be minutes apart. For a reader who cannot hear the original, that
+        is a sentence nobody said.
+        """
+        return None

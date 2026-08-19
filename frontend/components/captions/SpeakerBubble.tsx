@@ -1,3 +1,7 @@
+import SpeakButton from "@/components/speech/SpeakButton";
+import UnverifiedTag from "@/components/ui/UnverifiedTag";
+import type { SlangNote } from "@/lib/useLiveTranslation";
+
 const tints = [
   "var(--speaker-1)",
   "var(--speaker-2)",
@@ -8,89 +12,149 @@ const tints = [
 export type BubbleTranslation = {
   text: string;
   sourceLang: string | null;
-  notes: { phrase: string; meaning: string; cultural_context: string; equivalent: string }[];
+  // The shared shape rather than a third inline copy — the copies had already
+  // drifted once, and a note field the bubble doesn't declare is a field the
+  // bubble silently cannot render.
+  notes: SlangNote[];
+  /** How the line was pitched: casual, formal, slang-heavy. */
+  register?: string | null;
 };
 
 export type Caption = {
   id: string;
   speaker: string;
-  /** Real person's name when voice-matched (enhanced mode). */
+  /** Real person's name when voice-matched. */
   speakerName?: string | null;
   /** Stable per-speaker index 0–3; anything beyond the cap uses the neutral tint. */
   speakerIndex: number;
   text: string;
-  /** Interim (not yet final) text renders in a lighter style. */
+  /** Still being spoken: dashed edge + blinking caret, never lighter text. */
   interim?: boolean;
-  /** Live translation (combined mode): rendered as the main caption line. */
+  /** Live translation: rendered as the main caption line. */
   translated?: BubbleTranslation | null;
 };
 
 /**
- * One caption line. The tint distinguishes speakers visually, but the name
- * label is always present — color is never the only signal (DESIGN_SYSTEM §7).
- * In enhanced mode the label is a button: tap to correct who's speaking.
+ * One line in a conversation turn.
+ *
+ * The name is drawn by the *group*, not here, so a run of lines from one person
+ * says their name once — the way a messaging thread does. Repeating "Mom" on
+ * every line is noise when the answer hasn't changed, and it costs the vertical
+ * space the actual words need.
+ *
+ * Colour still never carries meaning alone (DESIGN_SYSTEM §7): the group prints
+ * the name above the run, so the tint and rail only ever reinforce a label that
+ * is already there.
  */
 export default function SpeakerBubble({
   caption,
-  onCorrectClick,
+  position = "only",
+  onSpeak,
+  onStopSpeaking,
+  speaking = false,
 }: {
   caption: Caption;
-  onCorrectClick?: (speakerLabel: string) => void;
+  /** Where this line sits in its speaker's run, for corner and spacing shape. */
+  position?: "only" | "first" | "middle" | "last";
+  /** Present only when this line has a translation worth reading aloud. */
+  onSpeak?: () => void;
+  onStopSpeaking?: () => void;
+  speaking?: boolean;
 }) {
   const tint = tints[caption.speakerIndex] ?? "var(--speaker-other)";
-  const baseLabel = caption.speakerName ?? caption.speaker;
-  const labelText = caption.translated?.sourceLang
-    ? `${baseLabel} (${caption.translated.sourceLang.toUpperCase()})`
-    : baseLabel;
+  const continues = position === "middle" || position === "last";
+  const leads = position === "first" || position === "middle";
+
   return (
     <div
-      className="bubble-glass rounded-2xl px-4 py-3"
+      className={`bubble-glass rounded-2xl px-4 py-2.5 ${continues ? "bubble-cont" : ""} ${
+        leads ? "bubble-lead" : ""
+      }`}
       data-interim={caption.interim || undefined}
-      style={{ backgroundColor: tint }}
+      // The tint is a background *image* so it layers over the opaque base
+      // `.bubble-glass` sets. As a background-color it would replace that base,
+      // and the ground under the quietest text would fall back below AA.
+      style={{ backgroundImage: `linear-gradient(${tint}, ${tint})` }}
     >
-      {onCorrectClick ? (
-        <button
-          type="button"
-          onClick={() => onCorrectClick(caption.speaker)}
-          aria-label={`Correct speaker: currently ${labelText}`}
-          title="Tap to correct who's speaking"
-          className="rounded text-[12px] font-semibold uppercase tracking-wide text-ink-soft underline decoration-dotted underline-offset-2 hover:text-ink"
-        >
-          {labelText}
-        </button>
-      ) : (
-        <p className="text-[12px] font-semibold uppercase tracking-wide text-ink-soft">
-          {labelText}
+      <div className="flex items-start justify-between gap-2">
+        {/* An in-progress line is marked by italics, a dashed bubble edge and a
+            blinking caret — never by fading the text. Lighter ink on a tinted
+            bubble falls below AA (DESIGN_SYSTEM §7), and this is the line being
+            said right now, so it is the one that most needs to be legible. */}
+        <p className={`caption-text min-w-0 flex-1 text-ink ${caption.interim ? "italic" : ""}`}>
+          {caption.translated ? caption.translated.text : caption.text}
+          {caption.interim && (
+            <>
+              <span aria-hidden="true" className="interim-caret" />
+              <span className="sr-only"> (still transcribing)</span>
+            </>
+          )}
         </p>
-      )}
-      {/* Interims de-emphasize via italics + ellipsis, never lighter text —
-          lighter grays fall below AA on the tinted glass (DESIGN_SYSTEM §7). */}
-      <p className={`caption-text mt-0.5 text-ink ${caption.interim ? "italic" : ""}`}>
-        {caption.translated ? caption.translated.text : caption.text}
-        {caption.interim && (
-          <>
-            <span aria-hidden="true">…</span>
-            <span className="sr-only"> (still transcribing)</span>
-          </>
+        {onSpeak && (
+          <SpeakButton
+            onSpeak={onSpeak}
+            onStop={onStopSpeaking ?? (() => undefined)}
+            speaking={speaking}
+            label={`the translation of ${caption.speakerName ?? caption.speaker}'s line`}
+          />
         )}
-      </p>
+      </div>
+
+      {/* The words as spoken, under the words as translated. Indented and
+          quieter so the eye lands on the language the reader asked for, with
+          the original available without a tap — checking a translation you
+          half-recognise is the common case, and hiding it behind a control
+          makes that a chore. */}
       {caption.translated && (
-        <p className="mt-0.5 text-[13px] text-ink">
+        <p className="mt-1 border-l-2 border-white/60 pl-2.5 text-[13px] leading-relaxed text-ink-soft">
           <span className="sr-only">Original: </span>
           {caption.text}
         </p>
       )}
+
+      {/* How the line was pitched. Optional, so a caller with no cultural pass
+          renders nothing; in practice both transcripts run that pass, and both
+          show it. It is one word and it is half of what "understood the slang"
+          means, because the same sentence can be a joke or an insult depending
+          on register — and it was being fetched and thrown away. */}
+      {caption.translated?.register && (
+        <p className="mt-1.5 text-[11px] uppercase tracking-wide text-ink-faint">
+          <span className="sr-only">Register: </span>
+          {caption.translated.register}
+        </p>
+      )}
+
       {caption.translated && caption.translated.notes.length > 0 && (
-        <details className="mt-1.5 rounded-xl border border-white/60 bg-white/50 px-3 py-2">
-          <summary className="cursor-pointer text-[13px] font-medium text-ink">
-            {caption.translated.notes.length} slang note
-            {caption.translated.notes.length > 1 ? "s" : ""}
+        <details className="group mt-2 rounded-xl border border-white/60 bg-white/55 px-3 py-2">
+          <summary className="flex cursor-pointer list-none items-center gap-1.5 text-[12px] font-semibold text-ink">
+            <span
+              aria-hidden="true"
+              className="inline-block transition-transform group-open:rotate-90"
+            >
+              ›
+            </span>
+            {caption.translated.notes.length} phrase
+            {caption.translated.notes.length > 1 ? "s" : ""} worth explaining
           </summary>
-          <ul className="mt-1 flex flex-col gap-1 text-[13px] text-ink">
+          <ul className="mt-2 flex flex-col gap-2 text-[13px] leading-relaxed text-ink">
             {caption.translated.notes.map((note) => (
-              <li key={note.phrase}>
-                <strong>“{note.phrase}”</strong> — {note.meaning}
-                {note.equivalent ? ` (≈ ${note.equivalent})` : ""}
+              <li key={note.phrase} className="flex flex-col gap-0.5">
+                <span className="flex flex-wrap items-center gap-1.5">
+                  <span className="font-semibold text-accent-strong">{note.phrase}</span>
+                  {note.confidence === "low" && <UnverifiedTag />}
+                </span>
+                <span>{note.meaning}</span>
+                {/* Where the phrase comes from and what it signals — the part
+                    that makes this an explanation rather than a glossary. The
+                    model writes it in the reader's language, so it is the
+                    difference between knowing the words and knowing what was
+                    meant, which is the whole reason the LLM lane exists. */}
+                {note.cultural_context && (
+                  <span className="text-ink-soft">{note.cultural_context}</span>
+                )}
+                {note.equivalent && (
+                  <span className="text-ink-soft">Closest equivalent: {note.equivalent}</span>
+                )}
               </li>
             ))}
           </ul>

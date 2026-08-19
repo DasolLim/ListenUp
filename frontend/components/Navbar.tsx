@@ -15,12 +15,15 @@ const links = [
 ];
 
 // Shown inside the mobile drawer once signed in, so a phone navigates like an app.
+//
+// Two things you do, plus a dictionary. The previous five entries were the same
+// two jobs listed twice under General/Enhanced tiers borrowed from the API — a
+// distinction the product has, not one the user has.
 const tools = [
-  { href: "/voice-to-text/general", label: "Live captions" },
-  { href: "/voice-to-text/enhanced", label: "Voice profiles" },
-  { href: "/translate/general", label: "Translate" },
-  { href: "/translate/enhanced", label: "Cultural translation" },
-  { href: "/translate/genz", label: "GenZ slang" },
+  { href: "/captions", label: "Captions" },
+  { href: "/translate", label: "Translate" },
+  { href: "/explain", label: "Explain a term" },
+  { href: "/settings", label: "Settings" },
 ];
 
 export default function Navbar() {
@@ -78,7 +81,7 @@ export default function Navbar() {
       >
         <Link
           href="/"
-          className="flex items-center gap-2.5 font-display text-[17px] font-bold tracking-tight"
+          className="inline-flex min-h-11 items-center gap-2.5 font-display text-[17px] font-bold tracking-tight"
         >
           <Orb size="sm" />
           ListenUp
@@ -102,6 +105,25 @@ export default function Navbar() {
                 </Link>
               </li>
             ))}
+            {/* Signed-in setup, reachable on desktop. The `tools` list below is
+                inside the mobile drawer only, so without this there was no path
+                to /settings — and therefore none to voice enrolment — on a
+                desktop at all. */}
+            {signedIn && (
+              <li>
+                <Link
+                  href="/settings"
+                  aria-current={isActive("/settings") ? "page" : undefined}
+                  className={`rounded-full px-3.5 py-1.5 text-[15px] font-medium transition-colors ${
+                    isActive("/settings")
+                      ? "nav-active text-ink"
+                      : "text-ink-soft hover:bg-white/50 hover:text-ink"
+                  }`}
+                >
+                  Settings
+                </Link>
+              </li>
+            )}
           </ul>
           <span className="mx-1 h-5 w-px bg-white/60" aria-hidden="true" />
           {authButton}
@@ -113,7 +135,7 @@ export default function Navbar() {
           onClick={() => setOpen(true)}
           aria-expanded={open}
           aria-label="Open menu"
-          className="btn-ghost flex h-10 w-10 items-center justify-center rounded-full text-ink md:hidden"
+          className="btn-ghost flex h-11 w-11 items-center justify-center rounded-full text-ink md:hidden"
         >
           <MenuIcon />
         </button>

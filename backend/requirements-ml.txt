@@ -1,4 +1,9 @@
 # Heavy ML extras for SPEAKER_ID_SERVICE=real (ECAPA-TDNN). Not installed in CI.
 torch>=2.13
-torchaudio>=2.13
+# NOT >=2.13. torchaudio's version numbers lag torch's — torch 2.13 pairs with
+# torchaudio 2.11, which is the newest that exists. `>=2.13` was unsatisfiable
+# on every platform and broke the first Docker build; it survived unnoticed
+# because the local virtualenv predated the pin and CI never installs this file.
+# tests/test_requirements.py now checks pins against what is installed.
+torchaudio>=2.11
 speechbrain>=1.1

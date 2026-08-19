@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { openCapture } from "@/lib/captureGraph";
 
 /** Records mic audio as 16 kHz mono s16le PCM via the shared AudioWorklet.
  * Used by enrollment (20–30 s guided recording). */
@@ -8,7 +9,11 @@ export function usePcmRecorder(maxSeconds = 30) {
   const [recording, setRecording] = useState(false);
   const [seconds, setSeconds] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const chunksRef = useRef<ArrayBuffer[]>([]);
+  /** What the microphone actually runs at — see lib/audioPcm.ts. */
+  const [captureRate, setCaptureRate] = useState<number | null>(null);
+  // Int16Array rather than its `.buffer`: a typed array is a valid BlobPart,
+  // and keeping it typed means the element size is never in doubt at the seam.
+  const chunksRef = useRef<Int16Array<ArrayBuffer>[]>([]);
   const audioRef = useRef<{ context: AudioContext; stream: MediaStream } | null>(null);
 
   const stop = useCallback(() => {
@@ -35,19 +40,19 @@ export function usePcmRecorder(maxSeconds = 30) {
       );
       return;
     }
-    const context = new AudioContext({ sampleRate: 16000 });
-    await context.audioWorklet.addModule("/pcm-worklet.js");
-    const source = context.createMediaStreamSource(stream);
-    const chunker = new AudioWorkletNode(context, "pcm-chunker");
-    source.connect(chunker);
-    chunker.port.onmessage = (event) => {
-      chunksRef.current.push(event.data as ArrayBuffer);
+    // The same graph live captions uses, so a device that refuses 16 kHz is
+    // handled once rather than in each place that records. A wrong rate here
+    // would enrol a voice profile from mislabelled audio, and a wrong profile
+    // is worse than none — it goes on to name the wrong person.
+    const capture = await openCapture(stream, (pcm) => {
+      chunksRef.current.push(pcm);
       // each chunk is 200 ms; auto-stop at the cap (event context, not render)
       const elapsed = chunksRef.current.length * 0.2;
       setSeconds(elapsed);
       if (elapsed >= maxSeconds) stop();
-    };
-    audioRef.current = { context, stream };
+    });
+    setCaptureRate(capture.captureRate);
+    audioRef.current = { context: capture.context, stream };
     setRecording(true);
   }, [maxSeconds, stop]);
 
@@ -63,5 +68,5 @@ export function usePcmRecorder(maxSeconds = 30) {
 
   useEffect(() => stop, [stop]);
 
-  return { recording, seconds, error, start, stop, reset, getPcmBlob };
+  return { recording, seconds, error, captureRate, start, stop, reset, getPcmBlob };
 }

@@ -62,7 +62,8 @@ class TranslationCache:
             self.misses += 1
             return None
         self.hits += 1
-        return json.loads(raw)
+        cached: dict = json.loads(raw)  # trusted boundary: we wrote this
+        return cached
 
     async def set(self, key: str, value: dict) -> None:
         raw = json.dumps(value)

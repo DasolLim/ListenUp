@@ -18,8 +18,31 @@ select = ["E", "F", "I", "W", "UP", "B"]
 
 [tool.mypy]
 python_version = "3.12"
-strict = false
 ignore_missing_imports = true
+
+# Checked by default, so `mypy` with no arguments is the whole loop. CI ran
+# `mypy app` for a long time, which left `services/` (every external-tool
+# wrapper) and `scripts/` (the measurement harness) unchecked — and the first
+# run that included them found a real error in the speaker-ID metrics. A wrong
+# type in the harness produces a wrong *number*, which this repo has already
+# been burned by twice.
+files = ["app", "services", "scripts"]
+
+# `tests/` is deliberately out. Type errors there are almost always in the
+# fixtures rather than the assertions, and mypy cannot see the failure this repo
+# actually suffers from in tests — an assertion that passes vacuously. Mutation
+# testing is the tool for that, not the type checker.
+
+# Not `strict = true`: that demands annotations on every local and would be a
+# large refactor with little to catch. These five were each measured against the
+# tree first, and together they close the holes that matter — an unannotated
+# def silently opts its whole body out of checking, and a function returning
+# `Any` from a declared type is a promise the checker cannot keep.
+check_untyped_defs = true
+disallow_untyped_defs = true
+warn_return_any = true
+warn_unused_ignores = true
+warn_redundant_casts = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

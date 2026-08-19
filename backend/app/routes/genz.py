@@ -15,6 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
 
+from app.routes.billing import Caller, requires
 from app.supa import verify_user
 from services.genz import get_genz_explainer, get_slang_kb
 from services.genz.base import SlangTerm
@@ -54,11 +55,19 @@ class TermRequest(BaseModel):
 
 
 @router.post("/explain")
-async def explain(request: ExplainRequest) -> dict:
+async def explain(
+    request: ExplainRequest,
+    who: Annotated[Caller, Depends(requires("explain"))],
+) -> dict:
     """Explain the most prominent slang term. Never errors on an unknown term —
     it returns a low-confidence answer instead (gate 5.2)."""
     service = get_genz_explainer()
     result = await service.explain(request.text.strip())
+    # A cached explanation is free to serve, so it doesn't spend a lookup. This
+    # matters more here than elsewhere: Free gets five, and burning one of them
+    # on a term the user already looked up would feel like a trick.
+    if not result.cached:
+        await who.record("explain", 1)
     logger.info(
         "genz_api_explain confidence=%s grounded=%d cached=%s",
         result.confidence, len(result.grounded_terms), result.cached,

@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 // Route prefixes that require an authenticated user (tool pages).
 // Marketing pages (/, /about, /product, /login) stay public.
-const PROTECTED_PREFIXES = ["/dashboard", "/voice-to-text", "/translate"];
+const PROTECTED_PREFIXES = ["/dashboard", "/captions", "/translate", "/explain", "/settings"];
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });

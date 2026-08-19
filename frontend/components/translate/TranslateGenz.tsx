@@ -2,10 +2,13 @@
 
 import { useRef, useState } from "react";
 import Button from "@/components/ui/Button";
+import SpeakButton from "@/components/speech/SpeakButton";
+import { SpeechProvider, useSharedSpeech } from "@/lib/SpeechProvider";
+import { postJson } from "@/lib/api";
+import { networkError } from "@/lib/networkError";
 import GlassCard from "@/components/ui/GlassCard";
 import ShareCard from "@/components/translate/ShareCard";
 
-const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8000";
 
 export type Explanation = {
   term: string;
@@ -32,6 +35,7 @@ function Meta({ label, value }: { label: string; value: string }) {
 
 function ExplanationCard({ data }: { data: Explanation }) {
   const low = data.confidence === "low";
+  const speech = useSharedSpeech();
   const [sharing, setSharing] = useState(false);
   return (
     <article className="rounded-2xl border border-white/60 bg-white/60 p-5">
@@ -55,7 +59,15 @@ function ExplanationCard({ data }: { data: Explanation }) {
         </span>
       </div>
 
-      <p className="caption-text mt-1.5 text-ink">{data.plain_meaning}</p>
+      <div className="mt-1.5 flex items-start justify-between gap-2">
+        <p className="caption-text min-w-0 flex-1 text-ink">{data.plain_meaning}</p>
+        <SpeakButton
+          onSpeak={() => speech.speak(data.plain_meaning)}
+          onStop={speech.stop}
+          speaking={speech.speaking}
+          label="the explanation"
+        />
+      </div>
 
       {(data.origin || data.first_seen || data.region) && (
         <div className="mt-3 flex flex-wrap gap-2">
@@ -94,7 +106,7 @@ function ExplanationCard({ data }: { data: Explanation }) {
   );
 }
 
-export default function TranslateGenz() {
+function TranslateGenzInner() {
   const [input, setInput] = useState("");
   const [result, setResult] = useState<Explanation | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -107,18 +119,18 @@ export default function TranslateGenz() {
     const seq = ++seqRef.current;
     setBusy(true);
     setError(null);
+    // Drop the previous explanation up front. Otherwise a failed lookup leaves
+    // the last term's card on screen next to the error, so the UI appears to
+    // have "not updated" — the symptom that reads as a caching bug.
+    setResult(null);
     try {
-      const response = await fetch(`${BACKEND}/genz/explain`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: trimmed }),
-      });
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.detail ?? "Couldn’t explain that right now.");
-      if (seqRef.current === seq) setResult(body as Explanation);
+      // postJson attaches the caller's token — /genz/explain is metered per
+      // lookup, so an unauthenticated call is a 401 that reads as "broken".
+      const body = await postJson<Explanation>("/genz/explain", { text: trimmed });
+      if (seqRef.current === seq) setResult(body);
     } catch (err) {
       if (seqRef.current === seq) {
-        setError(err instanceof Error ? err.message : "Couldn’t explain that right now.");
+        setError(networkError(err, "Couldn’t explain that right now."));
       }
     } finally {
       if (seqRef.current === seq) setBusy(false);
@@ -191,12 +203,21 @@ export default function TranslateGenz() {
         ) : (
           !busy && (
             <p className="rounded-2xl border border-dashed border-ink-faint/40 p-5 text-sm text-ink-soft">
-              Your explanation will appear here. Slang ages fast — if we don’t know a term yet, we’ll
-              give our best guess and flag it as unverified.
+              Your explanation will appear here. Slang ages fast — if we don’t know a term yet,
+              we’ll give our best guess and flag it as unverified.
             </p>
           )
         )}
       </div>
     </GlassCard>
+  );
+}
+
+/** Slang explanations are written in English, so the voice language is fixed. */
+export default function TranslateGenz() {
+  return (
+    <SpeechProvider language="en">
+      <TranslateGenzInner />
+    </SpeechProvider>
   );
 }
