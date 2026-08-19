@@ -89,10 +89,10 @@ place a first deploy can fail.
 | ~~`backend/Dockerfile` builds at all~~ | **✅ VERIFIED** — builds for `linux/amd64`, 475 MB | — |
 | ~~CPU-only torch wheel index resolves~~ | **✅ VERIFIED** — and it is why the image is 475 MB rather than the 2–3 GB a CUDA torch would cost | — |
 | ~~ECAPA weights bake into the image~~ | **✅ VERIFIED** — `ECAPA weights cached` in the build log; startup downloads nothing | — |
-| Layer caching (code push reuses torch) | not yet re-run after a code-only change | `touch app/main.py && docker buildx build …` — expect `CACHED` |
-| Container `HEALTHCHECK` | container start not yet verified end to end under emulation | `docker ps` / Railway health status |
+| ~~Layer caching (code push reuses torch)~~ | **✅ VERIFIED** — a code-only change leaves every pip and model layer `CACHED` | — |
+| ~~Container `HEALTHCHECK`~~ | **✅ VERIFIED** — healthy 6 s after start; the container's own healthcheck fires | — |
+| ~~Preflight fires on a real deploy~~ | **✅ VERIFIED** — `APP_ENV=production` exits 3 and names all 8 problems | — |
 | `railway.json` is accepted | never sent to Railway | first deploy |
-| Preflight fires on a real deploy | only unit-tested against a fake env | set `APP_ENV=production` with a key missing; it must refuse to boot |
 | Capacitor WebView really sends the origins we allow | no device build exists yet | Task 3.1 gate |
 
 **Updated 2026-08-18: the image now builds and three of these rows are closed.
@@ -432,19 +432,36 @@ container, and skips cleanly where the ML extras are absent.
 
 ### The remaining verification commands
 
+The first three of these have now been run here. Keep them: they are the four
+questions a container has to answer before it is worth deploying.
+
 ```bash
-# Does it run, with the model already baked in?
-docker run --rm -p 8000:8000 listenup-backend
-curl localhost:8000/health          # {"status":"ok"}
+cd backend
 
-# Does preflight refuse a broken production config?
+# 1. Does it start and serve health?
+docker run -d --name lu -p 8100:8000 listenup-backend
+curl localhost:8100/health          # {"status":"ok"} — took 6s here
+
+# 2. Are the weights REALLY baked in? Run with no network at all.
+#    This is the check that caught the symlink defect; `du -sh` on the cache
+#    directory is not enough, because symlinks look like a populated folder.
+docker run --rm --network none -e SPEAKER_ID_SERVICE=real listenup-backend \
+  python -c "from services.speaker_id import get_speaker_embedder; \
+             get_speaker_embedder().load(); print('loaded offline')"
+
+# 3. Does preflight refuse a broken production config?
 docker run --rm -e APP_ENV=production listenup-backend
-#   Expect: refuses to start, lists every missing variable with its remedy.
+#    Expect: refuses to start, lists every missing variable with its remedy.
 
-# Does a code change reuse the torch layer?
-touch app/main.py && docker build --platform linux/amd64 -t listenup-backend .
-#   Expect: "CACHED" on the pip layers.
+# 4. Does a code change reuse the torch layer?
+touch app/main.py && docker buildx build --platform linux/amd64 -t listenup-backend --load .
+#    Expect: CACHED on the pip layers.
 ```
+
+**Check 2 is the one worth internalising.** The build printed
+`ECAPA weights cached` and the directory existed, so every cheap check said
+yes. Only loading the model *as the runtime user, with the network cut* showed
+that the weights were symlinks into a directory that user could not read.
 
 ---
 
@@ -468,6 +485,7 @@ Where the bugs came from, which is worth watching over time.
 | 12 | tooling | **product** | `pydantic` and `websockets` are imported directly but were relying on arriving via `fastapi` and `uvicorn[standard]`. Works today, breaks the day either upstream swaps them |
 | 13 | tooling | **product** | shell-form `CMD` left the shell as PID 1, so `SIGTERM` never reached uvicorn — a redeploy would hard-kill live caption sessions instead of draining them, in an app whose central promise is never to cut a session mid-sentence. Found by the build's own `JSONArgsRecommended` warning |
 | 14 | tooling | **my own process** | repeated defect #4: `cd backend` inside a command whose session was *already* in `backend/`, aborting the chain. Now using absolute paths for background commands |
+| 15 | tooling | **product — FATAL, fixed** | the model bake looked like it worked and did not. SpeechBrain writes **symlinks** into the HuggingFace cache rather than copying weights into `savedir`, so `/opt/models/ecapa` held 24 KB of links into `/root`, and the non-root runtime user got `Permission denied` loading them. With `SPEAKER_ID_SERVICE=real` — which preflight *requires* in production — `lifespan` calls `load()` at startup, so Railway would have crash-looped. Fixed by setting `HF_HOME` inside the image and running the bake **as the runtime user** |
 
 ---
 

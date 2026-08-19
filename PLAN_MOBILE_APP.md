@@ -201,12 +201,42 @@ tests.
    not exist in a container. This is the one credential that cannot be pasted
    into Railway, and it should be resolved before the first deploy.
 
-**Unverified and worth knowing:** the image has never been built. Every path it
-copies exists, but layer caching, the CPU wheel index, the model-baking step and
-the healthcheck are all untested. First `railway up` is the first real test.
+**Update 2026-08-18 — the image now builds and runs, and getting there cost
+four real defects.** Docker was installed (Colima; the OrbStack cask is broken
+on this Homebrew) and the container was built for `linux/amd64`, the platform
+Railway uses. Verified:
 
-**Gate remaining:** `wss://` session from a phone on cellular produces captions;
-`/health` green; a redeploy does not re-download the model.
+| check | result |
+|---|---|
+| builds | ✅ `linux/amd64`, **478 MB** — small because the CPU-only wheels worked |
+| starts and serves `/health` | ✅ **6 s** |
+| ECAPA loads **offline, as the runtime user** | ✅ `--network none` |
+| preflight refuses a broken production config | ✅ exits 3, names all 8 problems |
+| a code change reuses the torch layer | ✅ all layers `CACHED` |
+
+**The four defects, none of which any other loop could see:**
+1. `torchaudio>=2.13` — **a version that does not exist**; the ceiling is 2.11.
+   Unsatisfiable on every platform.
+2. `stripe` imported at module scope and **declared in no requirements file**.
+   The container started and died. CI would fail collection the same way and
+   has evidently never run on this code.
+3. Shell-form `CMD` left the shell as PID 1, so **`SIGTERM` never reached
+   uvicorn** — a redeploy would hard-kill live caption sessions rather than
+   drain them, in an app whose central promise is never to cut one.
+4. **The model bake looked like it worked and did not.** SpeechBrain writes
+   *symlinks* into the HuggingFace cache rather than copying weights, so
+   `savedir` held 24 KB of links into `/root` that the non-root runtime user
+   could not read. With `SPEAKER_ID_SERVICE=real` — which preflight requires in
+   production — `lifespan` calls `load()` at startup, so **Railway would have
+   crash-looped**. Only loading the model as that user with the network cut
+   exposed it; every cheap check said yes.
+
+Two guards were added and mutation-checked: `tests/test_requirements.py` (a pin
+must name a version that exists) and `tests/test_dependencies.py` (every import
+must be declared, AST-walked, with a guard on the walk itself).
+
+**Gate remaining — all of it yours:** `wss://` session from a phone on cellular
+produces captions; `/health` green on Railway.
 
 ### Original specification
 
