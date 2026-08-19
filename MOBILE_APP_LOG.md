@@ -21,7 +21,7 @@ task; the detail lives here.
 | 0.3 Legal pages | ❌ **BLOCKED** | `4b51d4a` | 16 browser | n/a |
 | 0.4 Monitoring + spend ceiling | ✅ **DONE** | `fbfd253` | 15 | 6 ✅ |
 | 0.5 Accounts | ❌ **BLOCKED** (your choice) | — | — | — |
-| 1.1 Phone layout | ✅ **DONE** | `<t11>` | 6 browser | 4 ✅ |
+| 1.1 Phone layout | ✅ **DONE** | `8b27e2f` | 6 browser | 4 ✅ |
 | 1.2 Audio path (highest risk) | ⬜ not started | | | |
 | 1.3 Microphone constraints | ⬜ not started | | | |
 | 1.4 Touch and gesture | ⬜ not started | | | |
