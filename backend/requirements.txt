@@ -9,3 +9,16 @@ google-auth>=2.30
 # Local verification of Clerk session JWTs (app/auth.py) — keeps an HTTP round
 # trip off the authenticated request path.
 pyjwt[crypto]>=2.9
+# Declared because they are imported directly, not because they were missing at
+# runtime. pydantic arrives with fastapi and websockets with uvicorn[standard],
+# so both work today by inheritance — and would break the day either upstream
+# swapped them out. `import` is the contract, not the lockfile.
+pydantic>=2.13
+websockets>=16.1
+# Payments. This one WAS missing: app/routes/billing.py imports it at module
+# scope and app/main.py imports that router, so the container built from these
+# files could not start at all. Nothing declared it and nothing pulled it in
+# transitively; the local virtualenv had it only because someone installed it
+# by hand. tests/test_dependencies.py now checks every import against these
+# files.
+stripe>=15.4

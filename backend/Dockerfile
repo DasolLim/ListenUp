@@ -62,7 +62,13 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
   CMD curl -fsS "http://localhost:${PORT:-8000}/health" || exit 1
 
-# Shell form so ${PORT} expands — Railway assigns the port at run time.
+# `sh -c` so ${PORT} expands — Railway assigns the port at run time — and
+# `exec` so uvicorn *replaces* the shell and becomes PID 1. Without exec, the
+# shell holds PID 1, SIGTERM never reaches uvicorn, and a redeploy hard-kills
+# live caption sessions instead of draining them. This app makes a point of
+# never cutting a session mid-sentence; that promise ends at the process
+# boundary unless signals get through.
+#
 # One worker: the ECAPA model is ~1 GB resident and each worker loads its own
 # copy, so scale with instances rather than with workers.
-CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}
+CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

@@ -86,17 +86,18 @@ place a first deploy can fail.
 
 | what | why unverified | how you find out |
 |---|---|---|
-| `backend/Dockerfile` builds at all | **Docker is not installed on this machine** | first `railway up` |
-| Layer caching (code push reuses torch) | " | build log on the second deploy |
-| CPU-only torch wheel index resolves | " | first build; a failure here is loud |
-| ECAPA weights bake into the image | " | first deploy's cold-start time |
-| Container `HEALTHCHECK` | " | `docker ps` / Railway health status |
+| ~~`backend/Dockerfile` builds at all~~ | **✅ VERIFIED** — builds for `linux/amd64`, 475 MB | — |
+| ~~CPU-only torch wheel index resolves~~ | **✅ VERIFIED** — and it is why the image is 475 MB rather than the 2–3 GB a CUDA torch would cost | — |
+| ~~ECAPA weights bake into the image~~ | **✅ VERIFIED** — `ECAPA weights cached` in the build log; startup downloads nothing | — |
+| Layer caching (code push reuses torch) | not yet re-run after a code-only change | `touch app/main.py && docker buildx build …` — expect `CACHED` |
+| Container `HEALTHCHECK` | container start not yet verified end to end under emulation | `docker ps` / Railway health status |
 | `railway.json` is accepted | never sent to Railway | first deploy |
 | Preflight fires on a real deploy | only unit-tested against a fake env | set `APP_ENV=production` with a key missing; it must refuse to boot |
 | Capacitor WebView really sends the origins we allow | no device build exists yet | Task 3.1 gate |
 
-**Every path the Dockerfile copies was checked to exist. That is the entire
-verification it has had.**
+**Updated 2026-08-18: the image now builds and three of these rows are closed.
+Getting there cost three real defects — see the register below. The build is the
+single highest-yield check in this whole plan so far.**
 
 ---
 
@@ -463,6 +464,10 @@ Where the bugs came from, which is worth watching over time.
 | 8 | 0.4 | **my own tests** | `assert "your" not in message` was a crude proxy that tripped on the reassurance the copy exists to give |
 | 9 | tooling | **product** | `requirements-ml.txt` pinned `torchaudio>=2.13`, a version that does not exist. Unsatisfiable on every platform; would have failed the first Railway deploy. Found by the first local Docker build |
 | 10 | tooling | **my own process** | the first background build reported "exit code 0" because I ended the command with `tail`, so the shell's status masked the build's. The log said `EXIT=1` |
+| 11 | tooling | **product — FATAL** | `stripe` is imported at module scope by `app/routes/billing.py` and declared in **no requirements file**, nor pulled in transitively. The container could not start at all. CI would fail collection for the same reason and has evidently never run on this code |
+| 12 | tooling | **product** | `pydantic` and `websockets` are imported directly but were relying on arriving via `fastapi` and `uvicorn[standard]`. Works today, breaks the day either upstream swaps them |
+| 13 | tooling | **product** | shell-form `CMD` left the shell as PID 1, so `SIGTERM` never reached uvicorn — a redeploy would hard-kill live caption sessions instead of draining them, in an app whose central promise is never to cut a session mid-sentence. Found by the build's own `JSONArgsRecommended` warning |
+| 14 | tooling | **my own process** | repeated defect #4: `cd backend` inside a command whose session was *already* in `backend/`, aborting the chain. Now using absolute paths for background commands |
 
 ---
 
