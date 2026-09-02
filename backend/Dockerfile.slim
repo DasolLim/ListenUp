@@ -1,0 +1,55 @@
+# ListenUp backend — the mock-provider image, for free-tier hosting.
+#
+# This is `Dockerfile` with the machine-learning stack removed. That stack is
+# torch + torchaudio + speechbrain plus ~80 MB of baked ECAPA weights, and it is
+# what makes the full image roughly a gigabyte resident — more than any free
+# instance offers (Render free is 512 MB, Fly's default VM 256 MB). Dropping it
+# is only safe because `services/speaker_id/factory.py` imports the real
+# embedder *inside* the `SPEAKER_ID_SERVICE == "real"` branch, so nothing here
+# reaches for torch as long as that variable stays on `mock`.
+#
+# The consequence is stated rather than hidden: with the mock embedder, speaker
+# separation is a stand-in and naming is meaningless. That is the right trade
+# for a demo deploy and the wrong one for production — use `Dockerfile` there.
+FROM python:3.12-slim
+
+# curl is only for the container healthcheck. libgomp1 is torch's OpenMP
+# runtime and is deliberately absent: nothing in this image links against it.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends curl \
+ && rm -rf /var/lib/apt/lists/*
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    # Baked in rather than left to the host's dashboard. This image physically
+    # cannot run the real embedder — torch is not installed — so a deploy that
+    # set SPEAKER_ID_SERVICE=real would not degrade, it would crash on the
+    # first turn of audio. Pinning it here makes that unreachable.
+    SPEAKER_ID_SERVICE=mock
+
+WORKDIR /srv
+
+COPY requirements.txt .
+RUN pip install -r requirements.txt
+
+# Nothing here needs root, and a container that handles audio for disabled
+# users is not the place to make an exception.
+RUN useradd --create-home --uid 10001 listenup \
+ && chown -R listenup:listenup /srv
+USER listenup
+
+COPY --chown=listenup:listenup services ./services
+COPY --chown=listenup:listenup app ./app
+COPY --chown=listenup:listenup db ./db
+COPY --chown=listenup:listenup pyproject.toml .
+
+EXPOSE 8000
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+  CMD curl -fsS "http://localhost:${PORT:-8000}/health" || exit 1
+
+# `sh -c` so ${PORT} expands — the host assigns the port at run time — and
+# `exec` so uvicorn replaces the shell and becomes PID 1. Without exec the
+# shell holds PID 1, SIGTERM never reaches uvicorn, and a redeploy hard-kills
+# live caption sessions instead of draining them.
+CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
