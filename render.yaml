@@ -4,10 +4,15 @@
 # persistent inbound WebSocket, which Vercel Functions cannot host. Render's
 # free instance does support them.
 #
-# This blueprint deploys the MOCK image (backend/Dockerfile.slim): captions
-# replay a fixture conversation and translations are canned. That is what makes
-# it free and what makes it fit 512 MB. Nothing here reaches a paid provider,
-# so no API key is needed and no session is billed.
+# Speech-to-text is REAL: the microphone is transcribed by AssemblyAI and every
+# session is billed. Everything else stays on its mock, which keeps the image
+# inside the free tier's 512 MB and keeps the other providers at zero.
+#
+# Google translation is deliberately NOT enabled. services/translate/factory.py
+# routes TRANSLATION_SERVICE=real to GoogleTranslationService, which needs ADC —
+# there is no `gcloud auth` inside a container, and the org policy
+# iam.disableServiceAccountKeyCreation blocks the service-account-key
+# alternative. It would fail at runtime, not at boot.
 #
 # Deliberately NOT set: APP_ENV. `app/preflight.py` refuses to boot when
 # APP_ENV=production and any provider is on a mock — a guard against a deploy
@@ -25,8 +30,12 @@ services:
       # Every provider on its mock. Each of these is also the code's default;
       # they are written out because a deploy's configuration should be
       # readable here rather than inferred from four factory functions.
+      # Real, so the microphone is actually transcribed. This is the one
+      # provider on this deploy that costs money per audio hour.
       - key: TRANSCRIPTION_SERVICE
-        value: mock
+        value: real
+      - key: ASSEMBLYAI_API_KEY
+        sync: false
       - key: TRANSLATION_SERVICE
         value: mock
       - key: ENHANCED_TRANSLATION_SERVICE
@@ -49,3 +58,11 @@ services:
         sync: false
       - key: SUPABASE_ANON_KEY
         sync: false
+      # A hard stop on what this deployment can spend in a day, checked in
+      # CaptionSession.open() before anything billable happens. Not optional
+      # here: the site is public and app/caption_session.py opens a session
+      # without a token, so an anonymous visitor can start a billed stream.
+      # Per-user allowances cap an account; only this caps the deployment.
+      - key: DAILY_SPEND_CEILING_USD
+        value: "5"
+
