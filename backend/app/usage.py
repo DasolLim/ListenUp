@@ -33,7 +33,7 @@ logger = logging.getLogger("listenup.usage")
 #
 # The cache is per-process, so N workers can each be up to one window stale.
 # That is the same "small emergency reserve past the cap" the product already
-# chooses deliberately (SUBSCRIPTION.md), not an accident.
+# chooses deliberately (docs/product/SUBSCRIPTION.md), not an accident.
 CACHE_TTL_S = 15.0
 
 _cache: dict[str, tuple[float, "Usage"]] = {}

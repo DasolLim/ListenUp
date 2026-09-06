@@ -89,4 +89,4 @@
 - [ ] Load/latency test end-to-end (mic → caption) at p95 under target.
 - [ ] Sentry/PostHog dashboards reviewed; alerting on error spikes.
 - [ ] All external services have mocks + graceful degradation on outage.
-- [ ] `DEBUG_LOG.md` reviewed; recurring issues addressed at the root.
+- [ ] `../logs/DEBUG_LOG.md` reviewed; recurring issues addressed at the root.

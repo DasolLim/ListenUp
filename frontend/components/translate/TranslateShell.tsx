@@ -9,7 +9,7 @@ import GlassCard from "@/components/ui/GlassCard";
  * Fixes the crowding the old layout had: mode pills, target language, voice
  * select, preview and auto-speak all sat above the input at equal weight, so a
  * user arriving mid-conversation had six things competing and no obvious first
- * step (PRODUCT.md principle 5).
+ * step (docs/product/PRODUCT.md principle 5).
  *
  * The order here is the order of the task:
  *   1. title + what this tool does differently   (so the two tools are

@@ -38,7 +38,7 @@ logger = logging.getLogger("listenup.tts")
 router = APIRouter(prefix="/tts")
 bearer = HTTPBearer(auto_error=False)
 
-# Speech runs at roughly 870 characters per minute (SUBSCRIPTION.md §2), so this
+# Speech runs at roughly 870 characters per minute (docs/product/SUBSCRIPTION.md §2), so this
 # converts billed characters into the seconds the cloud read-aloud allowance is
 # denominated in. Approximate by nature — the allowance is a cost ceiling, not a
 # stopwatch — and it errs slightly high, which favours the user.

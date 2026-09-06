@@ -1,4 +1,4 @@
--- Three tiers + metered usage (SUBSCRIPTION.md §10).
+-- Three tiers + metered usage (docs/product/SUBSCRIPTION.md §10).
 --
 -- Two things are added here:
 --

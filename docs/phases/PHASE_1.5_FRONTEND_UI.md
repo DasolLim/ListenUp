@@ -3,8 +3,8 @@
 **When:** Run this alongside/after `PHASE_1_FOUNDATION.md` (page structure exists) and before wiring live features. Follow Error Protocol (§8).
 
 **Inputs Claude Code must read first:**
-- `INTRODUCTION.md` (scope + rules)
-- `DESIGN_SYSTEM.md` (exact tokens, palette, components) ← the source of truth for visuals
+- `../product/INTRODUCTION.md` (scope + rules)
+- `../design/DESIGN_SYSTEM.md` (exact tokens, palette, components) ← the source of truth for visuals
 - Reference: https://dribbble.com/shots/26727739-Sense-AI-Powered-Meditation-App
 
 **Goal:** A polished, glassmorphic, Sense-style frontend — matching the reference's palette, floating glass cards, coral orb, and layout — adapted to our accessibility/translation domain, and accessible (WCAG 2.1 AA).
@@ -15,7 +15,7 @@
 
 At the start of this phase, instruct Claude Code:
 
-> Before building UI, engage your frontend design skill (`frontend-design`). Approach this as a design lead delivering a distinctive, non-templated interface. Follow `DESIGN_SYSTEM.md` exactly for palette, typography, glass components, and layout — the reference direction is pinned, so match it rather than inventing a new look. Where the design system leaves a gap, make a deliberate choice consistent with the Sense aesthetic. Prioritize precision in spacing, blur, and contrast (this is a minimal/premium direction — elegance comes from executing it cleanly).
+> Before building UI, engage your frontend design skill (`frontend-design`). Approach this as a design lead delivering a distinctive, non-templated interface. Follow `../design/DESIGN_SYSTEM.md` exactly for palette, typography, glass components, and layout — the reference direction is pinned, so match it rather than inventing a new look. Where the design system leaves a gap, make a deliberate choice consistent with the Sense aesthetic. Prioritize precision in spacing, blur, and contrast (this is a minimal/premium direction — elegance comes from executing it cleanly).
 
 If you have design-focused skills/plugins available (e.g. "UI-UX pro", "Impeccable"), enable them for this phase and have them review each screen against the reference screenshots. Take screenshots of your output and self-critique against the reference before calling a step done.
 
@@ -24,7 +24,7 @@ If you have design-focused skills/plugins available (e.g. "UI-UX pro", "Impeccab
 ## Step 1.5.1 — Design tokens + global styles
 
 **Prompt:**
-> Implement `DESIGN_SYSTEM.md` as real code: Tailwind theme extension + CSS variables for all color/type/radius/shadow tokens. Load Poppins (display) + Inter (body). Set the page background to the peach→lilac gradient. Add `[data-contrast="high"]` override tokens and `prefers-reduced-motion` handling globally.
+> Implement `../design/DESIGN_SYSTEM.md` as real code: Tailwind theme extension + CSS variables for all color/type/radius/shadow tokens. Load Poppins (display) + Inter (body). Set the page background to the peach→lilac gradient. Add `[data-contrast="high"]` override tokens and `prefers-reduced-motion` handling globally.
 
 **Verification Gate (RUN):**
 - Tokens available as Tailwind classes + CSS vars.

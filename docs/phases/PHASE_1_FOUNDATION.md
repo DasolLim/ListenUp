@@ -79,4 +79,4 @@
 - [ ] Observability wired and verified.
 - [ ] Typecheck + lint + build green on frontend; ruff green on backend.
 
-**Report:** confirm each with evidence (command output, screenshot description, or log lines). Append any non-trivial bug + fix to `DEBUG_LOG.md`.
+**Report:** confirm each with evidence (command output, screenshot description, or log lines). Append any non-trivial bug + fix to `../logs/DEBUG_LOG.md`.

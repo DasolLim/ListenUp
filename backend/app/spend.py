@@ -33,7 +33,7 @@ from datetime import UTC, date, datetime
 logger = logging.getLogger("listenup.spend")
 
 #: Dollars per unit, in the units the app already meters in. Sourced from
-#: SUBSCRIPTION.md §10 and pinned by a test: a ceiling computed from drifted
+#: docs/product/SUBSCRIPTION.md §10 and pinned by a test: a ceiling computed from drifted
 #: rates would refuse sessions at the wrong moment while looking reasonable.
 USD_PER_UNIT: dict[str, float] = {
     # $0.15 per hour of open transcription socket (AssemblyAI).

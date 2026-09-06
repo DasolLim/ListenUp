@@ -7,8 +7,8 @@
 
 ## What Claude Code should read first (in this order)
 
-1. `INTRODUCTION.md` — scope, stack, rules, **Standard Error & Debugging Protocol (§8)**.
-2. `DESIGN_SYSTEM.md` — the visual source of truth (palette, glass components, tokens, layout).
+1. `../product/INTRODUCTION.md` — scope, stack, rules, **Standard Error & Debugging Protocol (§8)**.
+2. `../design/DESIGN_SYSTEM.md` — the visual source of truth (palette, glass components, tokens, layout).
 3. `PHASE_1.5_FRONTEND_UI.md` — the step-by-step build (Steps 1.5.1 → 1.5.8), each with a Verification Gate.
 
 **Reference design:** https://dribbble.com/shots/26727739-Sense-AI-Powered-Meditation-App
@@ -19,11 +19,11 @@
 
 > Phase 1 is complete. We're now building the frontend UI/UX.
 >
-> First, read `INTRODUCTION.md`, `DESIGN_SYSTEM.md`, and `PHASE_1.5_FRONTEND_UI.md` in full and confirm you understand the visual direction and the error protocol.
+> First, read `../product/INTRODUCTION.md`, `../design/DESIGN_SYSTEM.md`, and `PHASE_1.5_FRONTEND_UI.md` in full and confirm you understand the visual direction and the error protocol.
 >
-> Engage your **`frontend-design` skill** for this work. If you have design-quality skills/plugins available (e.g. "UI-UX pro", "Impeccable"), enable them and use them to review each screen against the reference screenshots. The Sense aesthetic is **pinned** — match `DESIGN_SYSTEM.md` exactly (peach→lilac gradient, frosted glass cards, coral orb, Poppins + Inter, sidebar + center tiles + right caption rail). Don't invent a new look; where the spec leaves a gap, choose consistently with Sense.
+> Engage your **`frontend-design` skill** for this work. If you have design-quality skills/plugins available (e.g. "UI-UX pro", "Impeccable"), enable them and use them to review each screen against the reference screenshots. The Sense aesthetic is **pinned** — match `../design/DESIGN_SYSTEM.md` exactly (peach→lilac gradient, frosted glass cards, coral orb, Poppins + Inter, sidebar + center tiles + right caption rail). Don't invent a new look; where the spec leaves a gap, choose consistently with Sense.
 >
-> This is an **accessibility product** — the a11y overrides in `DESIGN_SYSTEM.md §7` are non-negotiable and build-breaking if failed: WCAG 2.1 AA contrast on every text-on-glass surface, a high-contrast mode that swaps glass for opaque surfaces, caption font-size scaling, visible focus rings, and `prefers-reduced-motion` respected. Speaker bubbles must never rely on color alone — always pair the tint with a name label.
+> This is an **accessibility product** — the a11y overrides in `../design/DESIGN_SYSTEM.md §7` are non-negotiable and build-breaking if failed: WCAG 2.1 AA contrast on every text-on-glass surface, a high-contrast mode that swaps glass for opaque surfaces, caption font-size scaling, visible focus rings, and `prefers-reduced-motion` respected. Speaker bubbles must never rely on color alone — always pair the tint with a name label.
 >
 > Then build `PHASE_1.5_FRONTEND_UI.md` **one step at a time** (1.5.1 → 1.5.8). After each step: run the Standard Error & Debugging Protocol (§8) and the step's Verification Gate, screenshot your output and self-critique it against the reference, fix everything, commit, and report before moving on. Do not advance a step on a red gate. Do not skip ahead.
 >

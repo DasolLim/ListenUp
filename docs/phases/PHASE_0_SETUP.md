@@ -1,6 +1,6 @@
 # PHASE 0 — Discovery & Project Setup
 
-**Prerequisite:** You have read `INTRODUCTION.md`. Follow the Standard Error & Debugging Protocol (§8) for every step.
+**Prerequisite:** You have read `../product/INTRODUCTION.md`. Follow the Standard Error & Debugging Protocol (§8) for every step.
 
 **Goal:** A clean, deployable skeleton repo with CI, conventions, and observability scaffolding — before any feature code.
 
@@ -9,7 +9,7 @@
 ## Step 0.1 — Repo scaffold
 
 **Prompt to Claude Code:**
-> Create the repo structure per INTRODUCTION §9: root files (`README.md`, `CLAUDE.md`, `DEBUG_LOG.md`, `.gitignore`, `.env.example`), a `/frontend` folder, a `/backend` folder, and `/infra`. Do not add feature code yet. Initialize git.
+> Create the repo structure per INTRODUCTION §9: root files (`README.md`, `CLAUDE.md`, `../logs/DEBUG_LOG.md`, `.gitignore`, `.env.example`), a `/frontend` folder, a `/backend` folder, and `/infra`. Do not add feature code yet. Initialize git.
 
 **Verification Gate:**
 - Folder tree matches §9.
@@ -80,7 +80,7 @@
 ## Step 0.7 — Discovery notes (non-code)
 
 **Prompt:**
-> Create `/docs/DISCOVERY.md` with a template for user-interview notes (deaf/HoH users): current tools used, top frustrations, must-have features, quotes → user stories. Leave it ready for me to fill in.
+> Create `/docs/product/DISCOVERY.md` with a template for user-interview notes (deaf/HoH users): current tools used, top frustrations, must-have features, quotes → user stories. Leave it ready for me to fill in.
 
 **Verification Gate:**
 - File exists with the template sections.
@@ -89,7 +89,7 @@
 
 ## Phase 0 Exit Criteria
 - [ ] Repo tree per §9, initial commit clean.
-- [ ] `CLAUDE.md` + `DEBUG_LOG.md` present.
+- [ ] `CLAUDE.md` + `../logs/DEBUG_LOG.md` present.
 - [ ] Frontend: typecheck + lint + build + dev all green.
 - [ ] Backend: ruff green, `/health` returns ok.
 - [ ] CI defined and passing locally.

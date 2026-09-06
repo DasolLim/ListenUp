@@ -20,7 +20,7 @@ plan" rather than "you've used it up".
 Why characters for translation when the UI says hours: translation is billed per
 character, so that is the number that maps to cost, but "1.4 / 3 hrs" is what a
 person can reason about. CHARS_PER_HOUR converts between them, and it is the
-same 52,200 figure the cost model in SUBSCRIPTION.md §10 is built on — roughly
+same 52,200 figure the cost model in docs/product/SUBSCRIPTION.md §10 is built on — roughly
 150 words per minute of continuous speech.
 """
 
@@ -34,7 +34,7 @@ Metric = Literal["captions", "translated", "explain", "cloud_tts"]
 CHARS_PER_HOUR = 52_200
 
 # The cultural (LLM) pass costs about a fifth of what the fast Google pass costs
-# for the same text — $0.21 vs $1.04 per translated hour (SUBSCRIPTION.md §10).
+# for the same text — $0.21 vs $1.04 per translated hour (docs/product/SUBSCRIPTION.md §10).
 #
 # This ratio exists because live captions send every finalised line through
 # *both* lanes. Metering each at full character weight would charge a user twice
@@ -126,7 +126,7 @@ FREE = PLANS["free"]
 PRO_FIRST_MONTH_DISCOUNT = 20
 
 # Warn here rather than at the limit. Landing softly is the whole design (see
-# SUBSCRIPTION.md "the rule that matters most"): a caption cap that fires without
+# docs/product/SUBSCRIPTION.md "the rule that matters most"): a caption cap that fires without
 # warning can fire in a medical appointment.
 WARN_AT = 0.8
 

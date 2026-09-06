@@ -334,7 +334,7 @@ affordance at all**.
   speaker is unnamed, and it has not been dismissed this session. Never during
   the first few seconds, and never more than once.
 - Copy states the benefit, not the mechanism: naming a voice once means it is
-  recognised next time. Follow PRODUCT.md voice — plain, second person, no
+  recognised next time. Follow ../product/PRODUCT.md voice — plain, second person, no
   cuteness.
 - Route to enrolment without losing the session: link out, do not modal over a
   live transcript.

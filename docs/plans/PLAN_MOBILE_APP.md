@@ -89,7 +89,7 @@ These change the plan, so they come before the tasks.
 **In-App Purchase** (Guideline 3.1.1). Apple takes 30%, or 15% under the Small
 Business Program (<$1M/yr, which is you).
 
-Against the cost model in `SUBSCRIPTION.md`:
+Against the cost model in `../product/SUBSCRIPTION.md`:
 
 ```
 Basic $7.99, at full utilisation
@@ -104,7 +104,7 @@ Basic $7.99, at full utilisation
 
 Options, in the order I would consider them:
 
-1. **Cut COGS first.** `SUBSCRIPTION.md` §5 already identifies the lever:
+1. **Cut COGS first.** `../product/SUBSCRIPTION.md` §5 already identifies the lever:
    $1.04 of the $1.25 translated hour is Google Translate, and the LLM pass
    *overwrites* that text seconds later. Running Google only when the LLM is
    slow or fails takes Basic's COGS to ~$3.20 and margin to ~57% (web) /
@@ -848,7 +848,7 @@ your first Swift/Kotlin.
 ## The uncomfortable note
 
 This plan is sound engineering and it will produce a working app. It does not
-change the fact that `docs/DISCOVERY.md` is still an empty template.
+change the fact that `../product/DISCOVERY.md` is still an empty template.
 
 Five to seven weeks of packaging work is five to seven weeks not spent finding
 out whether anyone wants this. **The two are not in conflict** — Phase 0 is

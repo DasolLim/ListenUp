@@ -1,10 +1,10 @@
 # MOBILE APP — implementation log
 
-Companion to `PLAN_MOBILE_APP.md`. The plan says what to do; this says **what
+Companion to `../plans/PLAN_MOBILE_APP.md`. The plan says what to do; this says **what
 actually happened**: what was verified, what was not, what broke, what is
 waiting on a human, and every mutation run to prove a test could fail.
 
-Appended to after each task. `PLAN_MOBILE_APP.md` carries a one-line verdict per
+Appended to after each task. `../plans/PLAN_MOBILE_APP.md` carries a one-line verdict per
 task; the detail lives here.
 
 **Related:** `DEBUG_LOG.md` (unexpected errors across the whole project),
@@ -259,7 +259,7 @@ suite, which is the right instrument for two static documents.
 
 ### Delivered
 `backend/app/spend.py`. A daily ceiling in dollars, denominated in the units the
-app already meters, with rates sourced from `SUBSCRIPTION.md` §10 and pinned by
+app already meters, with rates sourced from `../product/SUBSCRIPTION.md` §10 and pinned by
 a test — a ceiling computed from drifted rates would refuse sessions at the
 wrong moment while looking perfectly reasonable.
 

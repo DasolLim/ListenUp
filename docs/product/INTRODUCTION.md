@@ -134,7 +134,7 @@ Run this loop for each build step in every phase:
    - State the root cause in one sentence before fixing.
    - Fix, then re-run from step 2.
    - If the same error persists after 2 fix attempts, STOP and report the error + what you tried, don't thrash.
-6. **Log** unexpected errors and resolutions in `DEBUG_LOG.md` at repo root.
+6. **Log** unexpected errors and resolutions in `../logs/DEBUG_LOG.md`.
 7. Only advance when the gate is green.
 
 **Never** mark a step complete on a compile-only pass — it must run.
@@ -144,13 +144,14 @@ Run this loop for each build step in every phase:
 ## 9. Repo Layout (target)
 
 ```
-/                      # root: CLAUDE.md, DEBUG_LOG.md, README.md, CI config
+/                      # root: CLAUDE.md, README.md, CI config
 /frontend              # Next.js app
 /backend               # FastAPI app
   /services            # assemblyai/, speaker_id/, translate/, openrouter/  (each with a mock)
   /routes
   /db
 /infra                 # deploy configs
+/docs                  # all non-code docs (product/, design/, phases/, plans/, logs/, integrations/)
 ```
 
 ---

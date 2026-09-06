@@ -36,7 +36,7 @@ def ledger(ceiling: float | None = None, now: datetime = DAY) -> SpendLedger:
 
 
 def test_the_rates_match_the_cost_model():
-    """Pinned deliberately. These come from SUBSCRIPTION.md §10, and a ceiling
+    """Pinned deliberately. These come from docs/product/SUBSCRIPTION.md §10, and a ceiling
     computed from drifted rates would refuse sessions at the wrong moment while
     looking perfectly reasonable."""
     assert USD_PER_UNIT["captions"] * 3600 == pytest.approx(0.15)

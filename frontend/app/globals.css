@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-/* ─── ListenUp design tokens (DESIGN_SYSTEM.md — Sense-inspired) ─── */
+/* ─── ListenUp design tokens (docs/design/DESIGN_SYSTEM.md — Sense-inspired) ─── */
 :root {
   /* Background */
   --bg-gradient: linear-gradient(135deg, #f3e9e2 0%, #f0e6e9 45%, #e9ddf0 75%, #d9c9ec 100%);

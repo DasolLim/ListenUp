@@ -1,6 +1,6 @@
 # DESIGN SYSTEM — Visual Spec (Sense-inspired)
 
-> Feed this to Claude Code alongside `PHASE_1_FOUNDATION.md`. It defines the exact look, tokens, and component styling for the frontend. Derived from the "Sense — AI-Powered Meditation App" reference.
+> Feed this to Claude Code alongside `../phases/PHASE_1_FOUNDATION.md`. It defines the exact look, tokens, and component styling for the frontend. Derived from the "Sense — AI-Powered Meditation App" reference.
 > **Reference:** https://dribbble.com/shots/26727739-Sense-AI-Powered-Meditation-App
 
 ---

@@ -1,4 +1,4 @@
--- Subscriptions: who is entitled to the paid features (SUBSCRIPTION.md).
+-- Subscriptions: who is entitled to the paid features (docs/product/SUBSCRIPTION.md).
 --
 -- One row per user, mirroring Stripe. Stripe is the system of record for money;
 -- this table is the system of record for *access*, so the backend can answer
