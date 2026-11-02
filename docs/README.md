@@ -66,4 +66,4 @@ happened* (logs), *one external tool* (integrations).
 
 ## screenshots/
 
-Reference and QA screenshots.
+Reference and QA screenshots. `readme/` holds the current images used by the root README (captured from a production build on mocks).
