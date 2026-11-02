@@ -7,7 +7,7 @@ import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
  *
  * Every backend request that touches voice profiles needs a token, and before
  * this each call site reached for Supabase directly. Routing them through one
- * function means the Clerk cutover (MIGRATION_PLAN.md §2) is a change here
+ * function means the Clerk cutover (docs/plans/MIGRATION_PLAN.md §2) is a change here
  * rather than in four components — and, more importantly, that no call site can
  * be forgotten and silently keep sending a Supabase token to a backend that has
  * moved on.

@@ -1,4 +1,4 @@
--- Auth migration: Supabase Auth -> Clerk (MIGRATION_PLAN.md §2).
+-- Auth migration: Supabase Auth -> Clerk (docs/plans/MIGRATION_PLAN.md §2).
 --
 -- WHY THIS FILE EXISTS AT ALL
 -- The plan assumed the 19 RLS policies could stay untouched because Supabase

@@ -7,7 +7,7 @@
  * Shared by both transcript surfaces so the affordance cannot drift between
  * them. It carries a non-obvious detail that is easy to lose in a copy: the
  * label is 12px uppercase, so its own box is about 18px tall, well under the
- * 44px minimum for a touch target (PRODUCT.md). Growing the text would cost a
+ * 44px minimum for a touch target (docs/product/PRODUCT.md). Growing the text would cost a
  * quarter of the pane's reading height across a few turns, so the *pointer*
  * target is expanded instead, with a pseudo-element that reaches 13px above and
  * below without occupying any layout space.

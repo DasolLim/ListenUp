@@ -1,5 +1,5 @@
 import Link from "next/link";
-import Reveal from "@/components/Reveal";
+import Reveal from "@/components/shell/Reveal";
 import HeroDemo from "@/components/marketing/HeroDemo";
 import { Eyebrow, Section, SectionHeading } from "@/components/marketing/Section";
 import Orb from "@/components/ui/Orb";

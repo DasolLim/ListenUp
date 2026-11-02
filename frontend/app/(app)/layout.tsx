@@ -1,5 +1,5 @@
-import Navbar from "@/components/Navbar";
-import StartCaptionsButton from "@/components/StartCaptionsButton";
+import Navbar from "@/components/shell/Navbar";
+import StartCaptionsButton from "@/components/captions/StartCaptionsButton";
 
 // The app uses the same top navbar as the website: one responsive product,
 // not a separate "app". On desktop it reads as a web nav; on mobile the nav

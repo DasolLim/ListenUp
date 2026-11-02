@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import Reveal from "@/components/Reveal";
+import Reveal from "@/components/shell/Reveal";
 import { Eyebrow } from "@/components/marketing/Section";
 import { CaptionsIcon, TranslateIcon } from "@/components/shell/icons";
 import Orb from "@/components/ui/Orb";

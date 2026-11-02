@@ -14,7 +14,7 @@ import Link from "next/link";
  * Two routes, because they suit different moments. Tapping a name works
  * immediately and needs no setup; enrolling a voice profile makes the
  * recognition automatic next time. The copy leads with the benefit rather than
- * the mechanism (PRODUCT.md voice: plain, second person, no cuteness).
+ * the mechanism (docs/product/PRODUCT.md voice: plain, second person, no cuteness).
  *
  * Dismissible, and shown at most once per session. A hint that keeps returning
  * while somebody is trying to follow a conversation stops being a hint.

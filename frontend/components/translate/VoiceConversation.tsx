@@ -3,19 +3,19 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import SpeakerCorrectionDialog from "@/components/captions/SpeakerCorrectionDialog";
-import SpokenLanguagePicker from "@/components/SpokenLanguagePicker";
+import SpokenLanguagePicker from "@/components/captions/SpokenLanguagePicker";
 import VoicePicker from "@/components/speech/VoicePicker";
 import { MicIcon, PauseIcon } from "@/components/shell/icons";
 import Button from "@/components/ui/Button";
 import { formatDate } from "@/lib/plans";
 import ConversationPane from "@/components/captions/ConversationPane";
 import { PANE_HEIGHT_IDLE, PANE_HEIGHT_LIVE } from "@/lib/paneHeight";
-import { useAutoSpeak, useSharedSpeech } from "@/lib/SpeechProvider";
-import { useSpeakerCorrection } from "@/lib/useSpeakerCorrection";
-import { useStickyFlag } from "@/lib/useStickyFlag";
-import { useStickyLanguage } from "@/lib/useStickyLanguage";
-import { newestSpeakableLine, useLiveTranslation } from "@/lib/useLiveTranslation";
-import { useTranscription } from "@/lib/useTranscription";
+import { useAutoSpeak, useSharedSpeech } from "@/lib/hooks/SpeechProvider";
+import { useSpeakerCorrection } from "@/lib/hooks/useSpeakerCorrection";
+import { useStickyFlag } from "@/lib/hooks/useStickyFlag";
+import { useStickyLanguage } from "@/lib/hooks/useStickyLanguage";
+import { newestSpeakableLine, useLiveTranslation } from "@/lib/hooks/useLiveTranslation";
+import { useTranscription } from "@/lib/hooks/useTranscription";
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8000";
 

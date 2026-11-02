@@ -5,7 +5,7 @@ import Button from "@/components/ui/Button";
 import GlassCard from "@/components/ui/GlassCard";
 import { networkError } from "@/lib/networkError";
 import { METRIC_NOUN, type Metric, type Tier, formatDate } from "@/lib/plans";
-import { useSubscription } from "@/lib/useSubscription";
+import { useSubscription } from "@/lib/hooks/useSubscription";
 
 /**
  * Wraps a paid feature.

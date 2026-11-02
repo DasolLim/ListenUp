@@ -1,6 +1,6 @@
 import SpeakButton from "@/components/speech/SpeakButton";
 import UnverifiedTag from "@/components/ui/UnverifiedTag";
-import type { SlangNote } from "@/lib/useLiveTranslation";
+import type { SlangNote } from "@/lib/hooks/useLiveTranslation";
 
 const tints = [
   "var(--speaker-1)",

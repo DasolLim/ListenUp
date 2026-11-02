@@ -5,7 +5,7 @@ import {
   SHAPE_LIMITS,
   supportsDimension,
   type VoiceShape,
-} from "@/lib/useSpeech";
+} from "@/lib/hooks/useSpeech";
 
 type Limits = typeof SHAPE_LIMITS;
 

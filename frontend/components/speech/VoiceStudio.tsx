@@ -2,13 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { authHeader } from "@/lib/auth/token";
-import { usePcmRecorder } from "@/lib/usePcmRecorder";
+import { usePcmRecorder } from "@/lib/hooks/usePcmRecorder";
 import { MicIcon } from "@/components/shell/icons";
 import Button from "@/components/ui/Button";
 import SpeakButton from "@/components/speech/SpeakButton";
 import VoiceShaper from "@/components/speech/VoiceShaper";
-import { SHAPE_LIMITS } from "@/lib/useSpeech";
-import { SpeechProvider, useSharedSpeech } from "@/lib/SpeechProvider";
+import { SHAPE_LIMITS } from "@/lib/hooks/useSpeech";
+import { SpeechProvider, useSharedSpeech } from "@/lib/hooks/SpeechProvider";
 import { networkError } from "@/lib/networkError";
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8000";

@@ -1,4 +1,4 @@
-import type { CaptionSegment } from "@/lib/useTranscription";
+import type { CaptionSegment } from "@/lib/hooks/useTranscription";
 
 /**
  * Turn grouping for a live transcript, shared by every surface that renders one.

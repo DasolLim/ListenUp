@@ -1,5 +1,5 @@
 import { type ReactNode } from "react";
-import Reveal from "@/components/Reveal";
+import Reveal from "@/components/shell/Reveal";
 
 /**
  * Marketing section wrapper: one consistent max width (1120px) and vertical

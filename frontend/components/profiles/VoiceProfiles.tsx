@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { authHeader, isAuthConfigured } from "@/lib/auth/token";
-import { usePcmRecorder } from "@/lib/usePcmRecorder";
+import { usePcmRecorder } from "@/lib/hooks/usePcmRecorder";
 import { MicIcon } from "@/components/shell/icons";
 import Button from "@/components/ui/Button";
 import GlassCard from "@/components/ui/GlassCard";

@@ -41,7 +41,7 @@ export function chunkSamplesFor(rate: number): number {
  *
  * Linear is enough here and a filter bank is not worth its weight: speech
  * content sits far below the 8 kHz Nyquist limit of the target rate, and the
- * recogniser is trained on telephone-grade audio. `PLAN_MOBILE_APP.md` says
+ * recogniser is trained on telephone-grade audio. `docs/plans/PLAN_MOBILE_APP.md` says
  * this explicitly — do not add a DSP library for this.
  *
  * Already at the target rate, the input is returned untouched rather than
