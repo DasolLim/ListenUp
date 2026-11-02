@@ -21,7 +21,7 @@ from services.assemblyai.base import TranscriptSegment
 from services.speaker_id import get_speaker_embedder
 from services.speaker_id.matcher import Profile, SpeakerMatcher
 
-FIXTURES = Path(__file__).parent.parent / "services" / "speaker_id" / "fixtures"
+FIXTURES = Path(__file__).parents[2] / "services" / "speaker_id" / "fixtures"
 SR = 16000
 
 # Three synthetic voices, distinct in formant structure (the thing that makes

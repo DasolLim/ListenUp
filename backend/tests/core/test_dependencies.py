@@ -25,7 +25,7 @@ import sys
 from importlib.metadata import packages_distributions
 from pathlib import Path
 
-BACKEND = Path(__file__).resolve().parents[1]
+BACKEND = Path(__file__).resolve().parents[2]
 SOURCE_DIRS = ("app", "services")
 REQUIREMENTS = ("requirements.txt", "requirements-ml.txt", "requirements-dev.txt")
 

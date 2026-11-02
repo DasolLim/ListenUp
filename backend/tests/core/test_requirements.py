@@ -21,7 +21,7 @@ from pathlib import Path
 import pytest
 from packaging.requirements import Requirement
 
-REQUIREMENTS = Path(__file__).resolve().parents[1] / "requirements-ml.txt"
+REQUIREMENTS = Path(__file__).resolve().parents[2] / "requirements-ml.txt"
 
 
 def pins() -> list[Requirement]:

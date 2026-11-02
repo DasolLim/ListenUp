@@ -29,8 +29,8 @@ from app.plans import PLANS
 from app.routes.billing import Caller
 from app.session_clock import SessionClock
 from app.usage import EMPTY, Usage
+from tests.captions.test_ws_transcribe import wav_chunks
 from tests.conftest import TEST_USER
-from tests.test_ws_transcribe import wav_chunks
 
 client = TestClient(app)
 

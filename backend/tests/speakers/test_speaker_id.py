@@ -7,7 +7,7 @@ from services.assemblyai.base import AudioFormatError
 from services.speaker_id import EMBEDDING_DIM, cosine_similarity, get_speaker_embedder
 from services.speaker_id.mock import MockSpeakerEmbedder
 
-FIXTURES = Path(__file__).parent.parent / "services" / "speaker_id" / "fixtures"
+FIXTURES = Path(__file__).parents[2] / "services" / "speaker_id" / "fixtures"
 
 
 def pcm(name: str) -> bytes:

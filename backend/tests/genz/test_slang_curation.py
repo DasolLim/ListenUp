@@ -298,7 +298,7 @@ def test_no_request_path_imports_the_curation_module():
     import re
     from pathlib import Path
 
-    backend = Path(__file__).resolve().parent.parent
+    backend = Path(__file__).resolve().parents[2]
     # An actual import, not the word "curation" in a comment — the first version
     # of this test flagged four files that merely discuss it.
     imports = re.compile(

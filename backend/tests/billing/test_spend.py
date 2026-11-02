@@ -146,7 +146,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 
 from app import spend  # noqa: E402
 from app.main import app  # noqa: E402
-from tests.test_ws_transcribe import wav_chunks  # noqa: E402
+from tests.captions.test_ws_transcribe import wav_chunks  # noqa: E402
 
 client = TestClient(app)
 
