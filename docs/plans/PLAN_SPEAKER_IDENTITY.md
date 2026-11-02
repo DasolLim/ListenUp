@@ -75,7 +75,7 @@ naming channel "for latency"; it is not needed and would be scope.
 - **Wrong name > no name is inverted here**: a wrong name is worse
   (INTRODUCTION §5.7). When a change trades split-risk against merge-risk,
   prefer the split — it is visible and correctable; a merge is neither.
-- **Append a dated entry to the Decisions Log in `CLAUDE.md`** when a task lands,
+- **Append a dated entry to the Decisions Log in `docs/logs/DECISIONS.md`** when a task lands,
   stating what was *measured*, not just what was built.
 - **No adjacent refactors.** Each diff should read as one change.
 
@@ -188,7 +188,7 @@ Output: one row per scenario, plus a total. Write results to
 
 - `pytest` green (451 + new metric tests).
 - Both eval modes run end to end without a live API call.
-- A **baseline table is committed** to `CLAUDE.md`'s decisions log with real
+- A **baseline table is committed** to the decisions log (`docs/logs/DECISIONS.md`) with real
   ECAPA numbers for all 8 scenarios.
 - The baseline explicitly records `merge rate = 0`; if it is not 0, stop and fix
   that before any further task.

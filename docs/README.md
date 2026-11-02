@@ -1,7 +1,10 @@
 # ListenUp docs
 
-All non-code documentation. `CLAUDE.md` (rules + decisions log) and `README.md`
-(how to run it) stay at the repo root; everything else lives here.
+All non-code documentation. Only `CLAUDE.md` (working rules) and `README.md` (how
+to run it) stay at the repo root; everything else lives here. New docs go in the
+folder whose question they answer — *what and why* (product), *how it looks*
+(design), *what to build next* (phases, plans), *how to ship it* (deploy), *what
+happened* (logs), *one external tool* (integrations).
 
 ## product/ — what we're building and why
 
@@ -40,10 +43,17 @@ All non-code documentation. `CLAUDE.md` (rules + decisions log) and `README.md`
 | [PLAN_MOBILE_APP.md](plans/PLAN_MOBILE_APP.md) | Mobile app plan. |
 | [MIGRATION_PLAN.md](plans/MIGRATION_PLAN.md) | Supabase Auth → Clerk cutover (§2). |
 
+## deploy/ — shipping it
+
+| File | What it holds |
+|---|---|
+| [DEPLOY.md](deploy/DEPLOY.md) | Backend hosting checklist: Redis, the container host, every env var, post-deploy checks. Blueprint is `render.yaml` at the repo root; Railway config is `backend/railway.json`. |
+
 ## logs/ — what actually happened
 
 | File | What it holds |
 |---|---|
+| [DECISIONS.md](logs/DECISIONS.md) | The decisions log — dated, newest first, the *why* behind the code. Append here when a decision lands. |
 | [DEBUG_LOG.md](logs/DEBUG_LOG.md) | Unexpected errors and their resolutions, across the whole project. |
 | [MOBILE_APP_LOG.md](logs/MOBILE_APP_LOG.md) | Per-task record for the mobile work. |
 | [error_fixed.md](logs/error_fixed.md) | Phases 0–5 debugging *method*, not the ledger. |

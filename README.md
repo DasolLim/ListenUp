@@ -33,10 +33,21 @@ Requires `frontend/.env.local` with `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_
 cd backend
 python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt
 ./run.sh           # http://localhost:8000 — /health, /ws/echo
-.venv/bin/ruff check . && .venv/bin/mypy app && .venv/bin/python -m pytest
 ```
 
-CI (GitHub Actions) runs all of the above on push/PR.
+From the repo root, `make check` runs types, lint and unit tests across both stacks on
+mocks (~20s), and `make e2e` runs the browser loop. `make help` lists the rest. CI
+(GitHub Actions) runs the same checks on push/PR. Deploying the backend:
+[`docs/deploy/DEPLOY.md`](docs/deploy/DEPLOY.md).
+
+## Layout
+
+```
+frontend/   Next.js app — app/ routes, components/ by feature, lib/ pure logic, lib/hooks/ React
+backend/    FastAPI — app/ (+ routes/), services/ (one per external tool, each with a mock),
+            db/migrations/, scripts/ (eval harnesses), tests/ (by domain)
+docs/       everything non-code, indexed in docs/README.md
+```
 
 ## Documentation
 
@@ -50,7 +61,7 @@ Everything non-code lives in [`docs/`](docs/README.md) — that index lists the 
 ## Conventions
 
 - One phase, one step at a time; every step must pass its **Verification Gate** (run, not just compile) per INTRODUCTION §8.
-- `CLAUDE.md` — living rules + decisions log. [`docs/logs/DEBUG_LOG.md`](docs/logs/DEBUG_LOG.md) — unexpected errors and fixes.
+- `CLAUDE.md` — living rules; [`docs/logs/DECISIONS.md`](docs/logs/DECISIONS.md) — why things are the way they are. [`docs/logs/DEBUG_LOG.md`](docs/logs/DEBUG_LOG.md) — unexpected errors and fixes.
 - Every external API (AssemblyAI, Google, OpenRouter) gets a mock so features build/test without burning credits.
 - Accessibility failures are build-breaking: WCAG 2.1 AA, keyboard nav, high-contrast mode, caption font scaling.
 

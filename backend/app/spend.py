@@ -22,7 +22,7 @@ an hour.
 `numReplicas: 1` (see `backend/railway.json`) and wrong above it — two instances
 would each allow the full ceiling. Sharing it needs Redis and a story for what
 happens when Redis is down; until there is a second replica that is speculative
-work. `infra/README.md` says to divide the ceiling if you scale out.
+work. `docs/deploy/DEPLOY.md` says to divide the ceiling if you scale out.
 """
 
 import logging

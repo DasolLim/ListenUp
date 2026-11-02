@@ -180,7 +180,7 @@ Delivered: `backend/Dockerfile` (CPU-only torch wheels — the default PyPI torc
 pulls the whole CUDA runtime, over a gigabyte this app can never use — with
 dependency layers before `app/` so a code push reuses them, and the ECAPA
 weights baked in at build), `backend/.dockerignore`, `backend/railway.json`,
-and `infra/README.md` as the deploy checklist.
+and `docs/deploy/DEPLOY.md` as the deploy checklist.
 
 One thing was buildable here and was built test-first: **`app/preflight.py`
 refuses to start a production deploy that is missing configuration.** Every
@@ -195,7 +195,7 @@ tests.
 1. Railway project, root directory set to `backend/`, **≥2 GB memory** (torch +
    model is 1–1.5 GB resident; 512 MB OOMs as a restart loop).
 2. Upstash Redis → `REDIS_URL`.
-3. The env vars in `infra/README.md` §3.
+3. The env vars in `docs/deploy/DEPLOY.md` §3.
 4. **Google Translation auth.** Local dev uses `gcloud` ADC because the org
    policy blocks service-account key files (decisions log 2026-07-17). ADC does
    not exist in a container. This is the one credential that cannot be pasted
@@ -500,7 +500,7 @@ ignored (5 fail) · `IconButton` at 40x40 (1 fail) · the inline hit area remove
 
 ### Original specification
 
-**Known defect** (`CLAUDE.md`, 2026-08-14): on a 390×844 phone the caption
+**Known defect** (`docs/logs/DECISIONS.md`, 2026-08-14): on a 390×844 phone the caption
 pane's bottom edge sits at 1010px — **166px below the fold** — so a phone user
 must scroll before the "newest line never moves" guarantee takes over. Tablet
 and desktop are clear. The recorded fix is "collapsing chrome while a session

@@ -8,7 +8,7 @@ Appended to after each task. `../plans/PLAN_MOBILE_APP.md` carries a one-line ve
 task; the detail lives here.
 
 **Related:** `DEBUG_LOG.md` (unexpected errors across the whole project),
-`CLAUDE.md` Decisions Log (why things are the way they are).
+`docs/logs/DECISIONS.md` (why things are the way they are).
 
 ---
 
@@ -64,7 +64,7 @@ Ordered by what blocks the most.
    `hello@listenup.app` are published on the legal pages and do not exist.
 7. **Sentry DSNs** — `SENTRY_DSN` (backend) and `NEXT_PUBLIC_SENTRY_DSN`
    (frontend). Both stacks are wired and inert without them.
-8. **The remaining env vars** in `infra/README.md` §3.
+8. **The remaining env vars** in `docs/deploy/DEPLOY.md` §3.
 9. **Docker**, if you want to verify the image before pushing — see *Tool setup*
    below. Optional; Railway builds server-side either way.
 10. **A throwaway Supabase test user** (`E2E_EMAIL` / `E2E_PASSWORD`) so the
@@ -303,7 +303,7 @@ exists to avoid. The ceiling closes the loop by refusing the next session.
 ### Not implemented / blocked
 `DAILY_SPEND_CEILING_USD` and both Sentry DSNs are yours to set. Also: **the
 ledger is in-process**, which is correct at `numReplicas: 1` and wrong above it —
-two instances would each allow the full ceiling. `infra/README.md` says to
+two instances would each allow the full ceiling. `docs/deploy/DEPLOY.md` says to
 divide if you scale out.
 
 ### Test failures and errors hit

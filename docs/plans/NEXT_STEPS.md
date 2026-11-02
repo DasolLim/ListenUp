@@ -23,7 +23,7 @@ with data instead of opinion.
   metering, retrieval, or timing failure degrades the feature and logs loudly,
   it never refuses to caption. Someone may be using this to follow a medical
   appointment.
-- **Append a dated entry to the Decisions Log in `CLAUDE.md`** when a task lands,
+- **Append a dated entry to the Decisions Log in `docs/logs/DECISIONS.md`** when a task lands,
   stating what was measured, not just what was built.
 - **Do not** refactor adjacent code, rename files, or "tidy" while in there.
   Diffs should read as one change.

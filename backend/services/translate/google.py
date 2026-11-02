@@ -1,7 +1,7 @@
 """Real Google Cloud Translation v3 (translateText), authed via ADC.
 
 Local dev: `gcloud auth application-default login` (org policy blocks
-service-account keys — see CLAUDE.md 2026-07-17). Tokens are refreshed and
+service-account keys — see docs/logs/DECISIONS.md 2026-07-17). Tokens are refreshed and
 cached; calls go through httpx, no heavy client library.
 """
 

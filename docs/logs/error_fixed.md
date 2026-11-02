@@ -14,7 +14,7 @@
   - Static gates pass: `ruff` · `pytest` · `tsc --noEmit` · `eslint` · `next build`.
   - Step's **Verification Gate** passes. A red gate blocks advancement — no exceptions.
   - Accessibility check where UI changed (axe, both contrast modes). A11y failures are **build-breaking**, not backlog items.
-  - Defect + resolution appended to `DEBUG_LOG.md`; decision rationale to `CLAUDE.md`.
+  - Defect + resolution appended to `DEBUG_LOG.md`; decision rationale to `docs/logs/DECISIONS.md`.
 - **Escalation rule:** stop after **2 failed attempts** on the same error; re-derive root cause instead of iterating blindly.
 - **Regression policy:** every field-reported bug becomes a **failing test first**, then a fix.
 
