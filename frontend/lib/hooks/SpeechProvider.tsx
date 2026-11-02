@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useRef, type ReactNode } from "react";
-import { useSpeech } from "@/lib/useSpeech";
+import { useSpeech } from "@/lib/hooks/useSpeech";
 
 type Speech = ReturnType<typeof useSpeech>;
 

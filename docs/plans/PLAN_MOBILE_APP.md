@@ -122,7 +122,7 @@ and no purchase surface, and add IAP once you know people use it.
 
 ### 2. iOS may refuse your audio pipeline
 
-`lib/usePcmRecorder.ts:38` does `new AudioContext({ sampleRate: 16000 })`.
+`lib/hooks/usePcmRecorder.ts:38` does `new AudioContext({ sampleRate: 16000 })`.
 iOS Safari and WKWebView have a long history of ignoring this and giving you
 the hardware rate (44,100 or 48,000 Hz). The whole pipeline — the worklet, the
 socket frames, AssemblyAI's declared rate, `embedder.embed(pcm, 16000)` —

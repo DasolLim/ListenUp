@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import AuthForm from "@/components/AuthForm";
+import AuthForm from "@/components/auth/AuthForm";
 import Orb from "@/components/ui/Orb";
 
 export const metadata: Metadata = { title: "Log in — ListenUp" };

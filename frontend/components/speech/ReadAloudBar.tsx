@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import SpeakButton from "@/components/speech/SpeakButton";
-import { type Voice } from "@/lib/useSpeech";
+import { type Voice } from "@/lib/hooks/useSpeech";
 
 /**
  * Read-aloud control attached to a *result*, not to the input.

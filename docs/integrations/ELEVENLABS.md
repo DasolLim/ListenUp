@@ -24,7 +24,7 @@ Compare them side by side on the same Korean sentence before spending anything.
 
 **This is a prerequisite, not a nice-to-have.**
 
-`auto-speak defaults ON` (`lib/useSpeech.ts`), and live captions speak **every new final translation**. On a character-billed provider that means a conversation bills continuously:
+`auto-speak defaults ON` (`lib/hooks/useSpeech.ts`), and live captions speak **every new final translation**. On a character-billed provider that means a conversation bills continuously:
 
 ```
 conversation speech ≈ 870 characters/minute of translated output

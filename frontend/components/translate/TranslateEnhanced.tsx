@@ -5,12 +5,12 @@ import Button from "@/components/ui/Button";
 import ReadAloudBar from "@/components/speech/ReadAloudBar";
 import TranslateShell from "@/components/translate/TranslateShell";
 import VoiceConversation from "@/components/translate/VoiceConversation";
-import { SpeechProvider, useAutoSpeak, useSharedSpeech } from "@/lib/SpeechProvider";
-import { useStickyLanguage } from "@/lib/useStickyLanguage";
+import { SpeechProvider, useAutoSpeak, useSharedSpeech } from "@/lib/hooks/SpeechProvider";
+import { useStickyLanguage } from "@/lib/hooks/useStickyLanguage";
 import Pill from "@/components/ui/Pill";
 import { postJson } from "@/lib/api";
 import UnverifiedTag from "@/components/ui/UnverifiedTag";
-import type { SlangNote } from "@/lib/useLiveTranslation";
+import type { SlangNote } from "@/lib/hooks/useLiveTranslation";
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8000";
 

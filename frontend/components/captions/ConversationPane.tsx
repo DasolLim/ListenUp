@@ -4,11 +4,11 @@ import { useState, type ReactNode } from "react";
 import SpeakerBubble from "@/components/captions/SpeakerBubble";
 import SpeakerName from "@/components/captions/SpeakerName";
 import SpeakerNamingNudge from "@/components/captions/SpeakerNamingNudge";
-import { useSharedSpeech } from "@/lib/SpeechProvider";
+import { useSharedSpeech } from "@/lib/hooks/SpeechProvider";
 import type { CaptionSegment } from "@/lib/captionStream";
 import type { LiveTranslation } from "@/lib/translationMerge";
 import { RAILS, identityColor, linePosition, stamp, turnGroups } from "@/lib/turnGroups";
-import { useChatScroll } from "@/lib/useChatScroll";
+import { useChatScroll } from "@/lib/hooks/useChatScroll";
 
 const NO_TRANSLATIONS: Record<string, LiveTranslation> = {};
 

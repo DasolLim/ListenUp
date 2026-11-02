@@ -1,7 +1,7 @@
 "use client";
 
 import SpeakButton from "@/components/speech/SpeakButton";
-import { type Voice } from "@/lib/useSpeech";
+import { type Voice } from "@/lib/hooks/useSpeech";
 
 const PREVIEW: Record<string, string> = {
   en: "Are you coming over for dinner on Sunday?",

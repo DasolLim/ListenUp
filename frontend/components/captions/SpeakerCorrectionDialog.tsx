@@ -1,6 +1,6 @@
 "use client";
 
-import type { ProfileOption } from "@/lib/useSpeakerCorrection";
+import type { ProfileOption } from "@/lib/hooks/useSpeakerCorrection";
 
 /**
  * "Who is Speaker 2?" — the enrolled people, plus an honest way out.

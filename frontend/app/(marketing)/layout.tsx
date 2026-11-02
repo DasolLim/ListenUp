@@ -1,4 +1,4 @@
-import Navbar from "@/components/Navbar";
+import Navbar from "@/components/shell/Navbar";
 import SiteFooter from "@/components/marketing/SiteFooter";
 
 export default function MarketingLayout({ children }: { children: React.ReactNode }) {

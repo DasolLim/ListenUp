@@ -6,7 +6,7 @@ import UsageMeter from "@/components/billing/UsageMeter";
 import GlassCard from "@/components/ui/GlassCard";
 import { networkError } from "@/lib/networkError";
 import { type Metric, formatDate, formatFullDate } from "@/lib/plans";
-import { useSubscription } from "@/lib/useSubscription";
+import { useSubscription } from "@/lib/hooks/useSubscription";
 
 // Order matters: captions first because it is the headline number people
 // understand, translated second because it is the real constraint.

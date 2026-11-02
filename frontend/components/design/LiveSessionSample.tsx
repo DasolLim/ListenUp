@@ -5,7 +5,7 @@ import ConversationPane from "@/components/captions/ConversationPane";
 import SessionHeader from "@/components/captions/SessionHeader";
 import Button from "@/components/ui/Button";
 import { PANE_HEIGHT_LIVE } from "@/lib/paneHeight";
-import { SpeechProvider } from "@/lib/SpeechProvider";
+import { SpeechProvider } from "@/lib/hooks/SpeechProvider";
 import { SEGMENTS, TRANSLATIONS } from "./ConversationPaneSample";
 
 /**

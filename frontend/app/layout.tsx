@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Inter, Poppins } from "next/font/google";
-import A11yBar from "@/components/A11yBar";
+import A11yBar from "@/components/shell/A11yBar";
 import "./globals.css";
 
 const poppins = Poppins({

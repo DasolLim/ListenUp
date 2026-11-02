@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import Button from "@/components/ui/Button";
 import SpeakButton from "@/components/speech/SpeakButton";
-import { SpeechProvider, useSharedSpeech } from "@/lib/SpeechProvider";
+import { SpeechProvider, useSharedSpeech } from "@/lib/hooks/SpeechProvider";
 import { postJson } from "@/lib/api";
 import { networkError } from "@/lib/networkError";
 import GlassCard from "@/components/ui/GlassCard";

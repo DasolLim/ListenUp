@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import ConversationPane from "@/components/captions/ConversationPane";
-import { SpeechProvider } from "@/lib/SpeechProvider";
+import { SpeechProvider } from "@/lib/hooks/SpeechProvider";
 import type { CaptionSegment } from "@/lib/captionStream";
 import type { LiveTranslation } from "@/lib/translationMerge";
 
